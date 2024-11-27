@@ -29,17 +29,13 @@ library(pxweb)
 library(RSelenium)
 library(netstat)
 
-data <- pxweb_get("https://api.scb.se/OV0104/v1/doris/en/ssd/START/FM/FM0401/FM0401X/MFIM1")
+## 1. Scrape list of all banks ----------------------------------------------------
 
-
-
-
-## Scrape list of all banks ----------------------------------------------------
-
+# Link of swedish data on monetary financial institutions
 url <- "https://www.statistikdatabasen.scb.se/pxweb/en/ssd/START__FM__FM0401__FM0401X/MFIM1/"
-
 page <- read_html(url)
 
+# Scrape list of bank values
 bank_data <- page |>
   html_nodes("#ctl00_ContentPlaceHolderMain_VariableSelector1_VariableSelector1_VariableSelectorValueSelectRepeater_ctl02_VariableValueSelect_VariableValueSelect_ValuesListBox option") |>
   html_attrs() |>
@@ -47,20 +43,20 @@ bank_data <- page |>
   bind_rows() |>
   as.data.frame()
 
+# Scrape list of bank names
 bank_names <- page |> 
   html_nodes("#ctl00_ContentPlaceHolderMain_VariableSelector1_VariableSelector1_VariableSelectorValueSelectRepeater_ctl02_VariableValueSelect_VariableValueSelect_ValuesListBox option") |>
   html_text() |> 
   as.data.frame()
 
-
+# Create combined list
 bank_data <- cbind(bank_data, bank_names)
-
 colnames(bank_data) <- c("bank_value","bank_name")
 
 # Clean bank names
 replacements <- c("ä" = "ae", "ü" = "ue", "ö" = "oe", "å" = "aa")
-
-bank_data <-  bank_data |> 
+bank_data <-  bank_data |>
+  mutate(institution = bank_name) |> 
   mutate(bank_name = str_replace_all(bank_name, " ", "_"),
          bank_name = str_to_lower(bank_name),
          bank_name = str_replace_all(bank_name, ",", ""), 
@@ -73,12 +69,12 @@ bank_data <-  bank_data |>
          )
 
 
-# Scrape list of all possible items --------------------------------------------
+# 02. Scrape list of months ----------------------------------------------------
 options <- page |> 
   html_nodes("#ctl00_ContentPlaceHolderMain_VariableSelector1_VariableSelector1_VariableSelectorValueSelectRepeater_ctl03_VariableValueSelect_VariableValueSelect_ValuesSelectPanel") |> 
   html_text()
 
-# Isolate all year 
+# Isolate all months 
 months <- page |> 
   html_elements("option") |> 
   html_text() |> 
@@ -91,6 +87,7 @@ colnames(months) <- "months"
 
 months_vector <- c(months$months)
 
+# 03. WIP on getting all variables avaialble -----------------------------------
 response <- POST(
   url = url,
   body = list(
@@ -106,7 +103,7 @@ parsed_page <- html_content |>
   html_text(trim = TRUE)
 
 
-
+# 04. Scraping Bank Data via API -----------------------------------------------
 
 url_api <- "https://api.scb.se/OV0104/v1/doris/en/ssd/START/FM/FM0401/FM0401X/MFIM1"
 
@@ -261,24 +258,28 @@ SAVE(dfx = get(paste0("data_", x)),namex = paste0("swedish_data_", bank_data$ban
 
 })
 
-# Create main dataset on banking level
+# 05. Creating Dataset on Swedish Banks ----------------------------------------
 
-bank_files <- list.files(paste0(A, "e_sweden/"))
+# List all files from API 
+bank_files <- list.files(paste0(A, "e_sweden/temp/"))
 bank_names <- bank_data |> 
   filter(!str_detect(bank_value, "^S")) |> 
   filter(!str_detect(bank_value, "^s"))
 
+# Only 
 bank_list <- bank_files |> 
   as.data.frame() |> 
   filter(str_sub(bank_files,start = 14, end = -5) %in% bank_names$bank_name)
 
+# Get banking list as vector
 bank_list <- bank_list$bank_files
 
+# Initiate Swedish Banking List
 swedish_banks <- list()
 
 # Loop through each file, load it, and extract the data frame
 for (file in bank_list) {
-  # file <- bank_list[1]
+
   data <- LOAD(dfinput = str_sub(file, end = -5), pattdir = paste0(A, "e_sweden/temp/"))
   
   # Assuming each .rda file has only one data frame
@@ -291,6 +292,7 @@ for (file in bank_list) {
   print(paste0("Finished: ", file))
 }
 
+# Giving each df the same column names
 names <- c(
   "institution", 
   "item", 
@@ -311,15 +313,46 @@ swedish_banks <- bind_rows(swedish_banks)
 # Clean Item Variable
 df_swedish_banks <- swedish_banks |> 
   mutate(item_id = paste0("ID_", str_extract(item, "^[^ ]+")),
-         item_label = str_remove(item, "^[^ ]+\\s")
-  ) |> 
-  mutate(item_label = item_label |> 
+         item_label = str_remove(item, "^[^ ]+\\s") |> 
            str_trim() |> 
            str_replace_all(" ", "_") |> 
            str_to_lower() |> 
            str_replace_all(",", "") |> 
            str_replace_all("\\.", "")
-         )
+         ) |> 
+  mutate(currency = currency |> 
+           str_replace_all(" ", "_") |> 
+           str_to_lower()) |> 
+  mutate(time = paste0(str_sub(month, start = 1, end = 4),
+                        "-",
+                        str_sub(month, start = 6, end = 7),
+                        "-01")) 
+
+df_swedish_banks <- df_swedish_banks |> 
+  left_join(bank_data, by = c("institution")) |> 
+  select(institution, bank_name, bank_value, time, item_id, item_label, currency, value_in_mill)
+  
+
+# Save raw dataset
+SAVE(dfx = df_swedish_banks, namex = "df_swedish_banks_raw", pattdir = paste0(A, "e_sweden/"))
 
 
-# test
+
+df_swedish_banks <- df_swedish_banks |> 
+  select(bank_name, time, item_label, currency, value_in_mill) |> 
+  filter(currency == "sek") |> 
+  select(-currency)
+
+df_swedish_banks <- df_swedish_banks |> 
+  pivot_wider(names_from = item_label, values_from = value_in_mill)
+
+test <- df_swedish_banks |> 
+  group_by(bank_name) |> 
+  summarize(all_present_values = all(!is.na("lending_swe_housing_credit_institutions"))) |> 
+  filter(all_present_values == TRUE) |> 
+  count()
+
+
+
+
+
