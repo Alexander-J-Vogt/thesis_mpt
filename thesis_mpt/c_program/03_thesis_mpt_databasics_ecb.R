@@ -137,24 +137,6 @@ df_mfi_q <- df_mfi |>
   mutate(quarter_date = lubridate::yq(quarter), .after = "quarter") |> 
   arrange(country, quarter)
   
-  
-
-
-list <- df_mfi |> 
-  distinct(country, month, currency)
-
-
-sapply(colnames(df_mfi)[-c(1, 13, 33, 34)], function(x){
-  table(df_mfi[[x]])
-})
-
-# check
-df_mfi |> 
-  dplyr::group_by(!!!syms(colnames(df_mfi))) %>%
-  dplyr::summarise(n = dplyr::n(), .groups = "drop") %>%
-  dplyr::filter(n > 1L) |> 
-  # ungroup() |> 
-  head()
 
 df_mfi |> 
   group_by(across(-DATA_TYPE_MIR)) |> 
@@ -187,17 +169,6 @@ missings <- df_mfi |>
   group_by(year) |> 
   summarise(across(-Column, ~ sum(.), .names = "total_missing_{.col}"), .groups = "drop")
 
-
-
-
-
-
-lapply(colnames(df_mfi)[-c(1:2)], function(x) {
-  cat("\nSummary for column:", x, "\n")
-  print(summary(df_mfi[[x]]))
-})
-
-sapply(colna)
 
 
 
