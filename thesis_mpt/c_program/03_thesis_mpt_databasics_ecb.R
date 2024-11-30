@@ -116,8 +116,27 @@ df_mfi <- df_mfi_raw |>
   filter(currency == "EUR") |> 
   select(-currency) |> 
   mutate(across(-c(1:2), as.numeric)) |> 
-  mutate(month = paste0(month, "-01"))
+  mutate(month = as.Date(paste0(month, "-01")))
 
+# Filter for years, where countries were actually part of the Eurozone
+df_mfi <- df_mfi |> 
+  filter(!(country == "GR" & month < as.Date("2001-01-01"))) |> # Filter for years with GR being part of the Eurozone
+  filter(!(country == "SI" & month < as.Date("2007-01-01"))) |> # Filter for year with SI being part of the Eurozone
+  filter(!(country == "SK" & month < as.Date("2009-01-01"))) |> # Filter for years with SK being part of the Eurozone
+  filter(month < as.Date("2024-01-01"))
+
+# Create quarterly data 
+df_mfi_q <- df_mfi |> 
+  mutate(quarter = paste0(year(month), "-Q", quarter(month)), .after = "month") |> 
+  group_by(country, quarter) |> 
+  mutate(across(-c(1:2), ~ mean(.x, na.rm = TRUE), .names = "Q_{.col}")) |> 
+  select(-month) |> 
+  select(country, quarter, starts_with("Q_")) |> 
+  distinct(country, quarter, .keep_all = TRUE) |> 
+  rename_with(~ sub("^Q_", "", .), starts_with("Q_")) |> 
+  mutate(quarter_date = lubridate::yq(quarter), .after = "quarter") |> 
+  arrange(country, quarter)
+  
   
 
 
@@ -128,21 +147,6 @@ list <- df_mfi |>
 sapply(colnames(df_mfi)[-c(1, 13, 33, 34)], function(x){
   table(df_mfi[[x]])
 })
-  
-
-table(df_mfi$BS_ITEM, df_mfi$MATURITY_NOT_IRATE)
-table(df_mfi$BS_ITEM, df_mfi$DATA_TYPE_MIR) 
-table(df_mfi$BS_ITEM, df_mfi$CURRENCY_TRANS)
-
-table(df_mfi$BS_ITEM, df_mfi$COLLECTION)
-table(df_mfi$BS_ITEM, df_mfi$OBS_PRE_BREAK) 
-table(df_mfi$BS_ITEM, df_mfi$OBS_STATUS)
-table(df_mfi$BS_ITEM, df_mfi$OBS_CONF)
-
-
-table(df_mfi$item_descr, df_mfi$IR_BUS_COV)
-table(df_mfi$item_descr, df_mfi$BS_COUNT_SECTOR) 
-table(df_mfi$item_descr, df_mfi$CURRENCY_TRANS) 
 
 # check
 df_mfi |> 
@@ -160,6 +164,41 @@ df_mfi |>
 df_mfi |> 
   summarise(across(-c(1:4), ~ sum(is.na(.)), .names = "missing_{col}")) |> 
   pivot_longer(everything(), names_to = "Column", values_to = "Missing_Count")
+
+df_mfi_q |> 
+  group_by(country) |> 
+  summarise(across(-c(1:4), ~ sum(is.na(.)), .names = "missing_{.col}")) |> 
+  pivot_longer(-country, names_to = "Column", values_to = "Missing_Count") |>
+  pivot_wider(names_from = country, values_from = Missing_Count)
+
+df_mfi_q |> 
+  mutate(year = year(quarter)) |> 
+  group_by(country, year) |> 
+  summarise(across(-c(country, month, year), ~ sum(is.na(.)), .names = "missing_{.col}"), .groups = "drop") |> 
+  pivot_longer(-c(country, year), names_to = "Column", values_to = "Missing_Count") |> 
+  pivot_wider(names_from = country, values_from = "Missing_Count")
+
+missings <- df_mfi |> 
+  mutate(year = year(month), .after = "month") |> 
+  group_by(country, year) |> 
+  summarise(across(where(is.numeric), ~ sum(is.na(.)), .names = "missing_{.col}"), .groups = "drop") |> 
+  pivot_longer(-c(country, year), names_to = "Column", values_to = "Missing_Count") |> 
+  pivot_wider(names_from = country, values_from = "Missing_Count") |> 
+  group_by(year) |> 
+  summarise(across(-Column, ~ sum(.), .names = "total_missing_{.col}"), .groups = "drop")
+
+
+
+
+
+
+lapply(colnames(df_mfi)[-c(1:2)], function(x) {
+  cat("\nSummary for column:", x, "\n")
+  print(summary(df_mfi[[x]]))
+})
+
+sapply(colna)
+
 
 
 ###############################################################################+
