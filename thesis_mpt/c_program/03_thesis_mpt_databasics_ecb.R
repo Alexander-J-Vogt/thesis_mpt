@@ -212,9 +212,9 @@ df_bsi_l20 <- df_bsi |>
   filter(COUNT_AREA == "U6") |> # Concentrate on Domestic Area and not EU Changing Composition (U2)
   filter(BS_COUNT_SECTOR == "2250") |> # Interested in Households and non-profit institutions serving households
   mutate(data_type = case_when(
-    DATA_TYPE == "1" ~ "hp_outst_amount_EUR", # Outstanding Amount at the end of the period (stocks)
-    DATA_TYPE == "4" ~ "hp_fin_transaction_EUR", # Financial Transactions
-    DATA_TYPE == "I" ~ "hp_index_notional_stocks_PPCH" # Index of Notional Stocks
+    DATA_TYPE == "1" ~ "dl_outst_amount_EUR", # Outstanding Amount at the end of the period (stocks)
+    DATA_TYPE == "4" ~ "dl_fin_transaction_EUR", # Financial Transactions
+    DATA_TYPE == "I" ~ "dl_index_notional_stocks_PPCH" # Index of Notional Stocks
   ), .after = DATA_TYPE) |> 
   select(c("REF_AREA", "TIME_PERIOD", "data_type", "OBS_VALUE")) |> 
   pivot_wider(names_from = "data_type",
@@ -222,7 +222,8 @@ df_bsi_l20 <- df_bsi |>
   mutate(month = as.Date(paste0(TIME_PERIOD, "-01")), .after = TIME_PERIOD) |>  # Format Date Variable
   mutate(across(c(4:6), as.integer)) |> 
   rename(country = REF_AREA) |> 
-  arrange(country, month)
+  arrange(country, month) |> 
+  select(-c("TIME_PERIOD"))
   
    
 # Filter for years, where countries were actually part of the Eurozone + Exclude the year 2014
@@ -236,14 +237,64 @@ df_bsi_l20 <- df_bsi_l20 |>
 
 # Create dataset for Total Assets / Liabilities and reshape into wide format
 df_bsi_t00 <- df_bsi |> 
-  filter(BS_ITEM == "T00") |> 
-  filter(FREQ == "M")
+  filter(BS_ITEM == "T00") |>
+  filter(FREQ == "M") |>  # Monthly Variable
+  filter(BS_REP_SECTOR == "A") |>  # MFI exld ESCB
+  mutate(data_type = case_when(
+    DATA_TYPE == "1" ~ "tl_outst_amount_EUR", # Outstanding Amount at the end of the period (stocks)
+    DATA_TYPE == "4" ~ "tl_fin_transaction_EUR", # Financial Transactions
+    DATA_TYPE == "I" ~ "tl_index_notional_stocks_PPCH" # Index of Notional Stocks
+  ), .after = DATA_TYPE) |> 
+  select(c("REF_AREA", "TIME_PERIOD", "data_type", "OBS_VALUE")) |>
+  pivot_wider(names_from = "data_type",
+              values_from = "OBS_VALUE"
+              ) |> 
+  mutate(month = as.Date(paste0(TIME_PERIOD, "-01")), .after = TIME_PERIOD) |>  # Format Date Variable
+  mutate(across(c(4:6), as.integer)) |> 
+  rename(country = REF_AREA) |> 
+  arrange(country, month) |> 
+  select(-c("TIME_PERIOD"))
+
+df_bsi_t00 <- df_bsi_t00 |> 
+  filter(month > as.Date("1999-09-01") & month < as.Date("2023-12-01")) |> 
+  filter(!(country == "GR" & month < as.Date("2001-01-01"))) |> # Filter for years with GR being part of the Eurozone
+  filter(!(country == "SI" & month < as.Date("2007-01-01"))) |> # Filter for year with SI being part of the Eurozone
+  filter(!(country == "SK" & month < as.Date("2009-01-01"))) # Filter for years with SK being part of the Eurozone
+
+## 04.4 Capital & Reserves -----------------------------------------------------
+
+# Create dataset for Capital & Reserves and reshape into wide format
+df_bsi_l60 <- df_bsi |> 
+  filter(BS_ITEM == "L60") |> 
+  filter(FREQ == "M") |>  # Monthly Variable
+  filter(BS_REP_SECTOR == "A") |> # Credit Institutions
+  mutate(data_type = case_when(
+    DATA_TYPE == "1" ~ "cr_outst_amount_EUR", # Outstanding Amount at the end of the period (stocks)
+    DATA_TYPE == "4" ~ "cr_fin_transaction_EUR", # Financial Transactions
+    DATA_TYPE == "I" ~ "cr_index_notional_stocks_PPCH" # Index of Notional Stocks
+  ), .after = DATA_TYPE) |>  # MFI exld ESCB
+  select(c("REF_AREA", "TIME_PERIOD", "data_type", "OBS_VALUE")) |>
+  pivot_wider(names_from = "data_type",
+              values_from = "OBS_VALUE"
+  ) |> 
+  mutate(month = as.Date(paste0(TIME_PERIOD, "-01")), .after = TIME_PERIOD) |>  # Format Date Variable
+  mutate(across(c(4:6), as.integer)) |> 
+  rename(country = REF_AREA) |> 
+  arrange(country, month) |> 
+  select(-c("TIME_PERIOD"))
+
+df_bsi_l60 <- df_bsi_l60 |> 
+  filter(month > as.Date("1999-01-01") & month < as.Date("2023-12-01")) |> 
+  filter(!(country == "GR" & month < as.Date("2001-01-01"))) |> # Filter for years with GR being part of the Eurozone
+  filter(!(country == "SI" & month < as.Date("2007-01-01"))) |> # Filter for year with SI being part of the Eurozone
+  filter(!(country == "SK" & month < as.Date("2009-01-01"))) # Filter for years with SK being part of the Eurozone
 
 
-View(df_bsi_l20)
 
-df_bsi_a22 |> 
-  filter(is.na(index_notional_stocks))
+View(df_bsi_t00)
+
+df_bsi_l60 |> 
+  filter(is.na(cr_fin_transaction_EUR))
 
   filter(BS_ITEM %in% c("A22", "T00", "L60", "L20")) 
 
@@ -254,10 +305,10 @@ df_bsi_m <- df_bsi |>
 df_bsi_q <- df_bsi |> 
   filter(FREQ == "Q")
 
-names <- colnames(df_bsi_t00)[-c(1, 14, 15, 33, 34, 35)]
+names <- colnames(df_bsi_l60)[-c(1, 14, 15, 33, 34, 35)]
 lapply(names, function(x) {
   cat(paste0("Variable: ", x))
-  print(table(df_bsi_t00[[x]]))
+  print(table(df_bsi_l60[[x]]))
   cat("\n")
 })
 
