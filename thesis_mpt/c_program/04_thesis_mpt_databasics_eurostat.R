@@ -214,3 +214,61 @@ df_gdp <- df_gdp |>
   ) |> 
   select(country, quarter, gdp_2010, gdp_2015)
 
+# 04. Unemployment Rate - monthly - Total ======================================
+
+# Import data
+df_ur_raw <- read_excel(
+  path = paste0(A, "c_eurostat/ei_lmhr_m_spreadsheet.xlsx"),
+  sheet = "Sheet 1",
+  range = cell_rows(10:48),
+  col_types = "text"
+)
+
+# Basic Cleaning of the data
+df_ur <- df_ur_raw |>
+  # Select the right time and country
+  select(-c(starts_with("..."))) |>
+  rename_with(~ paste0("month_", .), -1) |> 
+  filter(TIME %in% c("Austria",
+                     "Belgium",
+                     "Finland",
+                     "France",
+                     "Germany",
+                     "Greece",
+                     "Ireland",
+                     "Italy",
+                     "Netherlands",
+                     "Portugal",
+                     "Spain",
+                     "Slovenia",
+                     "Slovakia")) |> 
+  # Reshape into long format
+  pivot_longer(
+    cols = starts_with("month_"),
+    names_to = "month",
+    values_to = "ur"
+  ) |> 
+  mutate(ur = ifelse(ur == ":", NA, ur)) |> 
+  # Format variables + Standardize country variable
+  mutate(
+    month = as.Date(paste0(str_sub(month, start = 7), "-01")),
+    ur = as.numeric(ur), # Potentially rescaling to decimal instead of %
+    country = case_when(
+      TIME == "Austria" ~ "AT",
+      TIME == "Belgium" ~ "BE",
+      TIME == "Finland" ~ "FI",
+      TIME == "France" ~ "FR",
+      TIME == "Germany" ~ "DE",
+      TIME == "Greece" ~ "GR",
+      TIME == "Ireland" ~ "IE",
+      TIME == "Italy" ~ "IT",
+      TIME == "Netherlands" ~ "NL",
+      TIME == "Portugal" ~ "PT",
+      TIME == "Spain" ~ "ES",
+      TIME == "Slovenia" ~ "SI",
+      TIME == "Slovakia" ~ "SK"
+    )
+  ) |> 
+  select(country, month, ur) |> 
+  filter(month > as.Date("1999-12-01") & month < as.Date("2024-01-01"))
+
