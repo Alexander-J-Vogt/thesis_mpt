@@ -30,16 +30,22 @@ gc()
 files_sod <- list.files(paste0(A, "f_sod/"))
 files_sod <- files_sod[grepl("\\csv$",files_sod)]
 years <- as.numeric(str_extract(files_sod, "\\d{4}"))
-files_sod <- files_sod[years >= 1994 & years <= 2017]
+files_sod <- files_sod[years >= 1994 & years <= 2024]
 
 # Loop for importing all sod datasets from 1994 to 2024 
 for (i in files_sod) {
   print(paste0("Iteration Status: ", i))
-  file <- suppressMessages(read_csv(paste0(A, "f_sod/", i), , col_types = cols(.default = "c")))
   year <- str_sub(i, start = 5, end = 8)
-  SAVE(dfx = file, namex = paste0("sod_", year))
-  rm(file, year)
+  # file <- suppressMessages(read_csv(paste0(A, "f_sod/", i), , col_types = cols(.default = "c")))
+  # SAVE(dfx = file, namex = paste0("sod_", year))
+  # rm(file, year)
+  assign(
+    paste0("df_sod_", year),
+    read_csv(paste0(A, "f_sod/", i), , col_types = cols(.default = "c"))
+  )
 }
+
+
 
 ## 1.2 Append all raw SOD files ------------------------------------------------
 
@@ -47,34 +53,38 @@ for (i in files_sod) {
 # the years 1994 to 2024
 
 # Create vector with all names of SOD datasets
-sod_temp <- list.files(paste0(TEMP))
-sod_temp <- sod_temp[str_detect(sod_temp, "^sod")]
-years <- as.numeric(str_extract(sod_temp, "\\d{4}"))
-sod_temp <- sod_temp[years >= 1994 & years <= 2017]
-
+# sod_temp <- list.files(paste0(TEMP))
+# sod_temp <- sod_temp[str_detect(sod_temp, "^sod")]
+# years <- as.numeric(str_extract(sod_temp, "\\d{4}"))
+# sod_temp <- sod_temp[years >= 1994 & years <= 2024]
+sod_temp <- ls(pattern = "df_sod_")
 # Create empty list in which all SOD datasets will be saved
 combined_sod <- list()
 
-# Save all datasets within a list object
-for (file in sod_temp) {
-  # Read the .rda file
-  load(paste0(TEMP, "/", file))
-  
-  # Extract df name of file
-  df_name <- str_sub(file, end = -5)
-  
-  # Retrieve the df by string
-  loaded_data <- get(df_name)
-  
-  # Combine Data
-  combined_sod <- append(combined_sod, list(loaded_data))
-  
-  # Avoid littering the global environment
-  rm(loaded_data)
+for (file in seq_along(sod_temp)) {
+  combined_sod[[file]] <- get(sod_temp[file])
 }
+ 
+# # Save all datasets within a list object
+# for (file in sod_temp) {
+#   # Read the .rda file
+#   load(paste0(TEMP, "/", file))
+#   
+#   # Extract df name of file
+#   df_name <- str_sub(file, end = -5)
+#   
+#   # Retrieve the df by string
+#   loaded_data <- get(df_name)
+#   
+#   # Combine Data
+#   combined_sod <- append(combined_sod, list(loaded_data))
+#   
+#   # Avoid littering the global environment
+#   rm(loaded_data)
+# }
 
 # Remove all single datasets in order to avoid littering the global enivronment
-rm(list = str_sub(sod_temp, end = -5))
+rm(list = sod_temp)
 
 # Rename the variables to lower case variables
 names_upper <- names(combined_sod[[1]])
@@ -137,8 +147,8 @@ raw_sod <- combined_sod
 ## 1.4 Collapse combined_sod to county-year level ------------------------------
 
 # Restrict the dataset the year 2000 to 2017
-combined_sod <- raw_sod[year >= 1994 & year <= 2024]
-
+combined_sod <- raw_sod[year >= 1994 & year <= 2020]
+  
 # Only fips-codes, which are observed over the period of 2000 to 2020 are included
 # in the dataset.
 # Collapse data to county-year level
@@ -166,7 +176,7 @@ combined_sod[, stcntybr := NULL]
 # Select year and variables 
 raw_sod <- raw_sod[insured == "CB"]
 raw_sod <- raw_sod[, .(year, fips, stnumbr, depsumbr, rssdid)] 
-raw_sod <- raw_sod[year >= 2000 & year <= 2017]
+raw_sod <- raw_sod[year >= 1994 & year <= 2024]
 setcolorder(raw_sod, c("year", "fips", "stnumbr", "rssdid", "depsumbr"))
 
 # Collapse to bank-county-year level
