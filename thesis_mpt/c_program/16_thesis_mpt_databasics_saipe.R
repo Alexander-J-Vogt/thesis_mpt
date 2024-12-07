@@ -23,17 +23,25 @@ gc()
 # MAIN PART ####
 
 # 01. Import of SAIPE ==========================================================
+
 # Small Area Income and Poverty Estimates (SAIPE)
 
+# List all files
 files <- list.files(paste0(A, "l_saipe/"))
 files_xls <- files[str_detect(files, ".xls$")]
 files_txt <- files[str_detect(files, ".txt$")]
 
 
-# Import .text files -----------------------------------------------------------
-file_txt_1 <- files_txt[1:3]
+## 01.1 Import .text files 2000 to 2002-----------------------------------------
+
+# Set manually the width of each column
 widths <- c(3, 4, 9, 9, 9, 5, 5, 5, 9, 9, 9, 5, 5, 5, 9, 9, 9, 5, 5, 5, 7, 7, 7, 8, 8, 8, 5, 5, 5, 45, 4)
+
+# Import datasets
+file_txt_1 <- files_txt[1:3]
+
 for (i in file_txt_1) {
+  
   # Extract year
   year <- str_sub(i, start = 4, end = 5)
   
@@ -54,9 +62,14 @@ for (i in file_txt_1) {
   )
 }
 
-## Import .txt files: 1999 and 1999 --------------------------------------------
+
+## 01.2 Import .txt files: 1999 and 1999 --------------------------------------
+
+# Import dataset
 file_txt_2 <- files_txt[4:length(files_txt)]
+
 for (i in file_txt_2) {
+  
   # Extract year
   year <- str_sub(i, start = 4, end = 5)
   
@@ -76,9 +89,13 @@ for (i in file_txt_2) {
     mutate(get(paste0("data_", year)), year = as.numeric(paste0("19", year)))
   )
 }
-                 
-## Import .xls files: 2003 to 2004 ---------------------------------------------
+ 
+                
+## 01.3 Import .xls files: 2003 to 2004 ---------------------------------------
+
+# Import dataset
 files_xls_1 <- files_xls[1:2]
+
 for (i in files_xls_1) {
   
   # Extract year
@@ -102,9 +119,11 @@ for (i in files_xls_1) {
 }
 
 
-## Import .xls files: 2005 to 2012 ---------------------------------------------
+## 01.4 Import .xls files: 2005 to 2012 ----------------------------------------
 
+# Import dataset
 files_xls_2 <- files_xls[3:10]
+
 for (i in files_xls_2) {
   
   # Extract year
@@ -128,9 +147,11 @@ for (i in files_xls_2) {
 }
 
 
-## Import .xls files: 2005 to 2012 ---------------------------------------------
+## 01.5 Import .xls files: 2005 to 2012 ---------------------------------------------
 
+# Import dataset
 files_xls_3 <- files_xls[11:length(files_xls)]
+
 for (i in files_xls_3) {
   
   # Extract year
@@ -156,11 +177,12 @@ for (i in files_xls_3) {
 
 # 02. Create Dataset on Poverty and Median Household Income ====================
 
+# List all dataset in the environment
 envir <- ls(pattern = "^data_")
-
 
 ## 02.1 Change columns names from 2003 to 2021 ---------------------------------
 
+# Create variable names
 names <- colnames(data_03)
 names <- str_replace_all(names, " ", "_")
 names <- str_replace_all(names, "\\.\\.\\.\\d{1,2}$", "")
@@ -168,6 +190,7 @@ names <- str_to_lower(names)
 names <- str_replace_all(names, "^90%_(.*)$", "\\1_90perc")
 names <- str_replace_all(names, "-", "_")
 
+# Standardize variable names
 for (x_name in envir[4:(length(envir)-2)]) {
   data <- get(x_name)  
   colnames(data) <- names
@@ -175,6 +198,8 @@ for (x_name in envir[4:(length(envir)-2)]) {
 }
 
 ## 02.2 Change columns names from 2000 to 2002 & 1999 and 1998 -----------------
+
+# Standardize variable names
 for (i in envir[-c(4:(length(envir)-2))]) {
   data <- get(i)
   data <- data |> 
@@ -216,10 +241,12 @@ df_saipe <- FIPSCREATOR(df_saipe_raw, state_col = "state_fips", county_col = "co
 df_saipe <- df_saipe |> 
   filter(county_fips != "000") |>  # Filter all state and national level observation
   select(fips, year, poverty_estimate_all_ages, median_household_income) |> 
-  mutate(across(c(2:4), as.numeric))
+  mutate(across(c(2:4), as.numeric)) |> 
+  arrange(fips, year)
   
 # 05. Save =====================================================================
 
+# Save dataset on county-year level
 SAVE(dfx = df_saipe)
 
 ################################ END ##########################################+
