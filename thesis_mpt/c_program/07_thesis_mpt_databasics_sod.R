@@ -58,13 +58,40 @@ for (i in files_sod) {
 # years <- as.numeric(str_extract(sod_temp, "\\d{4}"))
 # sod_temp <- sod_temp[years >= 1994 & years <= 2024]
 sod_temp <- ls(pattern = "df_sod_")
+names <- colnames(get(sod_temp[1]))
+
+# Ensure that all column names are upper case  
+for (i in seq_along(sod_temp)) {
+  data <- get(sod_temp[[i]]) 
+  names_upper <- str_to_upper(colnames(data))
+  colnames(data) <- names_upper
+  assign(
+    sod_temp[i],
+    data
+  )
+}
+
+
+# Order the columns for standardized column order
+for (i in seq_along(sod_temp)) {
+  data <- get(sod_temp[[i]])
+  data <- data[, names]
+  assign(
+    sod_temp[i],
+    data
+  )
+  print(paste0("Dataset: ", sod_temp[i]))
+}
+
 # Create empty list in which all SOD datasets will be saved
 combined_sod <- list()
 
 for (file in seq_along(sod_temp)) {
   combined_sod[[file]] <- get(sod_temp[file])
 }
- 
+
+
+
 # # Save all datasets within a list object
 # for (file in sod_temp) {
 #   # Read the .rda file
@@ -102,6 +129,9 @@ for (i in seq_along(combined_sod)) {
   attr(combined_sod[[i]], "label") <- names_upper[i]
 }
 
+combined_sod |> 
+  filter(year == 2019) |> 
+  View()
 ## 1.3 Basic Data Cleaning -----------------------------------------------------
 
 # Select the variables of interest
@@ -136,7 +166,7 @@ combined_sod <- combined_sod[!stnumbr %in% c("72", "66", "60", "69", "74", "78")
 # the SOD with a list of all fips code in the US from the US Census Bureau (MDR Education)
 # -> The SOD contains fips-codes that are not existing. The observations with the invalid fips-codes are excluded. 
 # load(paste0(TEMP, "/", "fips_data.rda"))
-fips_data <- LOAD(dfinput = "mp_transmission_databasics_fips")
+fips_data <- LOAD(dfinput = "14_thesis_mpt_databasics_fips")
 notvalid <- setdiff(fips_data$fips, combined_sod$fips)
 combined_sod <- combined_sod[!(fips %in% notvalid)]
 
@@ -146,8 +176,8 @@ raw_sod <- combined_sod
 
 ## 1.4 Collapse combined_sod to county-year level ------------------------------
 
-# Restrict the dataset the year 2000 to 2017
-combined_sod <- raw_sod[year >= 1994 & year <= 2020]
+# Restrict the dataset the year 1999 to 2024
+combined_sod <- raw_sod[year >= 1994 & year <= 2024]
   
 # Only fips-codes, which are observed over the period of 2000 to 2020 are included
 # in the dataset.
