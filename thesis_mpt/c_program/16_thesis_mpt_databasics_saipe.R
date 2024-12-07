@@ -42,13 +42,14 @@ for (i in file_txt_1) {
     paste0("data_", year),
     read_fwf(
       file = paste0(A, "l_saipe/", i),
-      col_positions = fwf_widths(widths)
+      col_positions = fwf_widths(widths),
+      col_types = cols(.default = "c")
     )
   )
   
   # Create year variable
   assign(
-    paste0("data_", i),
+    paste0("data_", year),
     mutate(get(paste0("data_", year)), year = as.numeric(paste0("20", year)))
   )
 }
@@ -153,4 +154,72 @@ for (i in files_xls_3) {
 }
 
 
-# 02. Create Dataset on Poverty and Median Houehold Income =====================
+# 02. Create Dataset on Poverty and Median Household Income ====================
+
+envir <- ls(pattern = "^data_")
+
+
+## 02.1 Change columns names from 2003 to 2021 ---------------------------------
+
+names <- colnames(data_03)
+names <- str_replace_all(names, " ", "_")
+names <- str_replace_all(names, "\\.\\.\\.\\d{1,2}$", "")
+names <- str_to_lower(names)
+names <- str_replace_all(names, "^90%_(.*)$", "\\1_90perc")
+names <- str_replace_all(names, "-", "_")
+
+for (x_name in envir[4:(length(envir)-2)]) {
+  data <- get(x_name)  
+  colnames(data) <- names
+  assign(x_name, data, envir = .GlobalEnv)
+}
+
+## 02.2 Change columns names from 2000 to 2002 & 1999 and 1998 -----------------
+for (i in envir[-c(4:(length(envir)-2))]) {
+  data <- get(i)
+  data <- data |> 
+    relocate(X31, X30, .after = X2)
+  colnames(data) <- names
+  assign(i, data, envir = .GlobalEnv)
+}
+
+# 03. Append Data ==============================================================
+
+# Select relevant variables
+vars <- c("state_fips", "year","county_fips", "postal_code", "name", "poverty_estimate_all_ages",
+         "median_household_income" )
+
+for (i in envir) {
+  data <- get(i)
+  data <- data[, vars]
+  assign(
+    paste0(i),
+    data
+  )
+}
+
+# Create Main Raw Dataset
+df_saipe_raw <- list() 
+
+for (i in seq_along(envir)) {
+  df_saipe_raw[[i]] <- get(envir[[i]])
+  print(paste0("Dataset: ", i , " ...DONE"))
+}
+
+df_saipe_raw <- bind_rows(df_saipe_raw)
+
+# 04. Basic Data Cleaning ======================================================
+
+# Create FIPS ID
+df_saipe <- FIPSCREATOR(df_saipe_raw, state_col = "state_fips", county_col = "county_fips")
+  
+df_saipe <- df_saipe |> 
+  filter(county_fips != "000") |>  # Filter all state and national level observation
+  select(fips, year, poverty_estimate_all_ages, median_household_income) |> 
+  mutate(across(c(2:4), as.numeric))
+  
+# 05. Save =====================================================================
+
+SAVE(dfx = df_saipe)
+
+################################ END ##########################################+
