@@ -22,7 +22,7 @@ gc()
 ################################################################################################################+
 # MAIN PART ####
 
-# 01. HICP - monthly ===========================================================
+# 01. HICP - Monthly ===========================================================
 
 # Import data (Index = 2010)
 df_hicp_raw <- read_excel(
@@ -77,7 +77,7 @@ df_hicp <- df_hicp_raw |>
   ) |> 
   select(country, month, hicp)
 
-# 02. Effective Exchange Rate Index - monthly ==================================
+# 02. Effective Exchange Rate Index - Monthly ==================================
 
 # Import data (Index = 2015)
 df_reer_raw <- read_excel(
@@ -188,9 +188,9 @@ df_gdp <- df_gdp_raw |>
       TIME == "Slovakia" ~ "SK"
     )
   ) |> 
-  select(country, quarter, gdp_index) |> 
+  select(country, quarter, gdp_index) #|> 
   # Filter for period between 2000 and 2023
-  filter(quarter > as.Date("1999-12-01") & quarter < as.Date("2024-01-01"))
+  # filter(quarter > as.Date("1999-12-01") & quarter < as.Date("2024-01-01"))
   
 # Calculate the average index for year 2015 (based on the data indexed to the year 2010)
 df_gdp_index <- df_gdp |>
@@ -214,7 +214,7 @@ df_gdp <- df_gdp |>
   ) |> 
   select(country, quarter, gdp_2010, gdp_2015)
 
-# 04. Unemployment Rate - monthly - Total ======================================
+# 04. Unemployment Rate - Monthly - Total ======================================
 
 # Import data
 df_ur_raw <- read_excel(
@@ -269,6 +269,31 @@ df_ur <- df_ur_raw |>
       TIME == "Slovakia" ~ "SK"
     )
   ) |> 
-  select(country, month, ur) |> 
-  filter(month > as.Date("1999-12-01") & month < as.Date("2024-01-01"))
+  select(country, month, ur)
+# |> 
+#   filter(month > as.Date("1999-12-01") & month < as.Date("2024-01-01"))
 
+
+# 05. Monthly - Dataset ========================================================
+
+# Merge monthly data
+df_eurostat_m <- df_hicp |> 
+  full_join(df_reer, by = c("country", "month")) |> 
+  full_join(df_ur, by = c("country", "month")) |> 
+  filter(month > as.Date("1999-01-01") & month < as.Date("2024-01-01"))
+
+# Save monthly data
+SAVE(dfx = df_eurostat_m, namex = paste0(MAINNAME, "_m"))
+
+# 06. Quarterly - Dataset ======================================================
+
+# Quaterly data
+df_eurostat_q <- df_gdp
+
+# Save quaterly data
+SAVE(dfx = df_eurostat_1, namex = paste0(MAINNAME, "_q"))
+
+
+###############################################################################+
+################################# ENDE ########################################+
+###############################################################################+
