@@ -123,7 +123,7 @@ df_mfi <- df_mfi |>
   filter(!(country == "GR" & month < as.Date("2001-01-01"))) |> # Filter for years with GR being part of the Eurozone
   filter(!(country == "SI" & month < as.Date("2007-01-01"))) |> # Filter for year with SI being part of the Eurozone
   filter(!(country == "SK" & month < as.Date("2009-01-01"))) |> # Filter for years with SK being part of the Eurozone
-  filter(month < as.Date("2024-01-01"))
+  filter(month > as.Date("2002-12-01") & month < as.Date("2024-01-01"))
 
 # Create quarterly data 
 df_mfi_q <- df_mfi |> 
@@ -136,8 +136,15 @@ df_mfi_q <- df_mfi |>
   rename_with(~ sub("^Q_", "", .), starts_with("Q_")) |> 
   mutate(quarter_date = lubridate::yq(quarter), .after = "quarter") |> 
   arrange(country, quarter)
-  
 
+lapply(colnames(df_mfi), function(x){
+  cat(paste0("Variables: ", x))
+  print(table(is.na(df_mfi[[x]])))
+  cat("\n")
+})
+
+
+if (DEBUG) {
 df_mfi |> 
   group_by(across(-DATA_TYPE_MIR)) |> 
   filter(n_distinct(DATA_TYPE_MIR) > 1) |> 
@@ -168,7 +175,7 @@ missings <- df_mfi |>
   pivot_wider(names_from = country, values_from = "Missing_Count") |> 
   group_by(year) |> 
   summarise(across(-Column, ~ sum(.), .names = "total_missing_{.col}"), .groups = "drop")
-
+}
 # 04. Balance Sheet Items (BSI) ================================================
 
 # Import bulk download
@@ -290,7 +297,7 @@ df_bsi_l60 <- df_bsi_l60 |>
   filter(!(country == "SK" & month < as.Date("2009-01-01"))) # Filter for years with SK being part of the Eurozone
 
 
-
+if (DEBUG) {
 View(df_bsi_t00)
 
 df_bsi_l60 |> 
@@ -322,6 +329,29 @@ table(df_bsi_a22$REF_AREA, df_bsi_a22$CURRENCY_TRANS)
 
 table(df_bsi_a22$MATURITY_ORIG, df_bsi_a22$CURRENCY_TRANS)
 table(df_bsi_a22$TIME_PERIOD, df_bsi_a22$MATURITY_ORIG)
+}
+
+# 05. Monthly Dataset ==========================================================
+
+# Merge Monthly dataset
+df_ecb_monthly <- df_bsi_a22 |> 
+  full_join(df_bsi_l20, by = c("country", "month")) |> 
+  full_join(df_bsi_l60, by = c("country", "month")) |> 
+  full_join(df_bsi_t00, by = c("country", "month")) |> 
+  full_join(df_mfi, by = c("country", "month"))
+
+# SAVE
+SAVE(dfx = df_ecb_monthly, namex = paste0(MAINNAME, "_m"))
+
+# 06. Annual ===================================================================
+
+# Annual Dataset
+df_ecb_annual <- df_ssi
+
+# SAVE
+SAVE(dfx = df_ecb_annual, namex = paste0(MAINNAME, "_a"))
+
+
 
 ###############################################################################+
 ################################# ENDE ########################################+
