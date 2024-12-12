@@ -1,1 +1,1 @@
-# thesis_mpt
+# Master Thesis
