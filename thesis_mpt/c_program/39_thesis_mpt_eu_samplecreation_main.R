@@ -73,6 +73,13 @@ df_main_imputed$ur <- df_imputed_mf$ximp$ur
 df_main_imputed$lending_hp_total_outst_amount <- df_imputed_mf$ximp$lending_hp_total_outst_amount
 df_main_imputed$lending_hp_over_5_years_outst_amount <- df_imputed_mf$ximp$lending_hp_over_5_years_outst_amount
 
+# 04. Annual dataset =========================================================== 
+
+df_main_m <- df_main_imputed |> 
+  select(-c("quarter", "month", "hhi_total_credit")) |> 
+  group_by(country, year) |> 
+  summarise(across(-c(1,2), mean, na.rm = TRUE), .groups = "drop")
+
 
 # 03. Save =====================================================================
 
