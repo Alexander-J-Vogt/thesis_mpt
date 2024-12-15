@@ -29,10 +29,49 @@ df_main_raw <- LOAD(dfinput = "38_thesis_mpt_eu_varcreation_merge")
 # 02. Clean Data ===============================================================
 
 df_main <- df_main_raw |> 
-  filter(!(country == "GR" & month < as.Date("2001-01-01"))) |> # Filter for years with GR being part of the Eurozone
+  filter(!(country == "GR" & month < as.Date("2003-01-01"))) |> # Filter for years with GR being part of the Eurozone
   filter(!(country == "SI" & month < as.Date("2007-01-01"))) |> # Filter for year with SI being part of the Eurozone
   filter(!(country == "SK" & month < as.Date("2009-01-01"))) |> # Filter for years with SK being part of the Eurozone
   filter(month > as.Date("2002-12-01") & month < as.Date("2024-01-01"))
+
+df_main <- df_main |> 
+  relocate(year, .after = country)
+
+# 03. Imputation of Missings ===================================================
+
+## Determine the NAs
+# Control for NAs
+vis_miss(df_impute)
+miss_var_summary(df_impute)
+gg_miss_var(df_impute)
+
+# GER: 2003 - 2006
+df_main |> filter(is.na(ur))
+
+# GR: from 2013 missing from time to time
+df_main |> filter(is.na(lending_hp_total_outst_amount))
+
+# BE: 2003 to 2006
+df_main |> filter(is.na(lending_hp_over_5_years_outst_amount))
+
+# Get data ready for imputation
+df_impute <- df_main |> 
+  select(-c("year", "quarter", "hhi_total_credit"))
+
+
+# missForest
+df_imputed_mf <- missForest(
+  df_impute[,-c(1,2)],
+  verbose = TRUE
+  )
+
+# Copy of df_main
+df_main_imputed <- df_main
+
+# Impute missings# df_main_imputedImpute missings
+df_main_imputed$ur <- df_imputed_mf$ximp$ur
+df_main_imputed$lending_hp_total_outst_amount <- df_imputed_mf$ximp$lending_hp_total_outst_amount
+df_main_imputed$lending_hp_over_5_years_outst_amount <- df_imputed_mf$ximp$lending_hp_over_5_years_outst_amount
 
 
 # 03. Save =====================================================================
