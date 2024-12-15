@@ -41,6 +41,8 @@ for ( i in seq_along(files) ) {
     )
 }
 
+# 02. Basic Data Cleaning ======================================================
+
 # Reshape data into wide format
 envir <- ls()
 envir <- envir[str_detect(envir, "data_")]
@@ -68,6 +70,8 @@ for (i in envir) {
     )
   )       
 }
+
+# 03. Append data on different countries =======================================
 
 # List all datasets with imf at the beginning
 list <- ls()
@@ -126,6 +130,25 @@ df_imf <- df_imf_raw |>
   # Format to numeric
   mutate(commodity_index = as.numeric(index)) |> 
   select(country, month, commodity_index)
+
+# 04. Index = 2015 =============================================================
+
+# Create Index ny calculating the mean over the year 2015 
+df_index <- df_imf |> 
+  filter(year(month) == 2015) |> 
+  group_by(country) |> 
+  mutate(mean_index = mean(commodity_index)) |> 
+  ungroup() |> 
+  select(country, mean_index) |> 
+  distinct(country, mean_index)
+
+# Index the variable from the year 2012 to 2015
+df_imf <- df_imf |> 
+  left_join(df_index, by = c("country")) |> 
+  mutate(commodity_index = commodity_index / mean_index * 100) |> 
+  select(country, month, commodity_index)
+
+# 04. SAVE =====================================================================
 
 # Save
 SAVE(dfx = df_imf)
