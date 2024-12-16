@@ -40,6 +40,10 @@ df_main <- df_main |>
 # 03. Imputation of Missings ===================================================
 
 ## Determine the NAs
+# Get data ready for imputation
+df_impute <- df_main |> 
+  select(-c("year", "quarter", "hhi_total_credit"))
+
 # Control for NAs
 vis_miss(df_impute)
 miss_var_summary(df_impute)
@@ -54,12 +58,7 @@ df_main |> filter(is.na(lending_hp_total_outst_amount))
 # BE: 2003 to 2006
 df_main |> filter(is.na(lending_hp_over_5_years_outst_amount))
 
-# Get data ready for imputation
-df_impute <- df_main |> 
-  select(-c("year", "quarter", "hhi_total_credit"))
-
-
-# missForest
+# Impute NAs with the help of non-parametric estimation via ML Algorithm (missForest-package)
 df_imputed_mf <- missForest(
   df_impute[,-c(1,2)],
   verbose = TRUE
@@ -68,22 +67,23 @@ df_imputed_mf <- missForest(
 # Copy of df_main
 df_main_imputed <- df_main
 
-# Impute missings# df_main_imputedImpute missings
+# Impute missings
 df_main_imputed$ur <- df_imputed_mf$ximp$ur
 df_main_imputed$lending_hp_total_outst_amount <- df_imputed_mf$ximp$lending_hp_total_outst_amount
 df_main_imputed$lending_hp_over_5_years_outst_amount <- df_imputed_mf$ximp$lending_hp_over_5_years_outst_amount
 
 # 04. Annual dataset =========================================================== 
 
-df_main_m <- df_main_imputed |> 
+# Collapse data to annual data by taking the mean over a month
+df_main_a <- df_main_imputed |> 
   select(-c("quarter", "month", "hhi_total_credit")) |> 
   group_by(country, year) |> 
-  summarise(across(-c(1,2), mean, na.rm = TRUE), .groups = "drop")
+  summarise(across(everything(), \(x) mean(x, na.rm = TRUE)), .groups = "drop")
 
+# 05. Save =====================================================================
 
-# 03. Save =====================================================================
-
-SAVE(dfx = df_main)
+# Save annual dataset
+SAVE(dfx = df_main_a)
 
 ###############################################################################+
 ################################# ENDE ########################################+
