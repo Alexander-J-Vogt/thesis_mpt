@@ -39,9 +39,9 @@ gc()
 
 ##  1.1 List Panel and Loan Application Records Files (LRA) --------------------   
 lra_files <- list.files(paste0(A, "p_hmda_lra/"))
-lra_files <- lra_files[gsub("[^0-9]", "", lra_files) %in% c(2000:2017)]
+lra_files <- lra_files[gsub("[^0-9]", "", lra_files) %in% c(2004:2023)]
 panel_files <- list.files(paste0(A, "q_hmda_panel/"))
-panel_files <- panel_files[gsub("[^0-9]", "", panel_files) %in% c(2000:2017)]
+panel_files <- panel_files[gsub("[^0-9]", "", panel_files) %in% c(2004:2023)]
 
 ## 1.2 Import LRA files -------------------------------------------------------
 
@@ -50,8 +50,8 @@ lapply(lra_files, function(file) {
   
   # Column name depend on the years of the submission of the LRA as the program
   # has undergone several changes over time.
-  if (as.integer(gsub("[^0-9]", "", file) %in% c(2000:2006))) {
-    lra_columns <- c("activity_year", "respondent_id", "agency_code", "loan_amount", "state_code", "county_code")
+  if (as.integer(gsub("[^0-9]", "", file) %in% c(2004:2006))) {
+    lra_columns <- c("activity_year", "respondent_id", "agency_code", "loan_amount", "state_code", "county_code", )
   } else if (as.integer(gsub("[^0-9]", "", file) %in% c(2007:2017))) {
     lra_columns <- c("as_of_year", "respondent_id", "agency_code", "loan_amount_000s", "state_code", "county_code")
   } 
@@ -173,38 +173,111 @@ purrr::walk(2000:2017, function(i) {
 
 # 2. Data Basics ===============================================================  
 
-test <- read_delim(paste0(A, "p_hmda_lra/", lra_files[13]), n_max = 10)
+test <- read_delim(paste0(A, "p_hmda_lra/", lra_files[13]))
+test_head <- test |> head()
 
-test1 <- LOAD(paste0(TEMP, "/hmda_merge_2008"))
-
-View(test1)
-
-
-
-
+test1 <- fread(paste0(A, "p_hmda_lra/", lra_files[1]))
+test05 <- fread(paste0(A, "p_hmda_lra/", lra_files[23]))
+test04 <- read_delim(paste0(A, "p_hmda_lra/", lra_files[22]), n_max = 10)
+test03 <- read_delim(paste0(A, "p_hmda_lra/", lra_files[21]), n_max = 10)
 
 
+test06_head <- test06 |> head()
+
+test1 <- test1 |> 
+  mutate(
+   loan_99999 = if_else(loan_amount_000s == 99999, 1, 0),
+   loan_below_99999 = if_else(loan_amount_000s < 99999 & loan_amount_000s > 50000, 1, 0) 
+  ) |> 
+  filter(
+   action_taken 
+  )
+test1_head <- test1 |> head()
+
+View(test_head)
+View(test1_head)
+
+
+t
+test <- read_delim(paste0(A, "p_hmda_lra/", "HMS.F2000.LARS"), n_max = 10)
+
+summary(lm(property_type ~ loan_type + , data = test1))
+
+cor(test1$property_type, test1$loan_type)
+
+test1 |> 
+  filter(loan_amount_000s < 1000) |> 
+  ggplot(aes(loan_amount_000s)) +
+  geom_density()
+
+# test
+
+test2 <- read_delim(file = paste0(A, "q_hmda_panel/HMS.F2000.PANEL"))
+test2 <- read.table(file = paste0(A, "q_hmda_panel/HMS.F2000.PANEL"))
 
 
 
+test3 <- LOAD(dfinput = "hmda_panel_2014")
 
 
 
+## Panel
+
+panel04 <- fread(paste0(A, "q_hmda_panel/", "HMDA_PANEL_2004.txt"), colClasses = "character")
+panel05 <- fread(paste0(A, "q_hmda_panel/", "HMDA_PANEL_2005.txt"), colClasses = "character")
+
+# Format Panel 
+panel05_t <- panel05 |> 
+  # mutate(across(-c("respondent_id", "parent_id", "respondent_rssd", "respondent_name", "respondent_city", "respondent_state"), as.integer)) |> 
+  distinct(respondent_id, msamd, agency_code)
+
+# Only RSSD Institutions (RSSD is assigned by the Federal Reserve)
+panel05_rssd <- panel05 |> 
+  filter(!is.na(respondent_id)) |> # this line makes a different of 7 unique observations -> there are 7 unique observations with RSSD but not RID
+  distinct(respondent_rssd, other_lender_code) |> 
+  filter(respondent_rssd != 0)
 
 
+panel05_rid <- panel05 |> 
+  distinct(respondent_id, respondent_rssd, other_lender_code) |> 
+  filter(!is.na(respondent_id)) |> 
+  filter(respondent_rssd == 0)
+
+table(panel05_rid$other_lender_code)
+
+panel05_rid_1 <- panel05 |> 
+  distinct(respondent_id, respondent_rssd, other_lender_code) |> 
+  filter(!is.na(respondent_id)) |> 
+  filter(respondent_rssd != 0)
+
+table(panel05_rid_1$other_lender_code)
+
+table(is.na(panel05$other_lender_code))
+
+panel05_NA <- panel05 |> 
+  filter(is.na(respondent_id))
+
+# At least one of the Identifiers exists
+panel05_NA_anyid <- panel05 |> 
+  filter(is.na(respondent_id) & is.na(parent_id) & is.na(respondent_rssd))
+names <- unique(panel05_NA_anyid$respondent_name)
+
+# Check if any observation
+panel05_checknames <- panel05 |> 
+  filter(!(is.na(respondent_id) & is.na(parent_id) & is.na(respondent_rssd))) |> 
+  filter(respondent_name %in% names)
+
+# 
+names_parent <- unique(panel05$parent_id)
+names_parent <- names_parent[!is.na(names_parent)]
+
+check <- panel05 |> 
+  filter(respondent_id %in% names_parent | parent_id %in% names_parent)
 
 
+test <- panel05 |> 
+  filter(str_detect(respondent_id, "-")) |> 
+  mutate(respondent_id = as.integer(respondent_id))
 
-
-
-
-
-
-
-
-
-
-
-
-
+table(is.na(test$respondent_id))
 ############################### END ###########################################+
