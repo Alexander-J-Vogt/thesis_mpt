@@ -51,9 +51,9 @@ lapply(lra_files, function(file) {
   # Column name depend on the years of the submission of the LRA as the program
   # has undergone several changes over time.
   if (as.integer(gsub("[^0-9]", "", file) %in% c(2004:2006))) {
-    lra_columns <- c("activity_year", "respondent_id", "agency_code", "loan_amount", "state_code", "county_code", )
+    lra_columns <- c("activity_year", "respondent_id", "agency_code", "loan_amount", "state_code", "county_code", "action_taken", "loan_purpose", "property_type", "edit_status")
   } else if (as.integer(gsub("[^0-9]", "", file) %in% c(2007:2017))) {
-    lra_columns <- c("as_of_year", "respondent_id", "agency_code", "loan_amount_000s", "state_code", "county_code")
+    lra_columns <- c("as_of_year", "respondent_id", "agency_code", "loan_amount_000s", "state_code", "county_code", "action_taken", "loan_purpose", "property_type", "edit_status")
   } 
   
   # Load all the raw LRA data on respondent-ID level (contains the information 
@@ -181,6 +181,10 @@ test05 <- fread(paste0(A, "p_hmda_lra/", lra_files[23]))
 test04 <- read_delim(paste0(A, "p_hmda_lra/", lra_files[22]), n_max = 10)
 test03 <- read_delim(paste0(A, "p_hmda_lra/", lra_files[21]), n_max = 10)
 
+test05_f <- test05[action_taken == 1]
+test05_f <- test05_f[!is.na(edit_status)]
+test05_f <- test05_f[loan_purpose %in% c(1,3)]
+test05_f <- test05_f[property_type %in% c(1,3)]
 
 test06_head <- test06 |> head()
 
