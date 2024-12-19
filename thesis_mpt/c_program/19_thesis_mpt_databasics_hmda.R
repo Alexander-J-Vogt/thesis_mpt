@@ -48,29 +48,42 @@ panel_files <- panel_files[gsub("[^0-9]", "", panel_files) %in% c(2004:2023)]
 # This loop imports all LRA files
 lapply(lra_files, function(file) {
   
+  # Loop year in string
+  loopy <- gsub("[^0-9]", "", file)
+  
   # Column name depend on the years of the submission of the LRA as the program
   # has undergone several changes over time.
-  if (as.integer(gsub("[^0-9]", "", file) %in% c(2004:2006))) {
-    lra_columns <- c("activity_year", "respondent_id", "agency_code", "loan_amount", "state_code", "county_code", "action_taken", "loan_purpose", "property_type", "edit_status")
-  } else if (as.integer(gsub("[^0-9]", "", file) %in% c(2007:2017))) {
-    lra_columns <- c("as_of_year", "respondent_id", "agency_code", "loan_amount_000s", "state_code", "county_code", "action_taken", "loan_purpose", "property_type", "edit_status")
-  } 
+  if (as.integer(loopy) %in% c(2004:2006)) {
+    lra_columns <- c("activity_year", "respondent_id", "agency_code", "loan_amount", "state_code", "county_code", "action_taken", "loan_purpose", "property_type", "income", "edit_status", "hoepa_status")
+  } else if (as.integer(loopy) %in% c(2007:2017)) {
+    lra_columns <- c("as_of_year", "respondent_id", "agency_code", "loan_amount_000s", "state_code", "county_code", "action_taken", "loan_purpose", "property_type", "income", "edit_status",  "hoepa_status")
+  } else if (as.integer(loopy) %in% c(2018:2023)) {
+    lra_columns <- c("activity_year", "lei", "loan_amount", "state_code", "county_code", "action_taken", "loan_purpose", "derived_dwelling_category", "income", "hoepa_status")
+  }
   
   # Load all the raw LRA data on respondent-ID level (contains the information 
   # on each handed out loan). In order to reduce processing time, only the 
   # relevant variables in lra_columns are imported.
-  data <- fread(paste0(A, "p_hmda_lra/", file), colClasses = "character", select = lra_columns)
+  data <- fread(
+    paste0(A, "p_hmda_lra/", file),
+    colClasses = "character",
+    select = lra_columns
+    )
   
   # Standardize the column names
-  if (as.integer(gsub("[^0-9]", "", file) %in% c(2007:2017))){
+  if (as.integer(loopy) %in% c(2007:2017)) {
     setnames(data,
-             old = c("as_of_year", "respondent_id", "agency_code", "loan_amount_000s", "state_code", "county_code"),
-             new = c("activity_year", "respondent_id", "agency_code", "loan_amount", "state_code", "county_code"))
+             old = c("as_of_year", "respondent_id", "agency_code", "loan_amount_000s", "state_code", "county_code", "action_taken", "loan_purpose", "property_type", "income", "edit_status",  "hoepa_status"),
+             new = c("activity_year", "respondent_id", "agency_code", "loan_amount", "state_code", "county_code", "action_taken",  "loan_purpose", "property_type", "income", "edit_status",  "hoepa_status"))
+  } else if (as.integer(loopy) %in% c(2018:2023)) {
+    setnames(data,
+             old = c("activity_year", "lei", "loan_amount", "state_code", "county_code", "action_taken", "loan_purpose", "derived_dwelling_category", "income", "hoepa_status"),
+             new = c("activity_year", "lei", "loan_amount", "state_code", "county_code", "action_taken", "loan_purpose", "property_type", "income", "hoepa_status"))
   }
   
   # Save the raw lra dataset
-  SAVE(dfx = data, namex = paste0("hmda_lra_", gsub("[^0-9]", "", file)), pattdir = TEMP)
-  print(paste0("LRA: Successful import of the year ", gsub("[^0-9]", "", file)))
+  SAVE(dfx = data, namex = paste0("hmda_lra_", loopy), pattdir = TEMP)
+  print(paste0("LRA: Successful import of the year ", loopy))
   
   # Free unused memory and clear object from the  global environment.
   gc()
@@ -86,6 +99,8 @@ lapply(lra_files, function(file) {
 
 # This loop imports panel data 
 purrr::walk(panel_files, function(file) {
+  
+  # file <- panel_files[4]
   
   # Get year of panel
   year <- as.integer(gsub("[^0-9]", "", file))
@@ -107,15 +122,19 @@ purrr::walk(panel_files, function(file) {
              new = c("respondent_id", "agency_code", "other_lender_code"))
   } else if (year %in% c(2010:2017)) {
     setnames(data, 
-             old = c("Respondent ID", "Agency Code", "Other Lender Code"), 
-             new = c("respondent_id", "agency_code", "other_lender_code"))
+             old = c("Respondent ID", "Agency Code", "Other Lender Code", "Respondent RSSD ID"), 
+             new = c("respondent_id", "agency_code", "other_lender_code", "respondent_rssd"))
+  } else if (year %in% c(2018:2023)) {
+    setnames(data,
+             old = c("lei", "agency_code", "other_lender_code", "respondent_rssd"),
+             new = c("lei", "agency_code", "other_lender_code", "respondent_rssd"))
   }
   
-  # Select the relevant variables
-  data <- data[, c("respondent_id", "agency_code", "other_lender_code")]
-  
-  # get rid off any duplicants
-  data <- unique(data, by = c("respondent_id", "agency_code"))
+  # # Select the relevant variables
+  # data <- data[, c("respondent_id", "agency_code", "other_lender_code", "respondent_rssd")]
+  # 
+  # # get rid off any duplicants
+  # data <- unique(data, by = c("respondent_id", "agency_code"))
   
   # Save the panel dataset
   SAVE(dfx = data, namex = paste0("hmda_panel_", year), pattdir = TEMP)
@@ -127,6 +146,11 @@ purrr::walk(panel_files, function(file) {
   rm(data)
   gc()
 })
+
+hmda_panel <- list.files(paste0(TEMP),  pattern = "hmda_panel_")
+
+
+
 
 ## 1.4 Merging the Panel and LRA dataset with each other -----------------------
 
@@ -321,8 +345,8 @@ table(is.na(test$respondent_id))
 
 
 ## New datasets
-test18 <- fread(paste0(A, "p_hmda_lra/", lra_files[1]))
-panel18 <- fread(paste0(A, "q_hmda_panel/", panel_files[1]), colClasses = "character")
+test18 <- fread(paste0(A, "p_hmda_lra/", lra_files[1]), colClasses = "character", nrows = 5)
+panel18 <- fread(paste0(A, "q_hmda_panel/", panel_files[1]), colClasses = "character", nrows = 5)
 
 test18_f <- test18[action_taken == 1]
 # test18_f <- test18_f[!is.na(edit_status)] # Not Necessary
