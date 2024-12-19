@@ -45,7 +45,7 @@ panel_files <- panel_files[gsub("[^0-9]", "", panel_files) %in% c(2004:2023)]
 
 ## 1.2 Import LRA files -------------------------------------------------------
 
-# This loop import all LRA files
+# This loop imports all LRA files
 lapply(lra_files, function(file) {
   
   # Column name depend on the years of the submission of the LRA as the program
@@ -173,18 +173,52 @@ purrr::walk(2000:2017, function(i) {
 
 # 2. Data Basics ===============================================================  
 
-test <- read_delim(paste0(A, "p_hmda_lra/", lra_files[13]))
-test_head <- test |> head()
+col_classes <- c("numeric", "character", "numeric", "numeric", "numeric", "numeric", "numeric",
+                 "numeric", "character", "character", "character", "character", "numeric", "numeric",
+                 "numeric", "numeric", "numeric", "numeric", "character", "numeric", "numeric",
+                 "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric",
+                 "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric",
+                 "numeric", "numeric", "numeric")
 
-test1 <- fread(paste0(A, "p_hmda_lra/", lra_files[1]))
-test05 <- fread(paste0(A, "p_hmda_lra/", lra_files[23]))
-test04 <- read_delim(paste0(A, "p_hmda_lra/", lra_files[22]), n_max = 10)
-test03 <- read_delim(paste0(A, "p_hmda_lra/", lra_files[21]), n_max = 10)
+test05 <- fread(
+  paste0(A, "p_hmda_lra/", lra_files[19]),
+  colClasses = col_classes)
 
+
+
+# Basic Cleaning
 test05_f <- test05[action_taken == 1]
+test05_f <- test05_f[loan_purpose %in% c(1,3)] # Home Purchase + Refinancing
+test05_f <- test05_f[property_type %in% c(1)] # SF
+test05_f <- test05_f[nchar(state_code) == 2 & nchar(county_code) == 3] # Keep only observation with fips code
+test05_f <- test05_f[income != ""] # Delete all missings
+test05_f <- test05_f[, income := as.numeric(income)] # Convert into numbers
+test05_f <- test05_f[!is.na(income)] # Delete all left missings
+test05_f <- test05_f[, lti_ratio := loan_amount / income ] # Loan-to-Income Ratio
+test05_f <- test05_f[lti_ratio > 30] # Exclude loans with applicants, who have a Loan-to-Income Ratio of above 30 / this is seen even with down-payments unrealistic (ChatGPT)
+# test05_f <- test05_f[, d_lti_ratio := ifelse(lti_ratio > 30, 1, 0)] 
+
+# Cleaning if flagged observation
+test05_v <- test05_f[is.na(edit_status)]
+
+test05_nv <- test05_f[!is.na(edit_status)]
+
+test05_hoepa <- test05_f[hoepa_status == 1]
+
+ggplot(data = test05_hoepa) +
+  geom_density(aes(x = loan_amount, color = "Loan Amount"), alpha = 0.4) +
+  geom_density(aes(x = as.numeric(income), color = "Income"), alpha = 0.4) 
+
+ggplot(data = test05_hoepa) +
+  geom_density(aes(lti_ratio))
+
+test05_valid <- test05_f |> 
+  mutate(income = as.integer(income)) |> 
+  filter(is.na(edit_status))
+
+table(is.na(test05_valid$income))
+
 test05_f <- test05_f[!is.na(edit_status)]
-test05_f <- test05_f[loan_purpose %in% c(1,3)]
-test05_f <- test05_f[property_type %in% c(1,3)]
 
 test06_head <- test06 |> head()
 
@@ -284,4 +318,15 @@ test <- panel05 |>
   mutate(respondent_id = as.integer(respondent_id))
 
 table(is.na(test$respondent_id))
+
+
+## New datasets
+test18 <- fread(paste0(A, "p_hmda_lra/", lra_files[1]))
+panel18 <- fread(paste0(A, "q_hmda_panel/", panel_files[1]), colClasses = "character")
+
+test18_f <- test18[action_taken == 1]
+# test18_f <- test18_f[!is.na(edit_status)] # Not Necessary
+test18_f <- test18_f[loan_purpose %in% c(1,3)]
+test18_f <- test18_f[property_type %in% c(1,3)]
+
 ############################### END ###########################################+
