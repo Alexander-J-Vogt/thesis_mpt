@@ -99,9 +99,7 @@ lapply(lra_files, function(file) {
 
 # This loop imports panel data 
 purrr::walk(panel_files, function(file) {
-  
-  # file <- panel_files[4]
-  
+
   # Get year of panel
   year <- as.integer(gsub("[^0-9]", "", file))
   
