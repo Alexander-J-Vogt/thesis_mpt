@@ -130,12 +130,24 @@ purrr::walk(panel_files, function(file) {
              new = c("lei", "agency_code", "other_lender_code", "respondent_rssd"))
   }
   
-  # # Select the relevant variables
-  # data <- data[, c("respondent_id", "agency_code", "other_lender_code", "respondent_rssd")]
-  # 
-  # # get rid off any duplicants
-  # data <- unique(data, by = c("respondent_id", "agency_code"))
-  
+  # Select the relevant variables
+  if (year %in% c(2005:2006)) {
+    data <- data[, c("respondent_id", "agency_code", "other_lender_code", "respondent_rssd")]
+  } else if (year %in% c(2007:2009)) {
+    data <- data[, c("respondent_id", "agency_code", "other_lender_code")]
+  } else if (year %in% c(2010:2017)) {
+    data <- data[, c("respondent_id", "agency_code", "other_lender_code", "respondent_rssd")]
+  } else if (year %in% c(2018:2023)) {
+    data <- data[, c("lei", "agency_code", "other_lender_code", "respondent_rssd")]
+  }
+
+  # get rid off any duplications
+  if (year %in% c(2004:2017)) {
+    data <- unique(data, by = c("respondent_id", "agency_code"))
+  } else if (year %in% c(2018:2023)) {
+    data <- unique(data, by = c("lei"))
+  }
+    
   # Save the panel dataset
   SAVE(dfx = data, namex = paste0("hmda_panel_", year), pattdir = TEMP)
   
@@ -148,7 +160,21 @@ purrr::walk(panel_files, function(file) {
 })
 
 hmda_panel <- list.files(paste0(TEMP),  pattern = "hmda_panel_")
+# hmda_panel_num <- seq_along(hmda_panel)
+panel <- list()
+panel <- lapply(hmda_panel, function(x) {
+  LOAD(paste0(TEMP, "/", x), dfextension = NULL)
+})
 
+list_envir <- ls(pattern = "hmda_panel_")
+col_names <- list()
+for (i in list_envir) {
+  # i <- list_envir[1]
+  data <- get(i)
+  year <- gsub("[^0-9]", "", i)
+  print(paste0("Year: ", year))
+  print(colnames(data))
+}
 
 
 
