@@ -43,22 +43,36 @@ lra_files <- lra_files[gsub("[^0-9]", "", lra_files) %in% c(2004:2023)]
 panel_files <- list.files(paste0(A, "q_hmda_panel/"))
 panel_files <- panel_files[gsub("[^0-9]", "", panel_files) %in% c(2004:2023)]
 
+if (DEBUG) {
+  data04 <- fread(paste0(A, "p_hmda_lra/", lra_files[18]), colClasses = "character", nrows = 10)
+  data10 <- fread(paste0(A, "p_hmda_lra/", lra_files[10]), colClasses = "character", nrows = 10)
+  data20 <- fread(paste0(A, "p_hmda_lra/", lra_files[3]), colClasses = "character", nrows = 10)
+}
 ## 1.2 Import LRA files -------------------------------------------------------
 
 # This loop imports all LRA files
 lapply(lra_files, function(file) {
-  file <- lra_files[1]
+  
   # Loop year in string
   loopy <- gsub("[^0-9]", "", file)
   
   # Column name depend on the years of the submission of the LRA as the program
   # has undergone several changes over time.
   if (as.integer(loopy) %in% c(2004:2006)) {
-    lra_columns <- c("activity_year", "respondent_id", "agency_code", "loan_amount", "state_code", "county_code", "action_taken", "loan_purpose", "property_type", "income", "edit_status", "hoepa_status")
+    lra_columns <- c("activity_year", "respondent_id", "agency_code", "loan_amount",
+                     "state_code", "county_code", "action_taken", "loan_purpose", 
+                     "property_type", "income", "edit_status", "hoepa_status", 
+                     "rate_spread", "applicant_sex", "applicant_race_1")
   } else if (as.integer(loopy) %in% c(2007:2017)) {
-    lra_columns <- c("as_of_year", "respondent_id", "agency_code", "loan_amount_000s", "state_code", "county_code", "action_taken", "loan_purpose", "property_type", "applicant_income_000s", "edit_status",  "hoepa_status")
+    lra_columns <- c("as_of_year", "respondent_id", "agency_code", "loan_amount_000s", 
+                     "state_code", "county_code", "action_taken", "loan_purpose", 
+                     "property_type", "applicant_income_000s", "edit_status",  "hoepa_status",
+                     "rate_spread", "applicant_sex", "applicant_race_1")
   } else if (as.integer(loopy) %in% c(2018:2023)) {
-    lra_columns <- c("activity_year", "lei", "loan_amount", "state_code", "county_code", "action_taken", "loan_purpose", "derived_dwelling_category", "income", "hoepa_status")
+    lra_columns <- c("activity_year", "lei", "loan_amount", 
+                     "state_code", "county_code", "action_taken", "loan_purpose", 
+                     "derived_dwelling_category", "income", "hoepa_status",
+                     "rate_spread", "applicant_sex", "applicant_race_1")
   }
   
   # Load all the raw LRA data on respondent-ID level (contains the information 
@@ -73,12 +87,12 @@ lapply(lra_files, function(file) {
   # Standardize the column names
   if (as.integer(loopy) %in% c(2007:2017)) {
     setnames(data,
-             old = c("as_of_year", "respondent_id", "agency_code", "loan_amount_000s", "state_code", "county_code", "action_taken", "loan_purpose", "property_type", "applicant_income_000s", "edit_status",  "hoepa_status"),
-             new = c("activity_year", "respondent_id", "agency_code", "loan_amount", "state_code", "county_code", "action_taken",  "loan_purpose", "property_type", "income", "edit_status",  "hoepa_status"))
+             old = c("as_of_year", "respondent_id", "agency_code", "loan_amount_000s", "state_code", "county_code", "action_taken", "loan_purpose", "property_type", "applicant_income_000s", "edit_status",  "hoepa_status", "rate_spread", "applicant_sex", "applicant_race_1"),
+             new = c("activity_year", "respondent_id", "agency_code", "loan_amount", "state_code", "county_code", "action_taken",  "loan_purpose", "property_type", "income", "edit_status",  "hoepa_status", "rate_spread", "applicant_sex", "applicant_race_1"))
   } else if (as.integer(loopy) %in% c(2018:2023)) {
     setnames(data,
-             old = c("activity_year", "lei", "loan_amount", "state_code", "county_code", "action_taken", "loan_purpose", "derived_dwelling_category", "income", "hoepa_status"),
-             new = c("activity_year", "lei", "loan_amount", "state_code", "county_code", "action_taken", "loan_purpose", "property_type", "income", "hoepa_status"))
+             old = c("activity_year", "lei", "loan_amount", "state_code", "county_code", "action_taken", "loan_purpose", "derived_dwelling_category", "income", "hoepa_status", "rate_spread", "applicant_sex", "applicant_race_1"),
+             new = c("activity_year", "lei", "loan_amount", "state_code", "county_code", "action_taken", "loan_purpose", "property_type", "income", "hoepa_status", "rate_spread", "applicant_sex", "applicant_race_1"))
   }
   
   # Recode property 
@@ -165,7 +179,7 @@ purrr::walk(panel_files, function(file) {
 })
 
 
-nas <- bind_rows(nas_list)
+
 
 hmda_panel <- list.files(paste0(TEMP),  pattern = "hmda_panel_")
 # hmda_panel_num <- seq_along(hmda_panel)
