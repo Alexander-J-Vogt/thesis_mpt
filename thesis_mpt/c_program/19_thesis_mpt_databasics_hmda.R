@@ -87,20 +87,30 @@ lapply(lra_files, function(file) {
   # Standardize the column names
   if (as.integer(loopy) %in% c(2007:2017)) {
     setnames(data,
-             old = c("as_of_year", "respondent_id", "agency_code", "loan_amount_000s", "state_code", "county_code", "action_taken", "loan_purpose", "property_type", "applicant_income_000s", "edit_status",  "hoepa_status", "rate_spread", "applicant_sex", "applicant_race_1"),
-             new = c("activity_year", "respondent_id", "agency_code", "loan_amount", "state_code", "county_code", "action_taken",  "loan_purpose", "property_type", "income", "edit_status",  "hoepa_status", "rate_spread", "applicant_sex", "applicant_race_1"))
+             old = c("as_of_year", "respondent_id", "agency_code", "loan_amount_000s", 
+                     "state_code", "county_code", "action_taken", "loan_purpose", 
+                     "property_type", "applicant_income_000s", "edit_status",  "hoepa_status",
+                     "rate_spread", "applicant_sex", "applicant_race_1"),
+             new = c("activity_year", "respondent_id", "agency_code", "loan_amount", 
+                     "state_code", "county_code", "action_taken",  "loan_purpose", 
+                     "property_type", "income", "edit_status",  "hoepa_status",
+                     "rate_spread", "applicant_sex", "applicant_race_1"))
   } else if (as.integer(loopy) %in% c(2018:2023)) {
     setnames(data,
-             old = c("activity_year", "lei", "loan_amount", "state_code", "county_code", "action_taken", "loan_purpose", "derived_dwelling_category", "income", "hoepa_status", "rate_spread", "applicant_sex", "applicant_race_1"),
-             new = c("activity_year", "lei", "loan_amount", "state_code", "county_code", "action_taken", "loan_purpose", "property_type", "income", "hoepa_status", "rate_spread", "applicant_sex", "applicant_race_1"))
+             old = c("activity_year", "lei", "loan_amount", "state_code", "county_code", 
+                     "action_taken", "loan_purpose", "derived_dwelling_category", "income",
+                     "hoepa_status", "rate_spread", "applicant_sex", "applicant_race_1"),
+             new = c("activity_year", "lei", "loan_amount", "state_code", "county_code",
+                     "action_taken", "loan_purpose", "property_type", "income",
+                     "hoepa_status", "rate_spread", "applicant_sex", "applicant_race_1"))
   }
   
-  # Recode property 
-  if (as.integer(loopy) %in% c(2018:2023)) {
-    data <- data[, property_type := fifelse(property_type == "Single Family (1-4 Units):Site-Built", "1", property_type)]
-    data <- data[, property_type := fifelse(property_type %in% c("Single Family (1-4 Units):Manufactured", "Multifamily:Manufactured"), "2", property_type)]
-    data <- data[, property_type := fifelse(property_type == "Multifamily:Site-Built", "3", property_type)]
-  }
+  # # Recode property 
+  # if (as.integer(loopy) %in% c(2018:2023)) {
+  #   data <- data[, property_type := fifelse(property_type == "Single Family (1-4 Units):Site-Built", "1", property_type)]
+  #   data <- data[, property_type := fifelse(property_type %in% c("Single Family (1-4 Units):Manufactured", "Multifamily:Manufactured"), "2", property_type)]
+  #   data <- data[, property_type := fifelse(property_type == "Multifamily:Site-Built", "3", property_type)]
+  # }
   
   # Save the raw lra dataset
   SAVE(dfx = data, namex = paste0("hmda_lra_", loopy), pattdir = TEMP)
@@ -120,7 +130,11 @@ lapply(lra_files, function(file) {
 
 # This loop imports panel data 
 purrr::walk(panel_files, function(file) {
-
+  
+  if (DEBUG) {
+    file <- panel_files[18]
+  }
+  
   # Get year of panel
   year <- as.integer(gsub("[^0-9]", "", file))
   
@@ -137,30 +151,31 @@ purrr::walk(panel_files, function(file) {
   # Standardize the column names of the panel
   if (year %in% c(2007:2009)) {
     setnames(data, 
-             old = c("Respondent Identification Number", "Agency Code", "Other Lender Code"), 
-             new = c("respondent_id", "agency_code", "other_lender_code"))
+             old = c("Respondent Identification Number", "Agency Code", "Other Lender Code", "Assets"), 
+             new = c("respondent_id", "agency_code", "other_lender_code", "assets"))
   } else if (year %in% c(2010:2017)) {
     setnames(data, 
-             old = c("Respondent ID", "Agency Code", "Other Lender Code", "Respondent RSSD ID"), 
-             new = c("respondent_id", "agency_code", "other_lender_code", "respondent_rssd"))
+             old = c("Respondent ID", "Agency Code", "Other Lender Code", "Respondent RSSD ID", "Assets"), 
+             new = c("respondent_id", "agency_code", "other_lender_code", "respondent_rssd", "assets"))
   } else if (year %in% c(2018:2023)) {
     setnames(data,
-             old = c("lei", "agency_code", "other_lender_code", "respondent_rssd"),
-             new = c("lei", "agency_code", "other_lender_code", "respondent_rssd"))
+             old = c("lei", "agency_code", "other_lender_code", "respondent_rssd", "assets"),
+             new = c("lei", "agency_code", "other_lender_code", "respondent_rssd", "assets"))
   }
   
   # Select the relevant variables
-  if (year %in% c(2005:2006)) {
-    data <- data[, c("respondent_id", "agency_code", "other_lender_code", "respondent_rssd")]
+  if (year %in% c(2004:2006, 2010:2017)) {
+    data <- data[, c("respondent_id", "agency_code", "other_lender_code", "respondent_rssd", "assets")]
   } else if (year %in% c(2007:2009)) {
-    data <- data[, c("respondent_id", "agency_code", "other_lender_code")]
-  } else if (year %in% c(2010:2017)) {
-    data <- data[, c("respondent_id", "agency_code", "other_lender_code", "respondent_rssd")]
+    data <- data[, c("respondent_id", "agency_code", "other_lender_code", "assets")]
+  # } else if (year %in% c(2010:2017)) {
+  #   data <- data[, c("respondent_id", "agency_code", "other_lender_code", "respondent_rssd", "assets")]
   } else if (year %in% c(2018:2023)) {
-    data <- data[, c("lei", "agency_code", "other_lender_code", "respondent_rssd")]
+    data <- data[, c("lei", "agency_code", "other_lender_code", "respondent_rssd", "assets")]
   }
 
-  # get rid off any duplications
+  # get rid off any duplication
+  # as the years 2004 to 2006 are on respondent id, agency code, MSA level 
   if (year %in% c(2004:2017)) {
     data <- unique(data, by = c("respondent_id", "agency_code"))
   } else if (year %in% c(2018:2023)) {
@@ -178,10 +193,69 @@ purrr::walk(panel_files, function(file) {
   gc()
 })
 
+# Recover RSSD for the years 2007 to 2009 with the help of previous years
+# hmda_panel <- list.files(paste0(TEMP),  pattern = "hmda_panel_")
+# hmda_panel <- as.integer(gsub("[^0-9]", "", hmda_panel))
+# yearstoselect <- hmda_panel[inrange(hmda_panel, 2004, 2006) | inrange(hmda_panel, 2010, 2011)]
+# panel_list <- as.character(hmda_panel[hmda_panel %in% yearstoselect])
+
+# Append all years except years between 2007 to 2009 
+# panel <- lapply(panel_list, function (x) {
+#   LOAD(dfinput = paste0("hmda_panel_", x))
+# })
+
+# # Manual Fix of a zero added to respondent_rssd
+# panel_2012 <- panel[[6]]
+# panel[[6]] <- panel_2012 |> 
+#   mutate(
+#     respondent_rssd = substring(respondent_rssd, 1, nchar(respondent_rssd) - 1)
+#   )
+
+# panel <- bind_rows(panel)
+# panel <- panel |> 
+#   mutate(
+#     respondent_rssd = str_pad(respondent_rssd, width = 10, side = "left", pad = "0")
+#   ) |>
+#   arrange(respondent_rssd, agency_code) |> 
+#   distinct(respondent_id, agency_code, respondent_rssd)
+
+# Use the last year with respondent_rssd before 2007 in order to add to the years
+panel_2006 <- LOAD(dfinput = "hmda_panel_2006")
+panel_2010 <- LOAD(dfinput = "hmda_panel_2010")
+
+# Adjust Respondent RSSD in order to have character length of 10
+panel_2006 <- panel_2006 |> 
+  mutate(
+    respondent_rssd = str_pad(respondent_rssd, width = 10, side = "left", pad = "0")
+  )
+
+# Identify the Respondent ID, which were added between the years 2007 to 2009
+panel_setdiff <- setdiff(panel_2010$respondent_id, panel_2006$respondent_id)
+panel_2010_subset <- panel_2010[panel_2010$respondent_id %in% panel_setdiff,]
+
+# Combine information of the year 2006 and 2010 on RSSD ID by the Federal Reserve
+panel <- rbind(panel_2006, panel_2010_subset)
+  
+# Adding the master list of respondent_id, agency_code, respondent_rssd
+data_panel <- lapply(2007:2009, function (x) {
+  data <- LOAD(dfinput = paste0("hmda_panel_", x))
+  data_joined <- left_join(data, panel, by = c("respondent_id", "agency_code"))
+  return(data_joined)
+}) 
+
+data_panel_2007 <- data_panel[[1]] |> 
+  distinct(respondent_id, agency_code, respondent_rssd)
+
+for (i in 2007:2009) {
+  load(file = paste0(TEMP, "/","hmda_panel_", i, ".rda"))
+}
+
+sapply(data_panel, unique)
+
+nrow(distinct(hmda_panel_2007$respondent_id, hmda_panel_2007$agency_code))
 
 
 
-hmda_panel <- list.files(paste0(TEMP),  pattern = "hmda_panel_")
 # hmda_panel_num <- seq_along(hmda_panel)
 panel <- list()
 panel <- lapply(hmda_panel, function(x) {
@@ -196,6 +270,7 @@ for (i in list_envir) {
   year <- gsub("[^0-9]", "", i)
   print(paste0("Year: ", year))
   print(colnames(data))
+  print(paste0("# ", nrow(data)))
 }
 
 
