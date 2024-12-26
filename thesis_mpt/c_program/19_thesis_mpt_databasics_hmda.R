@@ -195,7 +195,7 @@ purrr::walk(panel_files, function(file) {
   gc()
 })
 
-### 1.3.1 Recover RSSD for 2007 to 2009 ----------------------------------------
+### 1.3.2 Recover RSSD for 2007 to 2009 ----------------------------------------
 
 # Use the last year with respondent_rssd before 2007 and first year after 2009 
 # in order to recover RSSD
