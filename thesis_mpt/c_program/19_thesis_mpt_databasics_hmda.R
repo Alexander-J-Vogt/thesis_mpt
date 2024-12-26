@@ -239,6 +239,8 @@ purrr::walk(data_panel, function(x) {
   SAVE(dfx = x, namex = paste0("hmda_panel_", year))
 })
 
+# Remove not used data
+rm(list = c("data_panel", "panel", "panel_2006", "panel_2010", "panel_2010_subset"))
 
 ## 1.4 Merging the Panel and LRA dataset with each other -----------------------
 
@@ -247,7 +249,7 @@ purrr::walk(data_panel, function(x) {
 #' multiple observations as they have to report every single originated loan.
 
 # Merge both Panel and LRA based on year
-purrr::walk(2000:2017, function(i) {
+purrr::walk(2018:2023, function(i) {
   
   # Determine the imported LRA and Panel dependent on the year
   lra <- paste0("hmda_lra_", i)
@@ -262,8 +264,15 @@ purrr::walk(2000:2017, function(i) {
   dfpanel <- get(panel)
   
   # Performs a left_join as we want to keep the observation level of the LRA
-  # and want to be able to identify the lender code of each respondents.  
-  main <- left_join(dflra, dfpanel, by = c("respondent_id", "agency_code"))
+  # and want to be able to identify the lender code of each respondents. Thereby,
+  # it is important to distinguish between the data structure before and after 2018.
+  # - Key before 2018: respondent_id, agency_code
+  # - Key from 2018 on: LEI
+  if (i < 2018) {
+    main <- left_join(dflra, dfpanel, by = c("respondent_id", "agency_code"))
+  } else {
+    main <- left_join(dflra, dfpanel, by = c("lei"))
+  }
   
   # Check if LRA and main dataset have same length: Test to make sure that 
   # no additional observations are added. (Double Check)
