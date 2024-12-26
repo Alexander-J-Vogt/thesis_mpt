@@ -123,6 +123,8 @@ lapply(lra_files, function(file) {
 
 ## 1.3 Import Panel files ------------------------------------------------------
 
+### 1.3.1 Import Panel files ---------------------------------------------------
+
 # Import Panel data and retrieve all unique observation in order to
 # get the all unique respondent_id and agency_code combinations.
 # This is later needed to identify Commercial Banks that hand out Mortgages with 
@@ -193,33 +195,10 @@ purrr::walk(panel_files, function(file) {
   gc()
 })
 
-# Recover RSSD for the years 2007 to 2009 with the help of previous years
-# hmda_panel <- list.files(paste0(TEMP),  pattern = "hmda_panel_")
-# hmda_panel <- as.integer(gsub("[^0-9]", "", hmda_panel))
-# yearstoselect <- hmda_panel[inrange(hmda_panel, 2004, 2006) | inrange(hmda_panel, 2010, 2011)]
-# panel_list <- as.character(hmda_panel[hmda_panel %in% yearstoselect])
+### 1.3.1 Recover RSSD for 2007 to 2009 ----------------------------------------
 
-# Append all years except years between 2007 to 2009 
-# panel <- lapply(panel_list, function (x) {
-#   LOAD(dfinput = paste0("hmda_panel_", x))
-# })
-
-# # Manual Fix of a zero added to respondent_rssd
-# panel_2012 <- panel[[6]]
-# panel[[6]] <- panel_2012 |> 
-#   mutate(
-#     respondent_rssd = substring(respondent_rssd, 1, nchar(respondent_rssd) - 1)
-#   )
-
-# panel <- bind_rows(panel)
-# panel <- panel |> 
-#   mutate(
-#     respondent_rssd = str_pad(respondent_rssd, width = 10, side = "left", pad = "0")
-#   ) |>
-#   arrange(respondent_rssd, agency_code) |> 
-#   distinct(respondent_id, agency_code, respondent_rssd)
-
-# Use the last year with respondent_rssd before 2007 in order to add to the years
+# Use the last year with respondent_rssd before 2007 and first year after 2009 
+# in order to recover RSSD
 panel_2006 <- LOAD(dfinput = "hmda_panel_2006")
 panel_2010 <- LOAD(dfinput = "hmda_panel_2010")
 
@@ -235,44 +214,30 @@ panel_2010_subset <- panel_2010[panel_2010$respondent_id %in% panel_setdiff,]
 
 # Combine information of the year 2006 and 2010 on RSSD ID by the Federal Reserve
 panel <- rbind(panel_2006, panel_2010_subset)
-  
+panel <- panel[, c("respondent_id", "agency_code", "respondent_rssd")]
+
 # Adding the master list of respondent_id, agency_code, respondent_rssd
 data_panel <- lapply(2007:2009, function (x) {
   data <- LOAD(dfinput = paste0("hmda_panel_", x))
   data_joined <- left_join(data, panel, by = c("respondent_id", "agency_code"))
+  data_joined$year <- x
   return(data_joined)
 }) 
 
-data_panel_2007 <- data_panel[[1]] |> 
-  distinct(respondent_id, agency_code, respondent_rssd)
-
-for (i in 2007:2009) {
-  load(file = paste0(TEMP, "/","hmda_panel_", i, ".rda"))
-}
-
-sapply(data_panel, unique)
-
-nrow(distinct(hmda_panel_2007$respondent_id, hmda_panel_2007$agency_code))
-
-
-
-# hmda_panel_num <- seq_along(hmda_panel)
-panel <- list()
-panel <- lapply(hmda_panel, function(x) {
-  LOAD(paste0(TEMP, "/", x), dfextension = NULL)
+# There are some missings in RSSD for the years 2007 to 2009. These are substitute by
+# "000000000", which is equivalent to saying that they do not have any RSSD of the 
+# Federal Reserves. This is a conservative assumption as these observations should not 
+# be deleted.
+data_panel <- lapply(data_panel, function (x) {
+  x[[5]] <- if_else(is.na(x[[5]]), "0000000000", as.character(x[[5]]))
+  return(x)
 })
 
-list_envir <- ls(pattern = "hmda_panel_")
-col_names <- list()
-for (i in list_envir) {
-  # i <- list_envir[1]
-  data <- get(i)
-  year <- gsub("[^0-9]", "", i)
-  print(paste0("Year: ", year))
-  print(colnames(data))
-  print(paste0("# ", nrow(data)))
-}
-
+# Saving the adjusted data frames
+purrr::walk(data_panel, function(x) {
+  year <- unique(x[[6]])
+  SAVE(dfx = x, namex = paste0("hmda_panel_", year))
+})
 
 
 ## 1.4 Merging the Panel and LRA dataset with each other -----------------------
