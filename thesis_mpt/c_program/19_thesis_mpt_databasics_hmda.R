@@ -299,15 +299,87 @@ hmda_merged <- list.files(path = TEMP, pattern = "hmda_merge_")
 hmda_merged <- hmda_merged[as.integer(gsub("[^0-9]", "", hmda_merged)) >= 2004]
 hmda_merged <- gsub(".rda", "", hmda_merged)
 
+x <- hmda_merged[19]
+y <- hmda_merged[10]
 
-data <- LOAD(dfinput = hmda_merged[19])
+datax <- LOAD(dfinput = x)
+datax <- head(datax, n = 1000000)
+datay <- LOAD(dfinput = y)
+datay <- head(datay, n = 1000000)
+setDT(datax)
+setDT(datay)
 
-# # Recode property 
-# if (as.integer(loopy) %in% c(2018:2023)) {
-#   data <- data[, property_type := fifelse(property_type == "Single Family (1-4 Units):Site-Built", "1", property_type)]
-#   data <- data[, property_type := fifelse(property_type %in% c("Single Family (1-4 Units):Manufactured", "Multifamily:Manufactured"), "2", property_type)]
-#   data <- data[, property_type := fifelse(property_type == "Multifamily:Site-Built", "3", property_type)]
-# }
+## CURRENT DATASET
+data <- datay
+setDT(data)
+
+# Determine the year of data
+year <- unique(data$activity_year)
+
+## Determine the format
+# Columns as character
+if (year >= 2018) {
+  chr_cols <- c("lei", "state_code", "county_code", "property_type", "respondent_rssd")
+} else if (year < 2018) {
+  chr_cols <- c("respondent_id", "state_code", "county_code", "property_type", "respondent_rssd", "edit_status")
+}
+
+# Columns as numeric
+num_cols <- c("activity_year", "loan_amount", "action_taken", "loan_purpose", "income",
+              "hoepa_status", "rate_spread", "applicant_sex", "applicant_race_1",
+              "loan_type", "agency_code", "other_lender_code", "assets")
+
+# Formatting the columns
+data[, (chr_cols) := lapply(.SD, as.character), .SDcols = chr_cols]
+data[, (num_cols) := lapply(.SD, as.numeric), .SDcols = num_cols]
+
+# Accounting for year specific data structure
+if (year >= 2018) {
+  
+  data[, `:=` (
+    # Detect NAs in lei
+    lei = fifelse(lei == "", NA, lei),
+    # Change unit of loan amount in 000s
+    loan_amount = loan_amount / 1000,
+    # Extract state code number
+    state_code = fifelse(!is.na(county_code), str_sub(county_code, start = 1, end = 2), county_code) 
+    )]
+  
+  # Unify lei and fips code across all years
+  setnames(data,
+           old = c("lei", "county_code"),
+           new = c("id", "fips"))
+} else if (year < 2018) {
+  
+  data[, `:=` (
+    # Detect NAs in respondent_id
+    respondent_id = fifelse(respondent_id == "", NA, respondent_id),
+    # Account for missings leading zeros in state_code and county_code
+    state_code = str_pad(state_code, width = 2, side = "left", pad = "0"),
+    county_code = str_pad(county_code, width = 3, side = "left", pad = "0")
+  )]
+  
+  # Unify respondent_id and fips code across all years
+  setnames(data,
+           old = "respondent_id",
+           new = "id")
+  data[, fips := fifelse(nchar(state_code) > 0 & nchar(county_code) > 0,paste0(state_code, county_code), "")]
+}
+
+
+
+data[,loan_amount_chr := nchar(as.character(loan_amount))]
+
+# Recode property given the data in pre-2018
+if (as.integer(loopy) %in% c(2018:2023)) {
+  data <- data[, property_type := fifelse(property_type == "Single Family (1-4 Units):Site-Built", "1", property_type)]
+  data <- data[, property_type := fifelse(property_type %in% c("Single Family (1-4 Units):Manufactured", "Multifamily:Manufactured"), "2", property_type)]
+  data <- data[, property_type := fifelse(property_type == "Multifamily:Site-Built", "3", property_type)]
+}
+data[, property_type := as.numeric(property_type)]
+
+
+
 
 
 
