@@ -310,7 +310,7 @@ setDT(datax)
 setDT(datay)
 
 ## CURRENT DATASET
-data <- datay
+data <- datax
 setDT(data)
 
 # Determine the year of data
@@ -336,45 +336,64 @@ data[, (num_cols) := lapply(.SD, as.numeric), .SDcols = num_cols]
 # Accounting for year specific data structure
 if (year >= 2018) {
   
+  # 
   data[, `:=` (
     # Detect NAs in lei
     lei = fifelse(lei == "", NA, lei),
     # Change unit of loan amount in 000s
     loan_amount = loan_amount / 1000,
     # Extract state code number
-    state_code = fifelse(!is.na(county_code), str_sub(county_code, start = 1, end = 2), county_code) 
+    state_code = fifelse(!is.na(county_code), str_sub(county_code, start = 1, end = 2), county_code),
+    respondent_rssd = str_pad(respondent_rssd, width = 10, side = "left", pad = "0")
     )]
+  
+  # Recode property type in order to match the data structure before 2018
+  data <- data[, property_type := fifelse(property_type == "Single Family (1-4 Units):Site-Built", "1", property_type)]
+  data <- data[, property_type := fifelse(property_type %in% c("Single Family (1-4 Units):Manufactured", "Multifamily:Manufactured"), "2", property_type)]
+  data <- data[, property_type := fifelse(property_type == "Multifamily:Site-Built", "3", property_type)]
+  data <- data[, property_type := as.numeric(property_type)]
   
   # Unify lei and fips code across all years
   setnames(data,
            old = c("lei", "county_code"),
            new = c("id", "fips"))
+  
 } else if (year < 2018) {
   
   data[, `:=` (
     # Detect NAs in respondent_id
     respondent_id = fifelse(respondent_id == "", NA, respondent_id),
     # Account for missings leading zeros in state_code and county_code
-    state_code = str_pad(state_code, width = 2, side = "left", pad = "0"),
-    county_code = str_pad(county_code, width = 3, side = "left", pad = "0")
+    state_code = fifelse(state_code != "", str_pad(state_code, width = 2, side = "left", pad = "0"), NA),
+    county_code = fifelse(county_code != "", str_pad(county_code, width = 3, side = "left", pad = "0"), NA)
   )]
   
-  # Unify respondent_id and fips code across all years
+  # Unify respondent_id across years
   setnames(data,
            old = "respondent_id",
            new = "id")
+  
+  # Unify fips across years
   data[, fips := fifelse(nchar(state_code) > 0 & nchar(county_code) > 0,paste0(state_code, county_code), "")]
 }
 
+# Common calculations
+data[, `:=` (
+  # Loan-to-Income Ratio
+  lti_ratio = fifelse(!is.na(loan_amount) & !is.na(income), loan_amount / income, NA),
+  # Help Variable for later calculations
+  ones = 1
+)]
+
+# Share of applicant race by county
+data[, tot_origin := fifelse(action_taken == 1, sum(ones), NA), by = fips]
+data[, share_white_applicant := sum(action_taken == 1 & applicant_race_1 == 5), by = fips]
 
 
 data[,loan_amount_chr := nchar(as.character(loan_amount))]
 
 # Recode property given the data in pre-2018
 if (as.integer(loopy) %in% c(2018:2023)) {
-  data <- data[, property_type := fifelse(property_type == "Single Family (1-4 Units):Site-Built", "1", property_type)]
-  data <- data[, property_type := fifelse(property_type %in% c("Single Family (1-4 Units):Manufactured", "Multifamily:Manufactured"), "2", property_type)]
-  data <- data[, property_type := fifelse(property_type == "Multifamily:Site-Built", "3", property_type)]
 }
 data[, property_type := as.numeric(property_type)]
 
