@@ -42,12 +42,15 @@ lra_files <- list.files(paste0(A, "p_hmda_lra/"))
 lra_files <- lra_files[gsub("[^0-9]", "", lra_files) %in% c(2004:2023)]
 panel_files <- list.files(paste0(A, "q_hmda_panel/"))
 panel_files <- panel_files[gsub("[^0-9]", "", panel_files) %in% c(2004:2023)]
-
+DEBUG <- F
 if (DEBUG) {
   data04 <- fread(paste0(A, "p_hmda_lra/", lra_files[18]), colClasses = "character", nrows = 10)
+  data09 <- fread(paste0(A, "p_hmda_lra/", lra_files[9]), colClasses = "character", nrows = 10)
   data10 <- fread(paste0(A, "p_hmda_lra/", lra_files[10]), colClasses = "character", nrows = 10)
   data20 <- fread(paste0(A, "p_hmda_lra/", lra_files[3]), colClasses = "character", nrows = 10)
+  
 }
+  start <- Sys.time()
 ## 1.2 Import LRA files -------------------------------------------------------
 
 # This loop imports all LRA files
@@ -62,17 +65,17 @@ lapply(lra_files, function(file) {
     lra_columns <- c("activity_year", "respondent_id", "agency_code", "loan_amount",
                      "state_code", "county_code", "action_taken", "loan_purpose", 
                      "property_type", "income", "edit_status", "hoepa_status", 
-                     "rate_spread", "applicant_sex", "applicant_race_1")
+                     "rate_spread", "applicant_sex", "applicant_race_1", "loan_type")
   } else if (as.integer(loopy) %in% c(2007:2017)) {
     lra_columns <- c("as_of_year", "respondent_id", "agency_code", "loan_amount_000s", 
                      "state_code", "county_code", "action_taken", "loan_purpose", 
                      "property_type", "applicant_income_000s", "edit_status",  "hoepa_status",
-                     "rate_spread", "applicant_sex", "applicant_race_1")
+                     "rate_spread", "applicant_sex", "applicant_race_1", "loan_type")
   } else if (as.integer(loopy) %in% c(2018:2023)) {
     lra_columns <- c("activity_year", "lei", "loan_amount", 
                      "state_code", "county_code", "action_taken", "loan_purpose", 
                      "derived_dwelling_category", "income", "hoepa_status",
-                     "rate_spread", "applicant_sex", "applicant_race_1")
+                     "rate_spread", "applicant_sex", "applicant_race_1", "loan_type")
   }
   
   # Load all the raw LRA data on respondent-ID level (contains the information 
@@ -90,27 +93,22 @@ lapply(lra_files, function(file) {
              old = c("as_of_year", "respondent_id", "agency_code", "loan_amount_000s", 
                      "state_code", "county_code", "action_taken", "loan_purpose", 
                      "property_type", "applicant_income_000s", "edit_status",  "hoepa_status",
-                     "rate_spread", "applicant_sex", "applicant_race_1"),
+                     "rate_spread", "applicant_sex", "applicant_race_1", "loan_type"),
              new = c("activity_year", "respondent_id", "agency_code", "loan_amount", 
                      "state_code", "county_code", "action_taken",  "loan_purpose", 
                      "property_type", "income", "edit_status",  "hoepa_status",
-                     "rate_spread", "applicant_sex", "applicant_race_1"))
+                     "rate_spread", "applicant_sex", "applicant_race_1", "loan_type"))
   } else if (as.integer(loopy) %in% c(2018:2023)) {
     setnames(data,
              old = c("activity_year", "lei", "loan_amount", "state_code", "county_code", 
                      "action_taken", "loan_purpose", "derived_dwelling_category", "income",
-                     "hoepa_status", "rate_spread", "applicant_sex", "applicant_race_1"),
+                     "hoepa_status", "rate_spread", "applicant_sex", "applicant_race_1",
+                     "loan_type"),
              new = c("activity_year", "lei", "loan_amount", "state_code", "county_code",
                      "action_taken", "loan_purpose", "property_type", "income",
-                     "hoepa_status", "rate_spread", "applicant_sex", "applicant_race_1"))
+                     "hoepa_status", "rate_spread", "applicant_sex", "applicant_race_1",
+                     "loan_type"))
   }
-  
-  # # Recode property 
-  # if (as.integer(loopy) %in% c(2018:2023)) {
-  #   data <- data[, property_type := fifelse(property_type == "Single Family (1-4 Units):Site-Built", "1", property_type)]
-  #   data <- data[, property_type := fifelse(property_type %in% c("Single Family (1-4 Units):Manufactured", "Multifamily:Manufactured"), "2", property_type)]
-  #   data <- data[, property_type := fifelse(property_type == "Multifamily:Site-Built", "3", property_type)]
-  # }
   
   # Save the raw lra dataset
   SAVE(dfx = data, namex = paste0("hmda_lra_", loopy), pattdir = TEMP)
@@ -249,7 +247,7 @@ rm(list = c("data_panel", "panel", "panel_2006", "panel_2010", "panel_2010_subse
 #' multiple observations as they have to report every single originated loan.
 
 # Merge both Panel and LRA based on year
-purrr::walk(2018:2023, function(i) {
+purrr::walk(2004:2017, function(i) {
   
   # Determine the imported LRA and Panel dependent on the year
   lra <- paste0("hmda_lra_", i)
@@ -270,7 +268,7 @@ purrr::walk(2018:2023, function(i) {
   # - Key from 2018 on: LEI
   if (i < 2018) {
     main <- left_join(dflra, dfpanel, by = c("respondent_id", "agency_code"))
-  } else {
+  } else if (i >= 2018) {
     main <- left_join(dflra, dfpanel, by = c("lei"))
   }
   
@@ -291,8 +289,30 @@ purrr::walk(2018:2023, function(i) {
   gc()
 })
 
+end <- Sys.time()
+diff <- end - start
+message(paste0("The code took: ", diff))
 
 # 2. Data Basics ===============================================================  
+
+hmda_merged <- list.files(path = TEMP, pattern = "hmda_merge_")
+hmda_merged <- hmda_merged[as.integer(gsub("[^0-9]", "", hmda_merged)) >= 2004]
+hmda_merged <- gsub(".rda", "", hmda_merged)
+
+
+data <- LOAD(dfinput = hmda_merged[19])
+
+# # Recode property 
+# if (as.integer(loopy) %in% c(2018:2023)) {
+#   data <- data[, property_type := fifelse(property_type == "Single Family (1-4 Units):Site-Built", "1", property_type)]
+#   data <- data[, property_type := fifelse(property_type %in% c("Single Family (1-4 Units):Manufactured", "Multifamily:Manufactured"), "2", property_type)]
+#   data <- data[, property_type := fifelse(property_type == "Multifamily:Site-Built", "3", property_type)]
+# }
+
+
+
+############
+
 
 col_classes <- c("numeric", "character", "numeric", "numeric", "numeric", "numeric", "numeric",
                  "numeric", "character", "character", "character", "character", "numeric", "numeric",
