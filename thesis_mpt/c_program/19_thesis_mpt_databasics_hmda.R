@@ -424,7 +424,7 @@ if (year >= 2018) {
     state_code = fifelse(state_code != "", str_pad(state_code, width = 2, side = "left", pad = "0"), NA),
     county_code = fifelse(county_code != "", str_pad(county_code, width = 3, side = "left", pad = "0"), NA),
     
-    
+    # Clean Respondent RSSD by Federal Reserve
     respondent_rssd = fifelse(nchar(respondent_rssd) != 10, str_pad(respondent_rssd, width = 10, side = "left", pad = "0"), respondent_rssd)
   )]
   
@@ -460,40 +460,45 @@ setcolorder(data,
 # Originated Loans 
 data <- data[action_taken == 1]
 # One to four Family Housing
-data <- data[property_type == 1]
+# data <- data[property_type == 1]
 # Home Purchase & Refinancing
 # data <- data[loan_purpose %in% c(1,3)]
+# First Mortgage Lien
+# data <- data[lien_status == 1]
 
 # Delete not relevant variables
 data[, `:=` (
-  action_taken := NULL,
-  property_type := NULL
+  action_taken = NULL,
+  property_type = NULL
 )]
 
 ## 2.4 Calculation of Common Characteristics -----------------------------------
 
 ### 2.4.1 Calculation on Loan Application Level --------------------------------
+
 # Loan-to-Income Ratio
 data[, lti_ratio := fifelse(!is.na(loan_amount) & !is.na(income), loan_amount / income, NA)]
+
 
 ### 2.4.2  Calculations by FIPS ------------------------------------------------
 
 # Share of Originated, Rejected and Purchased loans by Institutions 
-data[, tot_origin := sum(action_taken == 1, na.rm = TRUE), by = fips] # total loan origination
-data[, tot_rejected := sum(action_taken %in% c(2:5,7:8), na.rm = TRUE), by = fips] # total of loan, which where applied for but did not originated
-data[, tot_inst := sum(action_taken == 6, na.rm = TRUE), by = fips] # total loans purchased by other institutions
+data[, tot_origin := .N, by = fips] # total loan origination
+# data[, tot_rejected := sum(action_taken %in% c(2:5,7:8), na.rm = TRUE), by = fips] # total of loan, which where applied for but did not originated
+# data[, tot_inst := sum(action_taken == 6, na.rm = TRUE), by = fips] # total loans purchased by other institutions
+
 
 # Total Number of ...
 # Race
-data[, nr_white_applicant := as.numeric(sum(action_taken == 1 & applicant_race_1 == 5, na.rm = TRUE)), by = fips]
-data[, nr_black_applicant := sum(action_taken == 1 & applicant_race_1 == 3, na.rm = TRUE), by = fips]
-data[, nr_asian_applicant := sum(action_taken == 1 & applicant_race_1 == 2, na.rm = TRUE), by = fips]
-data[, nr_americanindian_applicant := sum(action_taken == 1 & applicant_race_1 == 1, na.rm = TRUE), by = fips]
-data[, nr_others_applicant := sum(action_taken == 1 & !applicant_race_1 %in% c(1, 2, 3, 5), na.rm = TRUE), by = fips]
+data[, nr_white_applicant := as.numeric(sum(applicant_race_1 == 5, na.rm = TRUE)), by = fips]
+data[, nr_black_applicant := sum(applicant_race_1 == 3, na.rm = TRUE), by = fips]
+data[, nr_asian_applicant := sum(applicant_race_1 == 2, na.rm = TRUE), by = fips]
+data[, nr_americanindian_applicant := sum(applicant_race_1 == 1, na.rm = TRUE), by = fips]
+data[, nr_others_applicant := sum(!applicant_race_1 %in% c(1, 2, 3, 5), na.rm = TRUE), by = fips]
 
 # Sex
-data[, nr_male_applicant := sum(action_taken == 1 & applicant_sex == 1, na.rm = TRUE), by = fips]
-data[, nr_female_applicant := sum(action_taken == 1 & applicant_sex == 2, na.rm = TRUE), by = fips]
+data[, nr_male_applicant := sum(applicant_sex == 1, na.rm = TRUE), by = fips]
+data[, nr_female_applicant := sum(applicant_sex == 2, na.rm = TRUE), by = fips]
 
 
 # Share of ...
@@ -508,6 +513,7 @@ data[, share_others_applicant := nr_others_applicant / tot_origin]
 data[, share_male_applicant := nr_male_applicant / tot_origin]
 data[, share_female_applicant := nr_female_applicant / tot_origin]
 
+
 ### 2.4.3 Calculation in Total -------------------------------------------------
 
 # Collect Descriptive Stats in DF
@@ -515,19 +521,19 @@ df_descr_stats <- data.frame()
 
 ## Key Numbers for ...
 # General
-tot_rate_spread <- sum(data$action_taken == 1 & !is.na(data$rate_spread), na.rm = TRUE)
-tot_action_taken <-  sum(data$action_taken == 1, na.rm = TRUE)
+tot_rate_spread <- sum(!is.na(data$rate_spread), na.rm = TRUE)
+tot_action_taken <-  nrow(data)
 
 # Sex
-tot_male <- sum(data$action_taken == 1 & data$applicant_sex == 1, na.rm = TRUE)
-tot_female <- sum(data$action_taken == 1 & data$applicant_sex == 2, na.rm = TRUE)
+tot_male <- sum(data$applicant_sex == 1, na.rm = TRUE)
+tot_female <- sum(data$applicant_sex == 2, na.rm = TRUE)
 
 # Race
-tot_white <- sum(data$action_taken == 1 & data$applicant_race_1 == 5, na.rm = TRUE)
-tot_black <- sum(data$action_taken == 1 & data$applicant_race_1 == 3, na.rm = TRUE)
-tot_asian <- sum(data$action_taken == 1 & data$applicant_race_1 == 2, na.rm = TRUE)
-tot_americanindian <- sum(data$action_taken == 1 & data$applicant_race_1 == 1, na.rm = TRUE)
-tot_others <- sum(data$action_taken == 1 & !data$applicant_race_1 %in% c(1, 2, 3, 5), na.rm = TRUE)
+tot_white <- sum(data$applicant_race_1 == 5, na.rm = TRUE)
+tot_black <- sum(data$applicant_race_1 == 3, na.rm = TRUE)
+tot_asian <- sum(data$applicant_race_1 == 2, na.rm = TRUE)
+tot_americanindian <- sum(data$applicant_race_1 == 1, na.rm = TRUE)
+tot_others <- sum(!data$applicant_race_1 %in% c(1, 2, 3, 5), na.rm = TRUE)
 
 # Save Descriptive Statistics in DF
 df_descr_stats <- data |> 
@@ -547,25 +553,30 @@ df_descr_stats <- data |>
     rate_spread_mean = mean(rate_spread, na.rm = TRUE),
     rate_spread_q75 = qunatile(rate_spread, probs = .75, na.rm = TRUE),
     rate_spread_max = max(rate_spread, na.rm= TRUE),
-    income_NA = sum(action_taken == 1 & !is.na(income)),
+    income_NA = sum(!is.na(income)),
     income_min = min(income, na.rm= TRUE),
     income_q25 = quantile(income, probs = .25, na.rm = TRUE),
     income_median = median(income, na.rm = TRUE),
     income_mean = mean(income, na.rm = TRUE),
     income_q75 = qunatile(income, probs = .75, na.rm = TRUE),
     income_max = max(income, na.rm= TRUE),
-    loan_amount_NA = sum(action_taken == 1 & !is.na(loan_amount)),
+    loan_amount_NA = sum(!is.na(loan_amount)),
     loan_amount_min = min(loan_amount, na.rm= TRUE),
     loan_amount_q25 = quantile(loan_amount, probs = .25, na.rm = TRUE),
     loan_amount_median = median(loan_amount, na.rm = TRUE),
     loan_amount_mean = mean(loan_amount, na.rm = TRUE),
     loan_amount_q75 = qunatile(loan_amount, probs = .75, na.rm = TRUE),
     loan_amount_max = max(loan_amount, na.rm= TRUE),
-    hoepa_high_cost = sum(action_taken == 1 & hoepa_status == 1),
-    hoepa_share_high_cost = sum(action_taken == 1 & hoepa_status == 1) / tot_origin,
-    hoepa_non_high_cost = sum(action_taken == 1 & hoepa_status == 2),
-    hoepa_share_non_high_cost = sum(action_taken == 1 & hoepa_status == 2), tot_origin,
-    property_
+    hoepa_high_cost = sum(hoepa_status == 1),
+    hoepa_share_high_cost = sum(hoepa_status == 1) / tot_origin,
+    hoepa_non_high_cost = sum(hoepa_status == 2),
+    hoepa_share_non_high_cost = sum(hoepa_status == 2) / tot_origin,
+    loan_purpose_hp = sum(loan_type == 1) / tot_origin,
+    loan_purpose_hi = sum(loan_type == 2) / tot_origin,
+    loan_purpose_refin = sum(loan_type == 2) / tot_origin,
+    property_type_fam = sum(property_type == 1) / tot_origin,
+    property_type_manuf = sum(property_type == 2) / tot_origin,
+    property_type_mutli = sum(property_type == 3) / tot_origin
     
     
   )
