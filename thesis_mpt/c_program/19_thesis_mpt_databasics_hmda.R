@@ -66,19 +66,19 @@ lapply(lra_files, function(file) {
                      "state_code", "county_code", "action_taken", "loan_purpose", 
                      "property_type", "income", "edit_status", "hoepa_status", 
                      "rate_spread", "applicant_sex", "applicant_race_1", "loan_type",
-                     "purchaser_type")
+                     "purchaser_type", "lien_status", "occupancy", "msamd")
   } else if (as.integer(loopy) %in% c(2007:2017)) {
     lra_columns <- c("as_of_year", "respondent_id", "agency_code", "loan_amount_000s", 
                      "state_code", "county_code", "action_taken", "loan_purpose", 
                      "property_type", "applicant_income_000s", "edit_status",  "hoepa_status",
                      "rate_spread", "applicant_sex", "applicant_race_1", "loan_type",
-                     "purchaser_type")
+                     "purchaser_type",  "lien_status", "owner_occupancy", "msamd")
   } else if (as.integer(loopy) %in% c(2018:2023)) {
     lra_columns <- c("activity_year", "lei", "loan_amount", 
                      "state_code", "county_code", "action_taken", "loan_purpose", 
                      "derived_dwelling_category", "income", "hoepa_status",
                      "rate_spread", "applicant_sex", "applicant_race_1", "loan_type",
-                     "purchaser_type")
+                     "purchaser_type",  "lien_status", "occupancy_type", "derived_msa_md")
   }
   
   # Load all the raw LRA data on respondent-ID level (contains the information 
@@ -97,22 +97,37 @@ lapply(lra_files, function(file) {
                      "state_code", "county_code", "action_taken", "loan_purpose", 
                      "property_type", "applicant_income_000s", "edit_status",  "hoepa_status",
                      "rate_spread", "applicant_sex", "applicant_race_1", "loan_type",
-                     "purchaser_type"),
+                     "purchaser_type",  "lien_status", "owner_occupancy", "msamd"),
+             
              new = c("activity_year", "respondent_id", "agency_code", "loan_amount", 
                      "state_code", "county_code", "action_taken",  "loan_purpose", 
                      "property_type", "income", "edit_status",  "hoepa_status",
                      "rate_spread", "applicant_sex", "applicant_race_1", "loan_type",
-                     "purchaser_type"))
+                     "purchaser_type",  "lien_status", "occupancy_type", "msamd"))
   } else if (as.integer(loopy) %in% c(2018:2023)) {
     setnames(data,
              old = c("activity_year", "lei", "loan_amount", "state_code", "county_code", 
                      "action_taken", "loan_purpose", "derived_dwelling_category", "income",
                      "hoepa_status", "rate_spread", "applicant_sex", "applicant_race_1",
-                     "loan_type", "purchaser_type"),
+                     "loan_type", "purchaser_type", "lien_status", "derived_msa_md"),
+             
              new = c("activity_year", "lei", "loan_amount", "state_code", "county_code",
                      "action_taken", "loan_purpose", "property_type", "income",
                      "hoepa_status", "rate_spread", "applicant_sex", "applicant_race_1",
-                     "loan_type", "purchaser_type"))
+                     "loan_type", "purchaser_type",  "lien_status", "msamd"))
+  } else if (as.integer(loopy) %in% 2004:2006) {
+    setnames(data,
+             old = c("activity_year", "respondent_id", "agency_code", "loan_amount", 
+                     "state_code", "county_code", "action_taken", "loan_purpose", 
+                     "property_type", "applicant", "edit_status",  "hoepa_status",
+                     "rate_spread", "applicant_sex", "applicant_race_1", "loan_type",
+                     "purchaser_type",  "lien_status", "occupancy", "msamd"),
+             
+             new = c("activity_year", "respondent_id", "agency_code", "loan_amount", 
+                     "state_code", "county_code", "action_taken",  "loan_purpose", 
+                     "property_type", "income", "edit_status",  "hoepa_status",
+                     "rate_spread", "applicant_sex", "applicant_race_1", "loan_type",
+                     "purchaser_type",  "lien_status", "occupancy_type", "msamd"))
   }
   
   # Save the raw lra dataset
@@ -244,6 +259,7 @@ purrr::walk(data_panel, function(x) {
 
 # Remove not used data
 rm(list = c("data_panel", "panel", "panel_2006", "panel_2010", "panel_2010_subset"))
+gc()
 
 ## 1.4 Merging the Panel and LRA dataset with each other -----------------------
 
@@ -252,7 +268,7 @@ rm(list = c("data_panel", "panel", "panel_2006", "panel_2010", "panel_2010_subse
 #' multiple observations as they have to report every single originated loan.
 
 # Merge both Panel and LRA based on year
-purrr::walk(2018:2023, function(i) {
+purrr::walk(2004:2023, function(i) {
   
   # Determine the imported LRA and Panel dependent on the year
   lra <- paste0("hmda_lra_", i)
@@ -318,10 +334,14 @@ setDT(datay)
 data <- datax
 setDT(data)
 
+# Initiate list
+desc_stats_list <- list()
+
 # Determine the year of data
 year <- as.integer(unique(data$activity_year))
 
-## Determine the format
+## 2.1 Formatting Variables ----------------------------------------------------
+
 # Columns as character
 if (year >= 2018) {
   chr_cols <- c("lei", "state_code", "county_code", "property_type", "respondent_rssd")
@@ -338,18 +358,39 @@ num_cols <- c("activity_year", "loan_amount", "action_taken", "loan_purpose", "i
 data[, (chr_cols) := lapply(.SD, as.character), .SDcols = chr_cols]
 data[, (num_cols) := lapply(.SD, as.numeric), .SDcols = num_cols]
 
-# Accounting for year specific data structure
+# Formatting edit_status for the years before 2018
+if (year < 2018) {
+  data[, edit_status := fifelse(edit_status == "", NA, edit_status)]
+  data[, edit_status := as.numeric(edit_status)]
+}
+
+
+## 2.2 Variable Transformations based on time-varying Data Structure -----------
+
+# Variable Transformation for the years after 2017
 if (year >= 2018) {
   
   # Basic Variable Transformations
   data[, `:=` (
+  
     # Detect NAs in lei
     lei = fifelse(lei == "", NA, lei),
+    
     # Change unit of loan amount in 000s
     loan_amount = loan_amount / 1000,
+    
     # Extract state code number
     state_code = fifelse(!is.na(county_code), str_sub(county_code, start = 1, end = 2), county_code),
-    respondent_rssd = str_pad(respondent_rssd, width = 10, side = "left", pad = "0")
+    
+    # Clean Respondent RSSD by Federal Reserve
+    respondent_rssd = str_pad(respondent_rssd, width = 10, side = "left", pad = "0"),
+    
+    # Replace -1 by NA in assets variable
+    assets = fifelse(assets < 0, NA, assets),
+    
+    # Introduce empty edit_status variable (not existing in the years after 2017)
+    edit_status = as.numeric(NA)
+    
     )]
   
   # Recode property type in order to match the data structure before 2018
@@ -364,20 +405,26 @@ if (year >= 2018) {
            new = c("id", "fips")
            )
   
+  
+# Variable Transformation for the years before 2018
 } else if (year < 2018) {
   
-  # Clear the year 2012 from trailing "0" at the end
+  # Clear the year 2012 from a trailing "0" at the end
   if (year == 2012) {
     data[, respondent_rssd := str_sub(respondent_rssd, start = 1, end = nchar(respondent_rssd) - 1)]
   }
   
   # Basic Variable Transformations
   data[, `:=` (
+    
     # Detect NAs in respondent_id
     respondent_id = fifelse(respondent_id == "", NA, respondent_id),
+    
     # Account for missings leading zeros in state_code and county_code
     state_code = fifelse(state_code != "", str_pad(state_code, width = 2, side = "left", pad = "0"), NA),
     county_code = fifelse(county_code != "", str_pad(county_code, width = 3, side = "left", pad = "0"), NA),
+    
+    
     respondent_rssd = fifelse(nchar(respondent_rssd) != 10, str_pad(respondent_rssd, width = 10, side = "left", pad = "0"), respondent_rssd)
   )]
   
@@ -388,37 +435,141 @@ if (year >= 2018) {
            )
   
   # Unify fips across years
-  data[, fips := fifelse(nchar(state_code) > 0 & nchar(county_code) > 0,paste0(state_code, county_code), "")]
+  data[, fips := fifelse(nchar(state_code) > 0 & nchar(county_code) > 0, paste0(state_code, county_code), "")]
+  data[, county_code := NULL]
 }
 
-# Common calculations
+
+## 2.3 Variable Transformation for all data structures -------------------------
+
+# Adjust year variable
+setnames(data,
+         old = "activity_year",
+         new = "year"
+         )
+
+# Order columns
+setcolorder(data, 
+            c("year", "id", "agency_code", "state_code", "fips", "action_taken", "loan_purpose",
+              "property_type", "loan_type", "hoepa_status", "loan_amount", "income", "rate_spread",
+              "applicant_sex", "applicant_race_1", "purchaser_type", "other_lender_code",
+              "respondent_rssd", "assets", "edit_status")
+            )
+
+## Filter for ...
+# Originated Loans 
+data <- data[action_taken == 1]
+# One to four Family Housing
+data <- data[property_type == 1]
+# Home Purchase & Refinancing
+# data <- data[loan_purpose %in% c(1,3)]
+
+# Delete not relevant variables
 data[, `:=` (
-  # Loan-to-Income Ratio
-  lti_ratio = fifelse(!is.na(loan_amount) & !is.na(income), loan_amount / income, NA),
-  # Help Variable for later calculations
-  ones = 1
+  action_taken := NULL,
+  property_type := NULL
 )]
 
-#
+## 2.4 Calculation of Common Characteristics -----------------------------------
 
+### 2.4.1 Calculation on Loan Application Level --------------------------------
+# Loan-to-Income Ratio
+data[, lti_ratio := fifelse(!is.na(loan_amount) & !is.na(income), loan_amount / income, NA)]
 
-# Share of applicant race by county
+### 2.4.2  Calculations by FIPS ------------------------------------------------
+
+# Share of Originated, Rejected and Purchased loans by Institutions 
 data[, tot_origin := sum(action_taken == 1, na.rm = TRUE), by = fips] # total loan origination
 data[, tot_rejected := sum(action_taken %in% c(2:5,7:8), na.rm = TRUE), by = fips] # total of loan, which where applied for but did not originated
 data[, tot_inst := sum(action_taken == 6, na.rm = TRUE), by = fips] # total loans purchased by other institutions
 
-# Key Numbers
-tot_rep <- sum(data$action_taken == 1 & !is.na(data$rate_spread), na.rm = TRUE)
-tot_action_taken <-  sum(data$action_taken == 1, na.rm = TRUE)
-
-
+# Total Number of ...
+# Race
 data[, nr_white_applicant := as.numeric(sum(action_taken == 1 & applicant_race_1 == 5, na.rm = TRUE)), by = fips]
 data[, nr_black_applicant := sum(action_taken == 1 & applicant_race_1 == 3, na.rm = TRUE), by = fips]
+data[, nr_asian_applicant := sum(action_taken == 1 & applicant_race_1 == 2, na.rm = TRUE), by = fips]
+data[, nr_americanindian_applicant := sum(action_taken == 1 & applicant_race_1 == 1, na.rm = TRUE), by = fips]
+data[, nr_others_applicant := sum(action_taken == 1 & !applicant_race_1 %in% c(1, 2, 3, 5), na.rm = TRUE), by = fips]
 
+# Sex
+data[, nr_male_applicant := sum(action_taken == 1 & applicant_sex == 1, na.rm = TRUE), by = fips]
+data[, nr_female_applicant := sum(action_taken == 1 & applicant_sex == 2, na.rm = TRUE), by = fips]
+
+
+# Share of ...
+# Race
 data[, share_white_applicant := nr_white_applicant / tot_origin]
 data[, share_black_applicant := nr_black_applicant / tot_origin]
+data[, share_asian_applicant := nr_asian_applicant / tot_origin]
+data[, share_americanindian_applicant := nr_americanindian_applicant / tot_origin]
+data[, share_others_applicant := nr_others_applicant / tot_origin]
 
+# Sex
+data[, share_male_applicant := nr_male_applicant / tot_origin]
+data[, share_female_applicant := nr_female_applicant / tot_origin]
 
+### 2.4.3 Calculation in Total -------------------------------------------------
+
+# Collect Descriptive Stats in DF
+df_descr_stats <- data.frame()
+
+## Key Numbers for ...
+# General
+tot_rate_spread <- sum(data$action_taken == 1 & !is.na(data$rate_spread), na.rm = TRUE)
+tot_action_taken <-  sum(data$action_taken == 1, na.rm = TRUE)
+
+# Sex
+tot_male <- sum(data$action_taken == 1 & data$applicant_sex == 1, na.rm = TRUE)
+tot_female <- sum(data$action_taken == 1 & data$applicant_sex == 2, na.rm = TRUE)
+
+# Race
+tot_white <- sum(data$action_taken == 1 & data$applicant_race_1 == 5, na.rm = TRUE)
+tot_black <- sum(data$action_taken == 1 & data$applicant_race_1 == 3, na.rm = TRUE)
+tot_asian <- sum(data$action_taken == 1 & data$applicant_race_1 == 2, na.rm = TRUE)
+tot_americanindian <- sum(data$action_taken == 1 & data$applicant_race_1 == 1, na.rm = TRUE)
+tot_others <- sum(data$action_taken == 1 & !data$applicant_race_1 %in% c(1, 2, 3, 5), na.rm = TRUE)
+
+# Save Descriptive Statistics in DF
+df_descr_stats <- data |> 
+  summarise(
+    year = year,
+    share_male_applicant = tot_male / tot_action_taken * 100,
+    share_female_applicant = tot_female / tot_action_taken * 100,
+    share_white_applicant = tot_white / tot_action_taken * 100,
+    share_black_applicant = tot_black / tot_action_taken * 100,
+    share_asian_applicant = tot_asian / tot_action_taken * 100,
+    share_american_indian = tot_americanindian / tot_action_taken * 100,
+    share_others = tot_others / tot_action_taken * 100,
+    rate_spread_NA = tot_rate_spread,
+    rate_spread_min = min(rate_spread, na.rm= TRUE),
+    rate_spread_q25 = quantile(rate_spread, probs = .25, na.rm = TRUE),
+    rate_spread_median = median(rate_spread, na.rm = TRUE),
+    rate_spread_mean = mean(rate_spread, na.rm = TRUE),
+    rate_spread_q75 = qunatile(rate_spread, probs = .75, na.rm = TRUE),
+    rate_spread_max = max(rate_spread, na.rm= TRUE),
+    income_NA = sum(action_taken == 1 & !is.na(income)),
+    income_min = min(income, na.rm= TRUE),
+    income_q25 = quantile(income, probs = .25, na.rm = TRUE),
+    income_median = median(income, na.rm = TRUE),
+    income_mean = mean(income, na.rm = TRUE),
+    income_q75 = qunatile(income, probs = .75, na.rm = TRUE),
+    income_max = max(income, na.rm= TRUE),
+    loan_amount_NA = sum(action_taken == 1 & !is.na(loan_amount)),
+    loan_amount_min = min(loan_amount, na.rm= TRUE),
+    loan_amount_q25 = quantile(loan_amount, probs = .25, na.rm = TRUE),
+    loan_amount_median = median(loan_amount, na.rm = TRUE),
+    loan_amount_mean = mean(loan_amount, na.rm = TRUE),
+    loan_amount_q75 = qunatile(loan_amount, probs = .75, na.rm = TRUE),
+    loan_amount_max = max(loan_amount, na.rm= TRUE),
+    hoepa_high_cost = sum(action_taken == 1 & hoepa_status == 1),
+    hoepa_share_high_cost = sum(action_taken == 1 & hoepa_status == 1) / tot_origin,
+    hoepa_non_high_cost = sum(action_taken == 1 & hoepa_status == 2),
+    hoepa_share_non_high_cost = sum(action_taken == 1 & hoepa_status == 2), tot_origin,
+    property_
+    
+    
+  )
+  
 data_sex_lstatus <- data |> 
   mutate(loan_status = case_when(
     action_taken == 1 ~ "loan_originated",
@@ -442,12 +593,16 @@ ggplot(agg_data, aes(x = applicant_race_1, y = count, fill = loan_status)) +
   ) +
   theme_minimal()
   
+data_rs <- data |> 
+  filter(action_taken == 1 & !is.na(rate_spread)) |> 
+  filter(inrange(rate_spread, -100, 100)) |> 
+  ggplot(aes(rate_spread)) +
+  geom_density()
 
-
-
-data[,loan_amount_chr := nchar(as.character(loan_amount))]
-
-
+# basic filtern
+data <- data[action_taken == 1] # Keep only originated loans
+data <- data[!is.na(fips)] # Keep only loan with known FIPS code
+data <- data[]
 
 
 
