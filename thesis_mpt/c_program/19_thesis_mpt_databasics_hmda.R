@@ -42,7 +42,8 @@ lra_files <- list.files(paste0(A, "p_hmda_lra/"))
 lra_files <- lra_files[gsub("[^0-9]", "", lra_files) %in% c(2004:2023)]
 panel_files <- list.files(paste0(A, "q_hmda_panel/"))
 panel_files <- panel_files[gsub("[^0-9]", "", panel_files) %in% c(2004:2023)]
-DEBUG <- F
+
+DEBUG <- T
 if (DEBUG) {
   data04 <- fread(paste0(A, "p_hmda_lra/", lra_files[18]), colClasses = "character", nrows = 10)
   data09 <- fread(paste0(A, "p_hmda_lra/", lra_files[9]), colClasses = "character", nrows = 10)
@@ -50,11 +51,13 @@ if (DEBUG) {
   data20 <- fread(paste0(A, "p_hmda_lra/", lra_files[3]), colClasses = "character", nrows = 10)
   
 }
-  start <- Sys.time()
+start <- Sys.time()
+
+
 ## 1.2 Import LRA files -------------------------------------------------------
 
 # This loop imports all LRA files
-lapply(lra_files, function(file) {
+purrr::walk(lra_files, function(file) {
   
   # Loop year in string
   loopy <- gsub("[^0-9]", "", file)
@@ -84,10 +87,16 @@ lapply(lra_files, function(file) {
   # Load all the raw LRA data on respondent-ID level (contains the information 
   # on each handed out loan). In order to reduce processing time, only the 
   # relevant variables in lra_columns are imported.
+  if (DEBUG) {
+    r <- 10
+  } else {
+    r <- Inf
+  }
   data <- fread(
     paste0(A, "p_hmda_lra/", file),
     colClasses = "character",
-    select = lra_columns
+    select = lra_columns,
+    nrows = r
     )
   
   # Standardize the column names
@@ -119,7 +128,7 @@ lapply(lra_files, function(file) {
     setnames(data,
              old = c("activity_year", "respondent_id", "agency_code", "loan_amount", 
                      "state_code", "county_code", "action_taken", "loan_purpose", 
-                     "property_type", "applicant", "edit_status",  "hoepa_status",
+                     "property_type", "income", "edit_status",  "hoepa_status",
                      "rate_spread", "applicant_sex", "applicant_race_1", "loan_type",
                      "purchaser_type",  "lien_status", "occupancy", "msamd"),
              
@@ -131,7 +140,9 @@ lapply(lra_files, function(file) {
   }
   
   # Save the raw lra dataset
+  if (!DEBUG) {
   SAVE(dfx = data, namex = paste0("hmda_lra_", loopy), pattdir = TEMP)
+  }
   print(paste0("LRA: Successful import of the year ", loopy))
   
   # Free unused memory and clear object from the  global environment.
@@ -331,7 +342,7 @@ setDT(datax)
 setDT(datay)
 
 ## CURRENT DATASET
-data <- datax
+data <- datay
 setDT(data)
 
 # Initiate list
@@ -457,10 +468,18 @@ setcolorder(data,
             )
 
 ## Filter for ...
+
 # Originated Loans 
 data <- data[action_taken == 1]
-# One to four Family Housing
-# data <- data[property_type == 1]
+
+# One to four Family Dwellings
+data <- data[property_type == 1]
+
+# Missings in Loan Amount, FIPS-Code, Income 
+data <- data[!is.na(fips)] 
+data <- data[!is.na(loan_amount)] # Should be not missing but just to be extra sure this line of code excludes all NAs 
+data <- 
+
 # Home Purchase & Refinancing
 # data <- data[loan_purpose %in% c(1,3)]
 # First Mortgage Lien
