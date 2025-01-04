@@ -347,304 +347,412 @@ setDT(data)
 
 # Initiate list
 desc_stats_list <- list()
+fips_detailed_list <- list()
+fips_missings_list <- list()
 
-# Determine the year of data
-year <- as.integer(unique(data$activity_year))
+# Start to clean all years
+purrr::walk(seq_along(hmda_merged), function(x) {
+
+  # Determine file
+  file <- hmda_merged[10]
+    
+  # Determine the year of data
+  year <- as.integer(gsub("[^0-9]", "", file))
+  
+  # Determine lowest year of hmda_merged
+  low_year_plus1 <- min(as.integer(gsub("[^0-9]", "", hmda_merged))) + 1
+  
+  # Load hmda_merged of this loop iteration
+  data <- LOAD(dfinput = paste0(TEMP, file))
 
 ## 2.1 Formatting Variables ----------------------------------------------------
 
-# Columns as character
-if (year >= 2018) {
-  chr_cols <- c("lei", "state_code", "county_code", "property_type", "respondent_rssd")
-} else if (year < 2018) {
-  chr_cols <- c("respondent_id", "state_code", "county_code", "property_type", "respondent_rssd", "edit_status")
-}
-
-# Columns as numeric
-num_cols <- c("activity_year", "loan_amount", "action_taken", "loan_purpose", "income",
-              "hoepa_status", "rate_spread", "applicant_sex", "applicant_race_1",
-              "loan_type", "agency_code", "other_lender_code", "assets", "lien_status",
-              "occupancy_type")
-
-# Formatting the columns
-data[, (chr_cols) := lapply(.SD, as.character), .SDcols = chr_cols]
-data[, (num_cols) := lapply(.SD, as.numeric), .SDcols = num_cols]
-
-# Formatting edit_status for the years before 2018
-if (year < 2018) {
-  data[, edit_status := fifelse(edit_status == "", NA, edit_status)]
-  data[, edit_status := as.numeric(edit_status)]
-}
+  # Columns as character
+  if (year >= 2018) {
+    chr_cols <- c("lei", "state_code", "county_code", "property_type", "respondent_rssd")
+  } else if (year < 2018) {
+    chr_cols <- c("respondent_id", "state_code", "county_code", "property_type", "respondent_rssd", "edit_status")
+  }
+  
+  # Columns as numeric
+  num_cols <- c("activity_year", "loan_amount", "action_taken", "loan_purpose", "income",
+                "hoepa_status", "rate_spread", "applicant_sex", "applicant_race_1",
+                "loan_type", "agency_code", "other_lender_code", "assets", "lien_status",
+                "occupancy_type")
+  
+  # Formatting the columns
+  data[, (chr_cols) := lapply(.SD, as.character), .SDcols = chr_cols]
+  data[, (num_cols) := lapply(.SD, as.numeric), .SDcols = num_cols]
+  
+  # Formatting edit_status for the years before 2018
+  if (year < 2018) {
+    data[, edit_status := fifelse(edit_status == "", NA, edit_status)]
+    data[, edit_status := as.numeric(edit_status)]
+  }
 
 
 ## 2.2 Variable Transformations based on time-varying Data Structure -----------
 
-# Variable Transformation for the years after 2017
-if (year >= 2018) {
-  
-  # Basic Variable Transformations
-  data[, `:=` (
-  
-    # Detect NAs in lei
-    lei = fifelse(lei == "", NA, lei),
+  # Variable Transformation for the years after 2017
+  if (year >= 2018) {
     
-    # Change unit of loan amount in 000s
-    loan_amount = loan_amount / 1000,
+    # Basic Variable Transformations
+    data[, `:=` (
     
-    # Extract state code number
-    state_code = fifelse(!is.na(county_code), str_sub(county_code, start = 1, end = 2), county_code),
+      # Detect NAs in lei
+      lei = fifelse(lei == "", NA, lei),
+      
+      # Change unit of loan amount in 000s
+      loan_amount = loan_amount / 1000,
+      
+      # Extract state code number
+      state_code = fifelse(!is.na(county_code), str_sub(county_code, start = 1, end = 2), county_code),
+      
+      # Clean Respondent RSSD by Federal Reserve
+      respondent_rssd = str_pad(respondent_rssd, width = 10, side = "left", pad = "0"),
+      
+      # Replace -1 by NA in assets variable
+      assets = fifelse(assets < 0, NA, assets),
+      
+      # Introduce empty edit_status variable (not existing in the years after 2017)
+      edit_status = as.numeric(NA)
+      
+      )]
     
-    # Clean Respondent RSSD by Federal Reserve
-    respondent_rssd = str_pad(respondent_rssd, width = 10, side = "left", pad = "0"),
+    # Recode property type in order to match the data structure before 2018
+    data <- data[, property_type := fifelse(property_type == "Single Family (1-4 Units):Site-Built", "1", property_type)]
+    data <- data[, property_type := fifelse(property_type %in% c("Single Family (1-4 Units):Manufactured", "Multifamily:Manufactured"), "2", property_type)]
+    data <- data[, property_type := fifelse(property_type == "Multifamily:Site-Built", "3", property_type)]
+    data <- data[, property_type := as.numeric(property_type)]
     
-    # Replace -1 by NA in assets variable
-    assets = fifelse(assets < 0, NA, assets),
+    # Unify lei and fips code across all years
+    setnames(data,
+             old = c("lei", "county_code"),
+             new = c("id", "fips")
+             )
     
-    # Introduce empty edit_status variable (not existing in the years after 2017)
-    edit_status = as.numeric(NA)
+  # Variable Transformation for the years before 2018
+  } else if (year < 2018) {
     
+    # Clear the year 2012 from a trailing "0" at the end
+    if (year == 2012) {
+      data[, respondent_rssd := str_sub(respondent_rssd, start = 1, end = nchar(respondent_rssd) - 1)]
+    }
+    
+    # Basic Variable Transformations
+    data[, `:=` (
+      
+      # Detect NAs in respondent_id
+      respondent_id = fifelse(respondent_id == "", NA, respondent_id),
+      
+      # Account for missings leading zeros in state_code and county_code
+      state_code = fifelse(state_code != "", str_pad(state_code, width = 2, side = "left", pad = "0"), NA),
+      county_code = fifelse(county_code != "", str_pad(county_code, width = 3, side = "left", pad = "0"), NA),
+      
+      # Clean Respondent RSSD by Federal Reserve
+      respondent_rssd = fifelse(nchar(respondent_rssd) != 10, str_pad(respondent_rssd, width = 10, side = "left", pad = "0"), respondent_rssd)
     )]
-  
-  # Recode property type in order to match the data structure before 2018
-  data <- data[, property_type := fifelse(property_type == "Single Family (1-4 Units):Site-Built", "1", property_type)]
-  data <- data[, property_type := fifelse(property_type %in% c("Single Family (1-4 Units):Manufactured", "Multifamily:Manufactured"), "2", property_type)]
-  data <- data[, property_type := fifelse(property_type == "Multifamily:Site-Built", "3", property_type)]
-  data <- data[, property_type := as.numeric(property_type)]
-  
-  # Unify lei and fips code across all years
-  setnames(data,
-           old = c("lei", "county_code"),
-           new = c("id", "fips")
-           )
-  
-  
-# Variable Transformation for the years before 2018
-} else if (year < 2018) {
-  
-  # Clear the year 2012 from a trailing "0" at the end
-  if (year == 2012) {
-    data[, respondent_rssd := str_sub(respondent_rssd, start = 1, end = nchar(respondent_rssd) - 1)]
+    
+    # Unify respondent_id across years
+    setnames(data,
+             old = "respondent_id",
+             new = "id"
+             )
+    
+    # Unify fips across years
+    data[, fips := fifelse(nchar(state_code) > 0 & nchar(county_code) > 0, paste0(state_code, county_code), "")]
+    data[, county_code := NULL]
   }
-  
-  # Basic Variable Transformations
-  data[, `:=` (
-    
-    # Detect NAs in respondent_id
-    respondent_id = fifelse(respondent_id == "", NA, respondent_id),
-    
-    # Account for missings leading zeros in state_code and county_code
-    state_code = fifelse(state_code != "", str_pad(state_code, width = 2, side = "left", pad = "0"), NA),
-    county_code = fifelse(county_code != "", str_pad(county_code, width = 3, side = "left", pad = "0"), NA),
-    
-    # Clean Respondent RSSD by Federal Reserve
-    respondent_rssd = fifelse(nchar(respondent_rssd) != 10, str_pad(respondent_rssd, width = 10, side = "left", pad = "0"), respondent_rssd)
-  )]
-  
-  # Unify respondent_id across years
-  setnames(data,
-           old = "respondent_id",
-           new = "id"
-           )
-  
-  # Unify fips across years
-  data[, fips := fifelse(nchar(state_code) > 0 & nchar(county_code) > 0, paste0(state_code, county_code), "")]
-  data[, county_code := NULL]
-}
 
 
 ## 2.3 Variable Transformation for all data structures -------------------------
 
-# Adjust year variable
-setnames(data,
-         old = "activity_year",
-         new = "year"
-         )
-
-# Order columns
-setcolorder(data, 
-            c("year", "id", "agency_code", "state_code", "fips", "msamd", "action_taken", "loan_purpose",
-              "property_type", "loan_type", "hoepa_status", "loan_amount", "lien_status", "occupancy_type", 
-              "income", "rate_spread", "applicant_sex", "applicant_race_1", "purchaser_type", "other_lender_code",
-              "respondent_rssd", "assets", "edit_status")
-            )
-
-
-## Basic Filter for ...
-
-fips_raw <- unique(data$fips)
-
-# Only include states and Washington D.C. BUT no U.S. territory
-data <- data[!state_code %in% c("66", "60", "69","72", "74", "78")]
-fips_after_noterritory <- unique(data$fips)
-print(paste0(length(unique(data$fips)), " of different counties."))
-
-# Originated Loans 
-data <- data[action_taken == 1]
-fips_after_org <- unique(data$fips)
-print(paste0(length(unique(data$fips)), " of different counties."))
-diff_after_org <- setdiff(fips_after_noterritory, fips_after_org)
-
-# One-to-Four-Family Dwellings 
-data <- data[property_type == 1]
-fips_after_onetofour <- unique(data$fips)
-print(paste0(length(unique(data$fips)), " of different counties."))
-diff_after_onetofour <- setdiff(fips_after_org, fips_after_onetofour)
-
-# First Mortgage Lien (No second mortgage on a house - interest rate are higher on these)
-data <- data[lien_status == 1]
-fips_after_firstlien <- unique(data$fips)
-print(paste0(length(unique(data$fips)), " of different counties."))
-diff_after_firstlien <- setdiff(fips_after_onetofour, fips_after_firstlien)
-
-# Principle Residence (in order to exclude any investors)
-data <- data[occupancy_type == 1]
-fips_after_occu <- unique(data$fips)
-print(paste0(length(unique(data$fips)), " of different counties."))
-diff_after_occu <- setdiff(fips_after_firstlien, fips_after_occu)
-
-# Missings in Loan Amount, FIPS-Code, Income 
-data <- data[!is.na(fips)] # Exclude missing FIPS-code (There are multiple reasons on why they can miss. See: HMDA guide 2010)
-data <- data[!is.na(loan_amount)] # Should be not missing but just to be extra sure this line of code excludes all NAs 
-fips_after_na <- unique(data$fips)
-print(paste0(length(unique(data$fips)), " of different counties."))
-diff_after_na <- setdiff(fips_after_occu, fips_after_na)
+  # Adjust year variable
+  setnames(data,
+           old = "activity_year",
+           new = "year"
+           )
+  
+  # Order columns
+  setcolorder(data, 
+              c("year", "id", "agency_code", "state_code", "fips", "msamd", "action_taken", "loan_purpose",
+                "property_type", "loan_type", "hoepa_status", "loan_amount", "lien_status", "occupancy_type", 
+                "income", "rate_spread", "applicant_sex", "applicant_race_1", "purchaser_type", "other_lender_code",
+                "respondent_rssd", "assets", "edit_status")
+              )
 
 
-# List of Counties by TIGRIS
-fips_2000 <- counties(year = 2000)
-fips_2010 <- counties(year = 2010)
-fips_2020 <- counties(year = 2020)
+### Basic Filter for ... -------------------------------------------------------
+
+### Determine Missing Counties | Detailed --------------------------------------
+  
+  fips_before_filter <- unique(data$fips)
+  
+  ## Only include states and Washington D.C. BUT no U.S. territory
+  data <- data[!state_code %in% c("66", "60", "69","72", "74", "78")]
+  
+  # Determine missing counties
+  fips_after_noterritory <- unique(data$fips)
+  diff_after_noterritory <- setdiff(fips_before_filter, fips_after_noterritory)
+  
+  # Originated Loans 
+  data <- data[action_taken == 1]
+  
+  # Determine missing counties
+  fips_after_org <- unique(data$fips)
+  diff_after_org <- setdiff(fips_after_noterritory, fips_after_org)
+  
+  # One-to-Four-Family Dwellings 
+  data <- data[property_type == 1]
+  
+  # Determine missing counties
+  fips_after_onetofour <- unique(data$fips)
+  diff_after_onetofour <- setdiff(fips_after_org, fips_after_onetofour)
+  
+  # First Mortgage Lien (No second mortgage on a house - interest rate are higher on these)
+  data <- data[lien_status == 1]
+  
+  # Determine missing counties
+  fips_after_firstlien <- unique(data$fips)
+  diff_after_firstlien <- setdiff(fips_after_onetofour, fips_after_firstlien)
+  
+  # Principle Residence (in order to exclude any investors)
+  data <- data[occupancy_type == 1]
+  
+  # Determine missing counties
+  fips_after_occu <- unique(data$fips)
+  diff_after_occu <- setdiff(fips_after_firstlien, fips_after_occu)
+  
+  # Missings in Loan Amount, FIPS-Code, Income 
+  data <- data[!is.na(fips)] # Exclude missing FIPS-code (There are multiple reasons on why they can miss. See: HMDA guide 2010)
+  data <- data[!is.na(loan_amount)] # Should be not missing but just to be extra sure this line of code excludes all NAs 
+  
+  # Determine missing counties
+  fips_after_na <- unique(data$fips)
+  diff_after_na <- setdiff(fips_after_occu, fips_after_na)
+  
+  # Missing Counties between filterting for originated loans and filtering for missings
+  diff_org_na <- setdiff(fips_after_org, fips_after_na)
+  diff_org_na <- diff_org_na[!is.na(diff_org_na)]
+  
+  # Save detailed missing counties
+  diff_vectors <- list(diff_after_noterritory, diff_after_org, diff_after_onetofour, diff_after_firstlien, diff_after_occu, diff_after_na, diff_org_na)
+  max_length <- max(sapply(diff_vectors, length))
+  
+  # Create DF
+  padded_vectors <- lapply(diff_vectors, function(x) c(x, rep(NA, max_length - length(x))))
+  df_fips_detailed <- as.data.frame(do.call(cbind, padded_vectors))
+  df_fips_detailed$year <- year
+  fips_detailed_names <- c("diff_after_noterritory", "diff_after_org", "diff_after_onetofour", "diff_after_firstlien", "diff_after_occu", "diff_after_na", "diff_org_na", "year")
+  colnames(df_fips_detailed) <- fips_detailed_names
+  
+  # Save in list
+  fips_detailed_list[[year - low_year_plus1]] <- df_fips_detailed
+  names(fips_detailed_list)[[year - low_year_plus1]] <- paste0("hdma_", year)
+
+
+### Determine Missing Counties | General ---------------------------------------
+
+  # Final number of counties
+  fips_after_filter <- unique(data$fips)
+  
+  # List of Counties by TIGRIS
+  if (year < 2010) {
+    fips_raw <- counties(year = 2000, progress_bar = FALSE)
+  } else {
+    fips_raw <- counties(year = year, progress_bar = FALSE)
+  }
+  
+  # Basic Transformations for a base dataset on available FIPS Codes
+  fips <- fips_raw |>
+    as_tibble() |> 
+    select(STATEFP, GEOID, NAMELSAD) |> 
+    filter(!STATEFP %in% c("66", "60", "69","72", "74", "78")) |> # 50 States + Washington D.C.
+    arrange(STATEFP, GEOID)
+  
+  # Determine which of the counties are missing
+  diff_missings_counties <- setdiff(fips$GEOID, fips_after_filter)
+  
+  # Create DF and add information on state and county name
+  df_missings <- data.frame(county_code = diff_missings_counties)
+  
+  # Load data on fips code and names
+  data(fips_codes)
+  
+  # select relevant variables
+  fips_code <- fips_codes |> 
+    mutate(
+      county_code = paste(state_code, county_code, sep = "")
+    ) |> 
+    select(county_code, state_name, county)
+  
+  # Join Missing Counties with Information
+  df_missings <- fips_code |> 
+    left_join(df_missings, by = "county_code")
+  
+  # Save the DF into the list
+  fips_missings_list[[year - low_year_plus1]] <- df_missings
+  names(fips_missings_list)[[year - low_year_plus1]] <- paste0("hdma_", year)
+
 
 # Home Purchase & Refinancing (for now to evaluate leave all loan purposes in)
 # data <- data[loan_purpose %in% c(1,3)]
 
-## Filter for Errors
-# data[, loan_amount_iqr := IQR(loan_amount), by = fips ]
-# data[, loan_amount_q25 := quantile(loan_amount, probs = .25), by = fips]
-# data[, loan_amount_q75 := quantile(loan_amount, probs = .75), by = fips]
-
-data |> 
-  distinct(state_code, fips, loan_amount_iqr, loan_amount_q25, loan_amount_q75) |> 
-  filter(loan_amount_iqr > 130) |> 
-  group_by(state_code) |> 
-  mutate(nr_cnty_by_state = n()) |> 
-  ungroup() |> 
-  View()
-
-
   # Delete not relevant variables
-data[, `:=` (
-  action_taken = NULL,
-  property_type = NULL,
-  lien_status = NULL,
-  occupancy_type = NULL
-)]
+  data[, `:=` (
+    action_taken = NULL,
+    property_type = NULL,
+    lien_status = NULL,
+    occupancy_type = NULL
+  )]
 
 ## 2.4 Calculation of Common Characteristics -----------------------------------
 
 ### 2.4.1 Calculation on Loan Application Level --------------------------------
 
-# Loan-to-Income Ratio
-data[, lti_ratio := fifelse(!is.na(loan_amount) & !is.na(income), loan_amount / income, NA)]
+  # Loan-to-Income Ratio
+  data[, lti_ratio := fifelse(!is.na(loan_amount) & !is.na(income), loan_amount / income, NA)]
 
 
 ### 2.4.2  Calculations by FIPS ------------------------------------------------
 
-# Share of Originated, Rejected and Purchased loans by Institutions 
-data[, tot_origin := .N, by = fips] # total loan origination
-# data[, tot_rejected := sum(action_taken %in% c(2:5,7:8), na.rm = TRUE), by = fips] # total of loan, which where applied for but did not originated
-# data[, tot_inst := sum(action_taken == 6, na.rm = TRUE), by = fips] # total loans purchased by other institutions
-
-
-# Total Number of ...
-# Race
-data[, nr_white_applicant := as.numeric(sum(applicant_race_1 == 5, na.rm = TRUE)), by = fips]
-data[, nr_black_applicant := sum(applicant_race_1 == 3, na.rm = TRUE), by = fips]
-data[, nr_asian_applicant := sum(applicant_race_1 == 2, na.rm = TRUE), by = fips]
-data[, nr_americanindian_applicant := sum(applicant_race_1 == 1, na.rm = TRUE), by = fips]
-data[, nr_others_applicant := sum(!applicant_race_1 %in% c(1, 2, 3, 5), na.rm = TRUE), by = fips]
-
-# Sex
-data[, nr_male_applicant := sum(applicant_sex == 1, na.rm = TRUE), by = fips]
-data[, nr_female_applicant := sum(applicant_sex == 2, na.rm = TRUE), by = fips]
-
-
-# Share of ...
-# Race
-data[, share_white_applicant := nr_white_applicant / tot_origin]
-data[, share_black_applicant := nr_black_applicant / tot_origin]
-data[, share_asian_applicant := nr_asian_applicant / tot_origin]
-data[, share_americanindian_applicant := nr_americanindian_applicant / tot_origin]
-data[, share_others_applicant := nr_others_applicant / tot_origin]
-
-# Sex
-data[, share_male_applicant := nr_male_applicant / tot_origin]
-data[, share_female_applicant := nr_female_applicant / tot_origin]
+  # Share of Originated, Rejected and Purchased loans by Institutions 
+  data[, tot_origin := .N, by = fips] # total loan origination
+  
+  # Total Number of ...
+  # Race
+  data[, nr_white_applicant := as.numeric(sum(applicant_race_1 == 5, na.rm = TRUE)), by = fips]
+  data[, nr_black_applicant := sum(applicant_race_1 == 3, na.rm = TRUE), by = fips]
+  data[, nr_asian_applicant := sum(applicant_race_1 == 2, na.rm = TRUE), by = fips]
+  data[, nr_americanindian_applicant := sum(applicant_race_1 == 1, na.rm = TRUE), by = fips]
+  data[, nr_others_applicant := sum(!applicant_race_1 %in% c(1, 2, 3, 5), na.rm = TRUE), by = fips]
+  
+  # Sex
+  data[, nr_male_applicant := sum(applicant_sex == 1, na.rm = TRUE), by = fips]
+  data[, nr_female_applicant := sum(applicant_sex == 2, na.rm = TRUE), by = fips]
+  
+  
+  # Share of ...
+  # Race
+  data[, share_white_applicant := nr_white_applicant / tot_origin]
+  data[, share_black_applicant := nr_black_applicant / tot_origin]
+  data[, share_asian_applicant := nr_asian_applicant / tot_origin]
+  data[, share_americanindian_applicant := nr_americanindian_applicant / tot_origin]
+  data[, share_others_applicant := nr_others_applicant / tot_origin]
+  
+  # Sex
+  data[, share_male_applicant := nr_male_applicant / tot_origin]
+  data[, share_female_applicant := nr_female_applicant / tot_origin]
 
 
 ### 2.4.3 Calculation in Total -------------------------------------------------
 
-# Collect Descriptive Stats in DF
-df_descr_stats_tot <- data.frame()
-df_descr_stats_county <- data.frame()
+  # Collect Descriptive Stats in DF
+  df_descr_stats_tot <- data.frame()
+  df_descr_stats_county <- data.frame()
+  
+  ## Key Numbers for ...
+  # General
+  tot_rate_spread <- sum(!is.na(data$rate_spread), na.rm = TRUE)
+  tot_origin_all <-  nrow(data)
+  
+  # Sex
+  tot_male <- sum(data$applicant_sex == 1, na.rm = TRUE)
+  tot_female <- sum(data$applicant_sex == 2, na.rm = TRUE)
+  
+  # Race
+  tot_white <- sum(data$applicant_race_1 == 5, na.rm = TRUE)
+  tot_black <- sum(data$applicant_race_1 == 3, na.rm = TRUE)
+  tot_asian <- sum(data$applicant_race_1 == 2, na.rm = TRUE)
+  tot_americanindian <- sum(data$applicant_race_1 == 1, na.rm = TRUE)
+  tot_others <- sum(!data$applicant_race_1 %in% c(1, 2, 3, 5), na.rm = TRUE)
+  
+  # Save Descriptive Statistics for Total Population in DF
+  df_descr_stats_tot <- data |> 
+    summarise(
+      year = year,
+      share_male_applicant = tot_male / tot_origin_all * 100,
+      share_female_applicant = tot_female / tot_origin_all * 100,
+      share_white_applicant = tot_white / tot_origin_all * 100,
+      share_black_applicant = tot_black / tot_origin_all * 100,
+      share_asian_applicant = tot_asian / tot_origin_all * 100,
+      share_american_indian = tot_americanindian / tot_origin_all * 100,
+      share_others = tot_others / tot_origin_all * 100,
+      rate_spread_NA = tot_rate_spread,
+      rate_spread_min = min(rate_spread, na.rm= TRUE),
+      rate_spread_q25 = quantile(rate_spread, probs = .25, na.rm = TRUE),
+      rate_spread_median = median(rate_spread, na.rm = TRUE),
+      rate_spread_mean = mean(rate_spread, na.rm = TRUE),
+      rate_spread_q75 = quantile(rate_spread, probs = .75, na.rm = TRUE),
+      rate_spread_max = max(rate_spread, na.rm= TRUE),
+      income_NA = sum(!is.na(income)),
+      income_min = min(income, na.rm= TRUE),
+      income_q25 = quantile(income, probs = .25, na.rm = TRUE),
+      income_median = median(income, na.rm = TRUE),
+      income_mean = mean(income, na.rm = TRUE),
+      income_q75 = quantile(income, probs = .75, na.rm = TRUE),
+      income_max = max(income, na.rm= TRUE),
+      loan_amount_NA = sum(!is.na(loan_amount)),
+      loan_amount_min = min(loan_amount, na.rm= TRUE),
+      loan_amount_q25 = quantile(loan_amount, probs = .25, na.rm = TRUE),
+      loan_amount_median = median(loan_amount, na.rm = TRUE),
+      loan_amount_mean = mean(loan_amount, na.rm = TRUE),
+      loan_amount_q75 = quantile(loan_amount, probs = .75, na.rm = TRUE),
+      loan_amount_max = max(loan_amount, na.rm= TRUE),
+      hoepa_high_cost = sum(hoepa_status == 1),
+      hoepa_share_high_cost = sum(hoepa_status == 1) / tot_origin_all,
+      hoepa_non_high_cost = sum(hoepa_status == 2),
+      hoepa_share_non_high_cost = sum(hoepa_status == 2) / tot_origin_all,
+      loan_purpose_hp = sum(loan_type == 1) / tot_origin_all,
+      loan_purpose_hi = sum(loan_type == 2) / tot_origin_all,
+      loan_purpose_refin = sum(loan_type == 2) / tot_origin_all
+    )
 
-## Key Numbers for ...
-# General
-tot_rate_spread <- sum(!is.na(data$rate_spread), na.rm = TRUE)
-tot_origin_all <-  nrow(data)
+  # Save Descriptive Statistics by FIPS in DF
+  df_descr_stats_county <- data |> 
+    group_by(fips) |> 
+    summarise(
+      year = unique(year),
+      share_male_applicant = sum(applicant_sex == 1) / n() * 100,
+      share_female_applicant = sum(applicant_sex == 2) / n() * 100,
+      share_white_applicant = sum(applicant_race_1 == 5) / n() * 100,
+      share_black_applicant = sum(applicant_race_1 == 3) / n() * 100,
+      share_asian_applicant = sum(applicant_race_1 == 2) / n() * 100,
+      share_american_indian = sum(applicant_race_1 == 1) / n() * 100,
+      share_others = sum(!applicant_race_1 %in% c(1, 2, 3, 5)) / n() * 100,
+      rate_spread_exist = any(!is.na(rate_spread)),
+      rate_spread_NA = if_else(rate_spread_exist == TRUE, sum(is.na(rate_spread)), NA),
+      rate_spread_min = if_else(rate_spread_exist == TRUE, min(rate_spread, na.rm= TRUE), NA),
+      rate_spread_q25 = if_else(rate_spread_exist == TRUE, quantile(rate_spread, probs = .25, na.rm = TRUE), NA),
+      rate_spread_median = if_else(rate_spread_exist == TRUE, median(rate_spread, na.rm = TRUE), NA),
+      rate_spread_mean = if_else(rate_spread_exist == TRUE, mean(rate_spread, na.rm = TRUE), NA),
+      rate_spread_q75 = if_else(rate_spread_exist == TRUE, quantile(rate_spread, probs = .75, na.rm = TRUE), NA),
+      rate_spread_max = if_else(rate_spread_exist == TRUE, max(rate_spread, na.rm= TRUE), NA),
+      income_NA = sum(is.na(income)),
+      income_min = min(income, na.rm= TRUE),
+      income_q25 = quantile(income, probs = .25, na.rm = TRUE),
+      income_median = median(income, na.rm = TRUE),
+      income_mean = mean(income, na.rm = TRUE),
+      income_q75 = quantile(income, probs = .75, na.rm = TRUE),
+      income_max = max(income, na.rm= TRUE),
+      loan_amount_NA = sum(is.na(loan_amount)),
+      loan_amount_min = min(loan_amount, na.rm= TRUE),
+      loan_amount_q25 = quantile(loan_amount, probs = .25, na.rm = TRUE),
+      loan_amount_median = median(loan_amount, na.rm = TRUE),
+      loan_amount_mean = mean(loan_amount, na.rm = TRUE),
+      loan_amount_q75 = quantile(loan_amount, probs = .75, na.rm = TRUE),
+      loan_amount_max = max(loan_amount, na.rm= TRUE),
+      hoepa_high_cost = sum(hoepa_status == 1),
+      hoepa_share_high_cost = sum(hoepa_status == 1) / n() * 100,
+      hoepa_non_high_cost = sum(hoepa_status == 2),
+      hoepa_share_non_high_cost = sum(hoepa_status == 2) / n() * 100,
+      loan_purpose_hp = sum(loan_type == 1) / n() * 100,
+      loan_purpose_hi = sum(loan_type == 2) / n() * 100,
+      loan_purpose_refin = sum(loan_type == 2) / n() * 100
+    )
 
-# Sex
-tot_male <- sum(data$applicant_sex == 1, na.rm = TRUE)
-tot_female <- sum(data$applicant_sex == 2, na.rm = TRUE)
-
-# Race
-tot_white <- sum(data$applicant_race_1 == 5, na.rm = TRUE)
-tot_black <- sum(data$applicant_race_1 == 3, na.rm = TRUE)
-tot_asian <- sum(data$applicant_race_1 == 2, na.rm = TRUE)
-tot_americanindian <- sum(data$applicant_race_1 == 1, na.rm = TRUE)
-tot_others <- sum(!data$applicant_race_1 %in% c(1, 2, 3, 5), na.rm = TRUE)
-
-# Save Descriptive Statistics for Total Population in DF
-df_descr_stats_tot <- data |> 
-  summarise(
-    year = unique(year),
-    share_male_applicant = tot_male / tot_origin_all * 100,
-    share_female_applicant = tot_female / tot_origin_all * 100,
-    share_white_applicant = tot_white / tot_origin_all * 100,
-    share_black_applicant = tot_black / tot_origin_all * 100,
-    share_asian_applicant = tot_asian / tot_origin_all * 100,
-    share_american_indian = tot_americanindian / tot_origin_all * 100,
-    share_others = tot_others / tot_origin_all * 100,
-    rate_spread_NA = tot_rate_spread,
-    rate_spread_min = min(rate_spread, na.rm= TRUE),
-    rate_spread_q25 = quantile(rate_spread, probs = .25, na.rm = TRUE),
-    rate_spread_median = median(rate_spread, na.rm = TRUE),
-    rate_spread_mean = mean(rate_spread, na.rm = TRUE),
-    rate_spread_q75 = quantile(rate_spread, probs = .75, na.rm = TRUE),
-    rate_spread_max = max(rate_spread, na.rm= TRUE),
-    income_NA = sum(!is.na(income)),
-    income_min = min(income, na.rm= TRUE),
-    income_q25 = quantile(income, probs = .25, na.rm = TRUE),
-    income_median = median(income, na.rm = TRUE),
-    income_mean = mean(income, na.rm = TRUE),
-    income_q75 = quantile(income, probs = .75, na.rm = TRUE),
-    income_max = max(income, na.rm= TRUE),
-    loan_amount_NA = sum(!is.na(loan_amount)),
-    loan_amount_min = min(loan_amount, na.rm= TRUE),
-    loan_amount_q25 = quantile(loan_amount, probs = .25, na.rm = TRUE),
-    loan_amount_median = median(loan_amount, na.rm = TRUE),
-    loan_amount_mean = mean(loan_amount, na.rm = TRUE),
-    loan_amount_q75 = quantile(loan_amount, probs = .75, na.rm = TRUE),
-    loan_amount_max = max(loan_amount, na.rm= TRUE),
-    hoepa_high_cost = sum(hoepa_status == 1),
-    hoepa_share_high_cost = sum(hoepa_status == 1) / tot_origin_all,
-    hoepa_non_high_cost = sum(hoepa_status == 2),
-    hoepa_share_non_high_cost = sum(hoepa_status == 2) / tot_origin_all,
-    loan_purpose_hp = sum(loan_type == 1) / tot_origin_all,
-    loan_purpose_hi = sum(loan_type == 2) / tot_origin_all,
-    loan_purpose_refin = sum(loan_type == 2) / tot_origin_all
-  )
-
+}
+)
 df_descr_stats_county <- data |> 
   group_by(fips) |> 
   summarise(
