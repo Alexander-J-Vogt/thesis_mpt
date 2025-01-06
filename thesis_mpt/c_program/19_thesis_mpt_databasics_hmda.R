@@ -316,10 +316,47 @@ purrr::walk(2004:2023, function(i) {
   # Save the merged file
   SAVE(dfx = main, namex = paste0("hmda_merge_", i))
   
+
+  
   # Clean up memory and Free unused memory
   rm(list = c(paste0("hmda_lra_", i), paste0("hmda_panel_", i), "main", "dflra", "dfpanel"))
   gc()
 })
+
+# Create Sample Size
+SAMPLE_SIZE <- 0.01
+
+# Create Sample
+purrr::walk(2004:2023, function(x){
+
+  main <- LOAD(dfinput = paste0("hmda_merge_", x))
+  
+  # Save sample dataset
+  sample_main <- main |>
+    mutate(
+      fips = if_else(state_code != "" & county_code != "", paste0(state_code, county_code), NA)
+    ) |> 
+    drop_na(fips) |> 
+    group_by(fips) |> 
+    sample_frac(size = SAMPLE_SIZE) |> 
+    ungroup()
+  
+  sample_main <- sample_main |> 
+    select(-fips)
+  
+  # Save sample
+  SAVE(dfx = sample_main, namex = paste0("hmda_sample_", x))
+  
+  rm(main)
+  gc()
+  
+  # Message
+  check <- if_else(nrow(sample_main) > 0, "YES", "NO")
+  
+  message(paste0("Sample saved for year ", x, ". And no empty DF: ", check))
+  
+})
+
 
 end <- Sys.time()
 diff <- end - start
@@ -352,6 +389,8 @@ fips_detailed_list <- list()
 fips_missings_list <- list()
 loan_amount_dist_list <- list()
 
+hmda_merged <- hmda_merged[1:2]
+
 # Start to clean all years
 purrr::walk(seq_along(hmda_merged), function(x) {
 
@@ -365,22 +404,25 @@ purrr::walk(seq_along(hmda_merged), function(x) {
   low_year_plus1 <- min(as.integer(gsub("[^0-9]", "", hmda_merged))) - 1
   
   # Load hmda_merged of this loop iteration
-  data <- LOAD(dfinput = paste0(TEMP, file))
-
-## 2.1 Formatting Variables ----------------------------------------------------
+  data <- LOAD(dfinput = file, dfextension = ".rda")
+  setDT(data)
+  
+  data <- head(data, n = 10000)
+  
+  ## 2.1 Formatting Variables ----------------------------------------------------
 
   # Columns as character
   if (year >= 2018) {
-    chr_cols <- c("lei", "state_code", "county_code", "property_type", "respondent_rssd")
+    chr_cols <- c("lei", "state_code", "county_code", "property_type", "respondent_rssd", "derived_msa_md")
   } else if (year < 2018) {
-    chr_cols <- c("respondent_id", "state_code", "county_code", "property_type", "respondent_rssd", "edit_status")
+    chr_cols <- c("respondent_id", "state_code", "county_code", "property_type", "respondent_rssd", "edit_status", "msamd")
   }
   
   # Columns as numeric
   num_cols <- c("activity_year", "loan_amount", "action_taken", "loan_purpose", "income",
                 "hoepa_status", "rate_spread", "applicant_sex", "applicant_race_1",
                 "loan_type", "agency_code", "other_lender_code", "assets", "lien_status",
-                "occupancy_type")
+                "occupancy_type", "purchaser_type")
   
   # Formatting the columns
   data[, (chr_cols) := lapply(.SD, as.character), .SDcols = chr_cols]
@@ -466,7 +508,7 @@ purrr::walk(seq_along(hmda_merged), function(x) {
     data[, county_code := NULL]
   }
 
-
+  
 ## 2.3 Variable Transformation for all data structures -------------------------
 
   # Adjust year variable
@@ -483,7 +525,8 @@ purrr::walk(seq_along(hmda_merged), function(x) {
                 "respondent_rssd", "assets", "edit_status")
               )
 
-
+  message(paste0("Finished with basic transformation; year ", year))
+  
 ### Basic Filter for ... -------------------------------------------------------
 
 ### Determine Missing Counties | Detailed --------------------------------------
@@ -552,7 +595,7 @@ purrr::walk(seq_along(hmda_merged), function(x) {
   fips_detailed_list[[year - low_year_plus1]] <- df_fips_detailed
   names(fips_detailed_list)[[year - low_year_plus1]] <- paste0("hdma_", year)
 
-
+  
 ### Determine Missing Counties | General ---------------------------------------
 
   # Final number of counties
@@ -565,15 +608,20 @@ purrr::walk(seq_along(hmda_merged), function(x) {
     fips_raw <- counties(year = year, progress_bar = FALSE)
   }
   
+  county_var <- if (year < 2010) "CNTYIDFP00" else "GEOID"
+  county_name_var <- if (year < 2010) "NAME00" else "NAMELSAD"
+  
   # Basic Transformations for a base dataset on available FIPS Codes
   fips <- fips_raw |>
     as_tibble() |> 
-    select(STATEFP, GEOID, NAMELSAD) |> 
+    select(STATEFP, !!sym(county_var), !!sym(county_name_var)) |> 
     filter(!STATEFP %in% c("66", "60", "69","72", "74", "78")) |> # 50 States + Washington D.C.
-    arrange(STATEFP, GEOID)
+    arrange(STATEFP, !!sym(county_var))
+  
+  fips_existing_counties <- fips[[county_var]]
   
   # Determine which of the counties are missing
-  diff_missings_counties <- setdiff(fips$GEOID, fips_after_filter)
+  diff_missings_counties <- setdiff(fips_existing_counties, fips_after_filter)
   
   # Create DF and add information on state and county name
   df_missings <- data.frame(county_code = diff_missings_counties)
@@ -608,6 +656,8 @@ purrr::walk(seq_along(hmda_merged), function(x) {
     occupancy_type = NULL
   )]
 
+  message(paste0("Finished with FIPS code; year ", year))
+  
 ## 2.4 Calculation of Common Characteristics -----------------------------------
 
 ### 2.4.1 Calculation on Loan Application Level --------------------------------
@@ -713,7 +763,8 @@ purrr::walk(seq_along(hmda_merged), function(x) {
   df_descr_stats_tot[[year - low_year_plus1]] <- graph
   names(df_descr_stats_tot)[[year - low_year_plus1]] <- paste0("HDMA_", year)
   
-
+  message(paste0("Finished Descriptive Stats Part 1; year ", year))
+  
 ### 2.4.3 Calculation by FIPS -------------------------------------------------
   
   # Save Descriptive Statistics by FIPS in DF
@@ -773,6 +824,10 @@ purrr::walk(seq_along(hmda_merged), function(x) {
   
   ggsave(filename = paste0(FIGURE, "loan_amount_", year, ".pdf"), plot = graph)
   
+  message(paste0("Finished for year ", year))
+  
+  rm(data)
+  gc()
 }
 )
 df_descr_stats_county <- data |> 
