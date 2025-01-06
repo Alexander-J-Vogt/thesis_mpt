@@ -346,21 +346,23 @@ data <- datay
 setDT(data)
 
 # Initiate list
-desc_stats_list <- list()
+desc_stats_tot_list <- list()
+desc_stats_county_list <- list()
 fips_detailed_list <- list()
 fips_missings_list <- list()
+loan_amount_dist_list <- list()
 
 # Start to clean all years
 purrr::walk(seq_along(hmda_merged), function(x) {
 
   # Determine file
-  file <- hmda_merged[10]
+  file <- hmda_merged[x]
     
   # Determine the year of data
   year <- as.integer(gsub("[^0-9]", "", file))
   
   # Determine lowest year of hmda_merged
-  low_year_plus1 <- min(as.integer(gsub("[^0-9]", "", hmda_merged))) + 1
+  low_year_plus1 <- min(as.integer(gsub("[^0-9]", "", hmda_merged))) - 1
   
   # Load hmda_merged of this loop iteration
   data <- LOAD(dfinput = paste0(TEMP, file))
@@ -707,12 +709,18 @@ purrr::walk(seq_along(hmda_merged), function(x) {
       loan_purpose_hi = sum(loan_type == 2) / tot_origin_all,
       loan_purpose_refin = sum(loan_type == 2) / tot_origin_all
     )
+  
+  df_descr_stats_tot[[year - low_year_plus1]] <- graph
+  names(df_descr_stats_tot)[[year - low_year_plus1]] <- paste0("HDMA_", year)
+  
 
+### 2.4.3 Calculation by FIPS -------------------------------------------------
+  
   # Save Descriptive Statistics by FIPS in DF
   df_descr_stats_county <- data |> 
     group_by(fips) |> 
-    summarise(
-      year = unique(year),
+    reframe(
+      year = year,
       share_male_applicant = sum(applicant_sex == 1) / n() * 100,
       share_female_applicant = sum(applicant_sex == 2) / n() * 100,
       share_white_applicant = sum(applicant_race_1 == 5) / n() * 100,
@@ -721,20 +729,21 @@ purrr::walk(seq_along(hmda_merged), function(x) {
       share_american_indian = sum(applicant_race_1 == 1) / n() * 100,
       share_others = sum(!applicant_race_1 %in% c(1, 2, 3, 5)) / n() * 100,
       rate_spread_exist = any(!is.na(rate_spread)),
-      rate_spread_NA = if_else(rate_spread_exist == TRUE, sum(is.na(rate_spread)), NA),
-      rate_spread_min = if_else(rate_spread_exist == TRUE, min(rate_spread, na.rm= TRUE), NA),
-      rate_spread_q25 = if_else(rate_spread_exist == TRUE, quantile(rate_spread, probs = .25, na.rm = TRUE), NA),
-      rate_spread_median = if_else(rate_spread_exist == TRUE, median(rate_spread, na.rm = TRUE), NA),
-      rate_spread_mean = if_else(rate_spread_exist == TRUE, mean(rate_spread, na.rm = TRUE), NA),
-      rate_spread_q75 = if_else(rate_spread_exist == TRUE, quantile(rate_spread, probs = .75, na.rm = TRUE), NA),
-      rate_spread_max = if_else(rate_spread_exist == TRUE, max(rate_spread, na.rm= TRUE), NA),
+      rate_spread_NA = sum(is.na(rate_spread)),
+      rate_spread_min = if (rate_spread_exist) min(rate_spread, na.rm = TRUE) else NA,
+      rate_spread_q25 = if (rate_spread_exist) quantile(rate_spread, probs = .25, na.rm = TRUE) else NA,
+      rate_spread_median = if (rate_spread_exist) median(rate_spread, na.rm = TRUE) else NA,
+      rate_spread_mean = if (rate_spread_exist) mean(rate_spread, na.rm = TRUE) else NA,
+      rate_spread_q75 = if (rate_spread_exist) quantile(rate_spread, probs = .75, na.rm = TRUE) else NA,
+      rate_spread_max = if (rate_spread_exist) max(rate_spread, na.rm = TRUE) else NA,
+      income_exist = any(!is.na(income)),
       income_NA = sum(is.na(income)),
-      income_min = min(income, na.rm= TRUE),
-      income_q25 = quantile(income, probs = .25, na.rm = TRUE),
-      income_median = median(income, na.rm = TRUE),
-      income_mean = mean(income, na.rm = TRUE),
-      income_q75 = quantile(income, probs = .75, na.rm = TRUE),
-      income_max = max(income, na.rm= TRUE),
+      income_min = if (income_exist) min(income, na.rm= TRUE) else NA,
+      income_q25 = if (income_exist) quantile(income, probs = .25, na.rm = TRUE) else NA,
+      income_median = if (income_exist) median(income, na.rm = TRUE) else NA,
+      income_mean = if (income_exist) mean(income, na.rm = TRUE) else NA,
+      income_q75 = if (income_exist) quantile(income, probs = .75, na.rm = TRUE) else NA,
+      income_max = if (income_exist) max(income, na.rm= TRUE) else NA,
       loan_amount_NA = sum(is.na(loan_amount)),
       loan_amount_min = min(loan_amount, na.rm= TRUE),
       loan_amount_q25 = quantile(loan_amount, probs = .25, na.rm = TRUE),
@@ -750,7 +759,20 @@ purrr::walk(seq_along(hmda_merged), function(x) {
       loan_purpose_hi = sum(loan_type == 2) / n() * 100,
       loan_purpose_refin = sum(loan_type == 2) / n() * 100
     )
-
+  
+  desc_stats_county_list[[year - low_year_plus1]] <- df_descr_stats_county
+  names(desc_stats_county_list)[[year - low_year_plus1]] <- paste0("HDMA_", year)
+  
+  # Analyse the loan_amount distribution
+  graph <- ggplot(data = data, aes(loan_amount)) +
+    geom_density(fill = "blue", alpha = 0.4) +
+    ggtitle(paste0("Density of Loan Amount for the year ", year)) +  
+    xlab("Value") +                     
+    ylab("Density") +                   
+    theme_minimal()
+  
+  ggsave(filename = paste0(FIGURE, "loan_amount_", year, ".pdf"), plot = graph)
+  
 }
 )
 df_descr_stats_county <- data |> 
