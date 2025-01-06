@@ -265,6 +265,7 @@ data_panel <- lapply(data_panel, function (x) {
 # Saving the adjusted data frames
 purrr::walk(data_panel, function(x) {
   year <- unique(x[[6]])
+  x$year <- NULL
   SAVE(dfx = x, namex = paste0("hmda_panel_", year))
 })
 
@@ -279,7 +280,7 @@ gc()
 #' multiple observations as they have to report every single originated loan.
 
 # Merge both Panel and LRA based on year
-purrr::walk(2004:2023, function(i) {
+purrr::walk(2007:2009, function(i) {
   
   # Determine the imported LRA and Panel dependent on the year
   lra <- paste0("hmda_lra_", i)
@@ -316,8 +317,6 @@ purrr::walk(2004:2023, function(i) {
   # Save the merged file
   SAVE(dfx = main, namex = paste0("hmda_merge_", i))
   
-
-  
   # Clean up memory and Free unused memory
   rm(list = c(paste0("hmda_lra_", i), paste0("hmda_panel_", i), "main", "dflra", "dfpanel"))
   gc()
@@ -327,7 +326,7 @@ purrr::walk(2004:2023, function(i) {
 SAMPLE_SIZE <- 0.01
 
 # Create Sample
-purrr::walk(2004:2023, function(x){
+purrr::walk(2007:2009, function(x){
 
   main <- LOAD(dfinput = paste0("hmda_merge_", x))
   
@@ -368,6 +367,13 @@ hmda_merged <- list.files(path = TEMP, pattern = "hmda_merge_")
 hmda_merged <- hmda_merged[as.integer(gsub("[^0-9]", "", hmda_merged)) >= 2004]
 hmda_merged <- gsub(".rda", "", hmda_merged)
 
+if (DEBUG) {
+  hmda_sample <- list.files(path = TEMP, pattern = "hmda_sample_")
+  hmda_sample <- hmda_sample[as.integer(gsub("[^0-9]", "", hmda_sample)) >= 2004]
+  hmda_sample <- gsub(".rda", "", hmda_sample)
+}
+
+
 x <- hmda_merged[19]
 y <- hmda_merged[10]
 
@@ -390,24 +396,25 @@ fips_missings_list <- list()
 loan_amount_dist_list <- list()
 
 hmda_merged <- hmda_merged[1:2]
+hmda_sample <- hmda_sample[3]
+DEBUG <- T
 
 # Start to clean all years
-purrr::walk(seq_along(hmda_merged), function(x) {
+purrr::walk(seq_along(hmda_sample), function(x) {
 
   # Determine file
-  file <- hmda_merged[x]
-    
+  if (!DEBUG) file <- hmda_merged[x]
+  if (DEBUG) file <- hmda_sample[x] 
+  file <- hmda_sample[4]
   # Determine the year of data
   year <- as.integer(gsub("[^0-9]", "", file))
   
   # Determine lowest year of hmda_merged
-  low_year_plus1 <- min(as.integer(gsub("[^0-9]", "", hmda_merged))) - 1
+  low_year_plus1 <- min(as.integer(gsub("[^0-9]", "", hmda_sample))) - 1
   
   # Load hmda_merged of this loop iteration
   data <- LOAD(dfinput = file, dfextension = ".rda")
   setDT(data)
-  
-  data <- head(data, n = 10000)
   
   ## 2.1 Formatting Variables ----------------------------------------------------
 
@@ -602,10 +609,12 @@ purrr::walk(seq_along(hmda_merged), function(x) {
   fips_after_filter <- unique(data$fips)
   
   # List of Counties by TIGRIS
-  if (year < 2010) {
+  if (year <=) 2010) {
     fips_raw <- counties(year = 2000, progress_bar = FALSE)
-  } else {
-    fips_raw <- counties(year = year, progress_bar = FALSE)
+  } else if (year > 2010 & year <= 2020) {
+    fips_raw <- counties(year = 2010, progress_bar = FALSE)
+  } else if (year > 2020) {
+    fips_raw <- counties(year = 2020, progress_bar = FALSE)
   }
   
   county_var <- if (year < 2010) "CNTYIDFP00" else "GEOID"
@@ -722,7 +731,7 @@ purrr::walk(seq_along(hmda_merged), function(x) {
   # Save Descriptive Statistics for Total Population in DF
   df_descr_stats_tot <- data |> 
     summarise(
-      year = year,
+      year = unique(year),
       share_male_applicant = tot_male / tot_origin_all * 100,
       share_female_applicant = tot_female / tot_origin_all * 100,
       share_white_applicant = tot_white / tot_origin_all * 100,
@@ -760,7 +769,7 @@ purrr::walk(seq_along(hmda_merged), function(x) {
       loan_purpose_refin = sum(loan_type == 2) / tot_origin_all
     )
   
-  df_descr_stats_tot[[year - low_year_plus1]] <- graph
+  df_descr_stats_tot[[year - low_year_plus1]] <- df_descr_stats_tot
   names(df_descr_stats_tot)[[year - low_year_plus1]] <- paste0("HDMA_", year)
   
   message(paste0("Finished Descriptive Stats Part 1; year ", year))
@@ -771,7 +780,7 @@ purrr::walk(seq_along(hmda_merged), function(x) {
   df_descr_stats_county <- data |> 
     group_by(fips) |> 
     reframe(
-      year = year,
+      year = unique(year),
       share_male_applicant = sum(applicant_sex == 1) / n() * 100,
       share_female_applicant = sum(applicant_sex == 2) / n() * 100,
       share_white_applicant = sum(applicant_race_1 == 5) / n() * 100,
