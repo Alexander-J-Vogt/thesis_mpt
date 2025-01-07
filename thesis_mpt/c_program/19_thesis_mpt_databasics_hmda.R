@@ -263,10 +263,11 @@ data_panel <- lapply(data_panel, function (x) {
 })
 
 # Saving the adjusted data frames
-purrr::walk(data_panel, function(x) {
+data_panel <- map(data_panel, function(x) {
   year <- unique(x[[6]])
   x$year <- NULL
   SAVE(dfx = x, namex = paste0("hmda_panel_", year))
+  return(x)
 })
 
 # Remove not used data
@@ -281,7 +282,7 @@ gc()
 
 # Merge both Panel and LRA based on year
 purrr::walk(2007:2009, function(i) {
-  
+
   # Determine the imported LRA and Panel dependent on the year
   lra <- paste0("hmda_lra_", i)
   panel <- paste0("hmda_panel_", i)
@@ -328,7 +329,7 @@ SAMPLE_SIZE <- 0.01
 # Create Sample
 purrr::walk(2007:2009, function(x){
 
-  main <- LOAD(dfinput = paste0("hmda_merge_", x))
+  main <- LOAD(dfinput = paste0("hmda_merge_", 2007))
   
   # Save sample dataset
   sample_main <- main |>
@@ -374,19 +375,22 @@ if (DEBUG) {
 }
 
 
-x <- hmda_merged[19]
-y <- hmda_merged[10]
+if (!DEBUG) {
+  
+  x <- hmda_merged[19]
+  y <- hmda_merged[10]
+  
+  datax <- LOAD(dfinput = x)
+  datax <- head(datax, n = 1000000)
+  datay <- LOAD(dfinput = y)
+  datay <- head(datay, n = 1000000)
+  setDT(datax)
+  setDT(datay)
+  ## CURRENT DATASET
+  data <- datay
+  setDT(data)
 
-datax <- LOAD(dfinput = x)
-datax <- head(datax, n = 1000000)
-datay <- LOAD(dfinput = y)
-datay <- head(datay, n = 1000000)
-setDT(datax)
-setDT(datay)
-
-## CURRENT DATASET
-data <- datay
-setDT(data)
+  }
 
 # Initiate list
 desc_stats_tot_list <- list()
@@ -397,20 +401,20 @@ loan_amount_dist_list <- list()
 
 hmda_merged <- hmda_merged[1:2]
 hmda_sample <- hmda_sample[3]
-DEBUG <- T
+DEBUG <- F
 
 # Start to clean all years
-purrr::walk(seq_along(hmda_sample), function(x) {
-
+purrr::walk(seq_along(hmda_merged), function(x) {
+  # x <- 2
   # Determine file
   if (!DEBUG) file <- hmda_merged[x]
   if (DEBUG) file <- hmda_sample[x] 
-  file <- hmda_sample[4]
+
   # Determine the year of data
   year <- as.integer(gsub("[^0-9]", "", file))
   
   # Determine lowest year of hmda_merged
-  low_year_plus1 <- min(as.integer(gsub("[^0-9]", "", hmda_sample))) - 1
+  # low_year_plus1 <- min(as.integer(gsub("[^0-9]", "", hmda_sample))) - 1
   
   # Load hmda_merged of this loop iteration
   data <- LOAD(dfinput = file, dfextension = ".rda")
@@ -420,7 +424,7 @@ purrr::walk(seq_along(hmda_sample), function(x) {
 
   # Columns as character
   if (year >= 2018) {
-    chr_cols <- c("lei", "state_code", "county_code", "property_type", "respondent_rssd", "derived_msa_md")
+    chr_cols <- c("lei", "state_code", "county_code", "property_type", "respondent_rssd", "msamd")
   } else if (year < 2018) {
     chr_cols <- c("respondent_id", "state_code", "county_code", "property_type", "respondent_rssd", "edit_status", "msamd")
   }
@@ -583,7 +587,7 @@ purrr::walk(seq_along(hmda_sample), function(x) {
   fips_after_na <- unique(data$fips)
   diff_after_na <- setdiff(fips_after_occu, fips_after_na)
   
-  # Missing Counties between filterting for originated loans and filtering for missings
+  # Missing Counties between filtering for originated loans and filtering for missings
   diff_org_na <- setdiff(fips_after_org, fips_after_na)
   diff_org_na <- diff_org_na[!is.na(diff_org_na)]
   
@@ -599,8 +603,8 @@ purrr::walk(seq_along(hmda_sample), function(x) {
   colnames(df_fips_detailed) <- fips_detailed_names
   
   # Save in list
-  fips_detailed_list[[year - low_year_plus1]] <- df_fips_detailed
-  names(fips_detailed_list)[[year - low_year_plus1]] <- paste0("hdma_", year)
+  fips_detailed_list[[x]] <<- df_fips_detailed
+  names(fips_detailed_list)[[x]] <<- paste0("hdma_", year)
 
   
 ### Determine Missing Counties | General ---------------------------------------
@@ -609,7 +613,7 @@ purrr::walk(seq_along(hmda_sample), function(x) {
   fips_after_filter <- unique(data$fips)
   
   # List of Counties by TIGRIS
-  if (year <=) 2010) {
+  if (year <= 2010) {
     fips_raw <- counties(year = 2000, progress_bar = FALSE)
   } else if (year > 2010 & year <= 2020) {
     fips_raw <- counties(year = 2010, progress_bar = FALSE)
@@ -617,8 +621,8 @@ purrr::walk(seq_along(hmda_sample), function(x) {
     fips_raw <- counties(year = 2020, progress_bar = FALSE)
   }
   
-  county_var <- if (year < 2010) "CNTYIDFP00" else "GEOID"
-  county_name_var <- if (year < 2010) "NAME00" else "NAMELSAD"
+  county_var <- if (year <= 2010) "CNTYIDFP00" else if (year > 2010 & year <= 2020) "GEOID10" else if (year > 2020) "GEOID"
+  county_name_var <- if (year <= 2010) "NAME00" else if (year > 2010 & year <= 2020) "NAME10" else if (year > 2020)"NAMELSAD"
   
   # Basic Transformations for a base dataset on available FIPS Codes
   fips <- fips_raw |>
@@ -643,15 +647,17 @@ purrr::walk(seq_along(hmda_sample), function(x) {
     mutate(
       county_code = paste(state_code, county_code, sep = "")
     ) |> 
+    filter(!state_code %in% c("66", "60", "69","72", "74", "78")) |> 
     select(county_code, state_name, county)
   
   # Join Missing Counties with Information
-  df_missings <- fips_code |> 
-    left_join(df_missings, by = "county_code")
+  df_missings <- df_missings |> 
+    left_join(fips_code, by = "county_code") |> 
+    mutate(year = year)
   
   # Save the DF into the list
-  fips_missings_list[[year - low_year_plus1]] <- df_missings
-  names(fips_missings_list)[[year - low_year_plus1]] <- paste0("hdma_", year)
+  fips_missings_list[[x]] <<- df_missings
+  names(fips_missings_list)[[x]] <<- paste0("hdma_", year)
 
 
 # Home Purchase & Refinancing (for now to evaluate leave all loan purposes in)
@@ -714,7 +720,6 @@ purrr::walk(seq_along(hmda_sample), function(x) {
   
   ## Key Numbers for ...
   # General
-  tot_rate_spread <- sum(!is.na(data$rate_spread), na.rm = TRUE)
   tot_origin_all <-  nrow(data)
   
   # Sex
@@ -739,38 +744,44 @@ purrr::walk(seq_along(hmda_sample), function(x) {
       share_asian_applicant = tot_asian / tot_origin_all * 100,
       share_american_indian = tot_americanindian / tot_origin_all * 100,
       share_others = tot_others / tot_origin_all * 100,
-      rate_spread_NA = tot_rate_spread,
+      rate_spread_NA = sum(is.na(data$rate_spread)) / tot_origin_all,
       rate_spread_min = min(rate_spread, na.rm= TRUE),
       rate_spread_q25 = quantile(rate_spread, probs = .25, na.rm = TRUE),
       rate_spread_median = median(rate_spread, na.rm = TRUE),
       rate_spread_mean = mean(rate_spread, na.rm = TRUE),
       rate_spread_q75 = quantile(rate_spread, probs = .75, na.rm = TRUE),
       rate_spread_max = max(rate_spread, na.rm= TRUE),
-      income_NA = sum(!is.na(income)),
+      rate_spread_iqr = IQR(rate_spread, na.rm = TRUE),
+      income_NA = sum(is.na(income)) / tot_origin_all,
       income_min = min(income, na.rm= TRUE),
       income_q25 = quantile(income, probs = .25, na.rm = TRUE),
       income_median = median(income, na.rm = TRUE),
       income_mean = mean(income, na.rm = TRUE),
       income_q75 = quantile(income, probs = .75, na.rm = TRUE),
-      income_max = max(income, na.rm= TRUE),
-      loan_amount_NA = sum(!is.na(loan_amount)),
+      income_max = max(income, na.rm = TRUE),
+      income_iqr = IQR(income, na.rm = TRUE),
+      income_above500 = sum(income > 500) / tot_origin_all,
+      loan_amount_NA = sum(is.na(loan_amount)) / tot_origin_all,
       loan_amount_min = min(loan_amount, na.rm= TRUE),
       loan_amount_q25 = quantile(loan_amount, probs = .25, na.rm = TRUE),
       loan_amount_median = median(loan_amount, na.rm = TRUE),
       loan_amount_mean = mean(loan_amount, na.rm = TRUE),
       loan_amount_q75 = quantile(loan_amount, probs = .75, na.rm = TRUE),
       loan_amount_max = max(loan_amount, na.rm= TRUE),
+      loan_amount_iqr = IQR(loan_amount, na.rm = TRUE),
+      loan_amount_above2ß00 = sum(loan_amount > 2000) / tot_origin_all,
       hoepa_high_cost = sum(hoepa_status == 1),
       hoepa_share_high_cost = sum(hoepa_status == 1) / tot_origin_all,
       hoepa_non_high_cost = sum(hoepa_status == 2),
       hoepa_share_non_high_cost = sum(hoepa_status == 2) / tot_origin_all,
-      loan_purpose_hp = sum(loan_type == 1) / tot_origin_all,
-      loan_purpose_hi = sum(loan_type == 2) / tot_origin_all,
-      loan_purpose_refin = sum(loan_type == 2) / tot_origin_all
+      loan_purpose_hp = sum(loan_type == 1) / tot_origin_all * 100,
+      loan_purpose_hi = sum(loan_type == 2) / tot_origin_all * 100,
+      loan_purpose_refin = sum(loan_type == 3) / tot_origin_all * 100,
+      nr_obs = tot_origin_all
     )
   
-  df_descr_stats_tot[[year - low_year_plus1]] <- df_descr_stats_tot
-  names(df_descr_stats_tot)[[year - low_year_plus1]] <- paste0("HDMA_", year)
+  desc_stats_tot_list[[x]] <<- df_descr_stats_tot
+  names(desc_stats_tot_list)[[x]] <<- paste0("HDMA_", year)
   
   message(paste0("Finished Descriptive Stats Part 1; year ", year))
   
@@ -804,6 +815,8 @@ purrr::walk(seq_along(hmda_sample), function(x) {
       income_mean = if (income_exist) mean(income, na.rm = TRUE) else NA,
       income_q75 = if (income_exist) quantile(income, probs = .75, na.rm = TRUE) else NA,
       income_max = if (income_exist) max(income, na.rm= TRUE) else NA,
+      income_negativ = sum(income < 0),
+      income_excesive = sum(income > 9999),
       loan_amount_NA = sum(is.na(loan_amount)),
       loan_amount_min = min(loan_amount, na.rm= TRUE),
       loan_amount_q25 = quantile(loan_amount, probs = .25, na.rm = TRUE),
@@ -811,27 +824,54 @@ purrr::walk(seq_along(hmda_sample), function(x) {
       loan_amount_mean = mean(loan_amount, na.rm = TRUE),
       loan_amount_q75 = quantile(loan_amount, probs = .75, na.rm = TRUE),
       loan_amount_max = max(loan_amount, na.rm= TRUE),
+      income_negativ = sum(income < 0),
       hoepa_high_cost = sum(hoepa_status == 1),
       hoepa_share_high_cost = sum(hoepa_status == 1) / n() * 100,
       hoepa_non_high_cost = sum(hoepa_status == 2),
       hoepa_share_non_high_cost = sum(hoepa_status == 2) / n() * 100,
       loan_purpose_hp = sum(loan_type == 1) / n() * 100,
       loan_purpose_hi = sum(loan_type == 2) / n() * 100,
-      loan_purpose_refin = sum(loan_type == 2) / n() * 100
+      loan_purpose_refin = sum(loan_type == 3) / n() * 100
     )
   
-  desc_stats_county_list[[year - low_year_plus1]] <- df_descr_stats_county
-  names(desc_stats_county_list)[[year - low_year_plus1]] <- paste0("HDMA_", year)
+  desc_stats_county_list[[x]] <<- df_descr_stats_county
+  names(desc_stats_county_list)[[x]] <<- paste0("HDMA_", year)
   
   # Analyse the loan_amount distribution
   graph <- ggplot(data = data, aes(loan_amount)) +
-    geom_density(fill = "blue", alpha = 0.4) +
+    geom_density(fill = "blue", alpha = 0.4, size = 0.7, na.rm = TRUE) +
     ggtitle(paste0("Density of Loan Amount for the year ", year)) +  
     xlab("Value") +                     
     ylab("Density") +                   
-    theme_minimal()
+    theme_minimal() +
+    scale_y_continuous(
+      limits = c(0,0.004),
+      breaks = seq(0, 0.004, by = 0.001)
+    ) +
+    scale_x_continuous(
+      limits = c(0, 10000),  # Fixed x-axis range
+      breaks = seq(0, 10000, by = 2000)  # Optional: Set axis breaks
+    )
   
   ggsave(filename = paste0(FIGURE, "loan_amount_", year, ".pdf"), plot = graph)
+  
+  # Analyse the income distribution
+  graph <- ggplot(data = data, aes(income)) +
+    geom_density(fill = "blue", alpha = 0.4, size = 0.7, na.rm = TRUE) +
+    ggtitle(paste0("Density of Loan Amount for the year ", year)) +
+    xlab("Value") +
+    ylab("Density") +
+    theme_minimal() +
+    scale_y_continuous(
+      limits = c(0,0.02),
+      breaks = seq(0, 0.02, by = 0.005)
+    ) +
+    scale_x_continuous(
+      limits = c(0, 500),  # Fixed x-axis range
+      breaks = seq(0, 500, by = 50)  # Optional: Set axis breaks
+    )
+
+  ggsave(filename = paste0(FIGURE, "income_dist_", year, ".pdf"), plot = graph)
   
   message(paste0("Finished for year ", year))
   
@@ -839,40 +879,59 @@ purrr::walk(seq_along(hmda_sample), function(x) {
   gc()
 }
 )
-df_descr_stats_county <- data |> 
-  group_by(fips) |> 
-  summarise(
-    loan_amount_iqr = IQR(loan_amount, na.rm = TRUE)
+
+
+desc_stats_tot <- bind_rows(desc_stats_tot_list)
+desc_stats_tot <- desc_stats_tot |> 
+  mutate(
+    loan_purpose_sum = loan_purpose_hi + loan_purpose_hp + loan_purpose_refin
   )
 
-data_sex_lstatus <- data |> 
-  mutate(loan_status = case_when(
-    action_taken == 1 ~ "loan_originated",
-    action_taken == 3 ~ "denied_inst",
-    action_taken == 6 ~ "purchased_inst",
-    .default = "denied_other_reason"
-  ))
+desc_stats_county <- bind_rows(desc_stats_county_list)
 
-agg_data <- data_sex_lstatus |> 
-  filter(applicant_race_1 %in% c(3,5)) |> 
-  group_by(applicant_race_1, loan_status) |> 
-  summarise(count = n(),.groups = "drop")
+fips_missing <- bind_rows(fips_missings_list)
 
-ggplot(agg_data, aes(x = applicant_race_1, y = count, fill = loan_status)) +
-  geom_bar(stat = "identity", position = "dodge") +
+fips_detailed <- bind_rows(fips_detailed_list)
+
+ggplot(desc_stats_tot, aes(x = factor(year))) +  # Use year as a factor for x-axis
+  geom_boxplot(
+    aes(
+      ymin = loan_amount_q25 - 1.5 * loan_amount_iqr,    # Lower whisker
+      lower = loan_amount_q25,    # Box lower hinge
+      middle = loan_amount_median, # Median line
+      upper = loan_amount_q75,    # Box upper hinge
+      ymax = loan_amount_q75 + 1.5 * loan_amount_iqr     # Upper whisker
+    ),
+    stat = "identity"  # Use raw data, not summary statistics from ggplot
+  ) +
+  geom_point(aes(y = loan_amount_mean), color = "red", size = 3) +  # Add mean as a red point
   labs(
-    title = "Number of Applications by Applicant Sex and Loan Status",
-    x = "Applicant Sex",
-    y = "Number of Applications",
-    fill = "Loan Status"
+    title = "Loan Amount Boxplot by Year",
+    x = "Year",
+    y = "Loan Amount"
   ) +
   theme_minimal()
-  
-data_rs <- data |> 
-  filter(action_taken == 1 & !is.na(rate_spread)) |> 
-  filter(inrange(rate_spread, -100, 100)) |> 
-  ggplot(aes(rate_spread)) +
-  geom_density()
+
+ggplot(desc_stats_tot, aes(x = factor(year))) +  # Use year as a factor for x-axis
+  geom_boxplot(
+    aes(
+      ymin = income_q25 - 1.5 * income_iqr,    # Lower whisker
+      lower = income_q25,    # Box lower hinge
+      middle = income_median, # Median line
+      upper = income_q75,    # Box upper hinge
+      ymax = income_q75 + 1.5 * income_iqr     # Upper whisker
+    ),
+    stat = "identity"  # Use raw data, not summary statistics from ggplot
+  ) +
+  geom_point(aes(y = income_mean), color = "red", size = 3) +  # Add mean as a red point
+  labs(
+    title = "Loan Amount Boxplot by Year",
+    x = "Year",
+    y = "Loan Amount"
+  ) +
+  theme_minimal()
+
+
 
 
 
