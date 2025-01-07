@@ -405,7 +405,7 @@ DEBUG <- F
 
 # Start to clean all years
 purrr::walk(seq_along(hmda_merged), function(x) {
-  # x <- 2
+  x <- 15
   # Determine file
   if (!DEBUG) file <- hmda_merged[x]
   if (DEBUG) file <- hmda_sample[x] 
@@ -582,6 +582,8 @@ purrr::walk(seq_along(hmda_merged), function(x) {
   # Missings in Loan Amount, FIPS-Code, Income 
   data <- data[!is.na(fips)] # Exclude missing FIPS-code (There are multiple reasons on why they can miss. See: HMDA guide 2010)
   data <- data[!is.na(loan_amount)] # Should be not missing but just to be extra sure this line of code excludes all NAs 
+  
+  
   
   # Determine missing counties
   fips_after_na <- unique(data$fips)
@@ -858,7 +860,7 @@ purrr::walk(seq_along(hmda_merged), function(x) {
   # Analyse the income distribution
   graph <- ggplot(data = data, aes(income)) +
     geom_density(fill = "blue", alpha = 0.4, size = 0.7, na.rm = TRUE) +
-    ggtitle(paste0("Density of Loan Amount for the year ", year)) +
+    ggtitle(paste0("Density of Income for the year ", year)) +
     xlab("Value") +
     ylab("Density") +
     theme_minimal() +
@@ -880,20 +882,30 @@ purrr::walk(seq_along(hmda_merged), function(x) {
 }
 )
 
+## Combine to one data table
 
+# Descriptive Statistics on Total Population
 desc_stats_tot <- bind_rows(desc_stats_tot_list)
-desc_stats_tot <- desc_stats_tot |> 
-  mutate(
-    loan_purpose_sum = loan_purpose_hi + loan_purpose_hp + loan_purpose_refin
-  )
+setDT(desc_stats_tot)
+SAVE(dfx = desc_stats_tot, namex = "descriptive_statistics_total_population")
 
+# Descriptive Statistics by County
 desc_stats_county <- bind_rows(desc_stats_county_list)
+setDT(desc_stats_county)
+SAVE(dfx = desc_stats_tot, namex = "descriptive_statistics_by_county")
 
+# FIPS Missing
 fips_missing <- bind_rows(fips_missings_list)
+setDT(fips_missing)
+SAVE(dfx = desc_stats_tot, namex = "fips_missing")
 
+# Fips Misssing after each filter step
 fips_detailed <- bind_rows(fips_detailed_list)
+setDT(fips_detailed)
+SAVE(dfx = fips_detailed, namex = "fips_detailed_missing")
 
-ggplot(desc_stats_tot, aes(x = factor(year))) +  # Use year as a factor for x-axis
+## Boxplot for loan amount
+boxplot_loan_amount <- ggplot(desc_stats_tot, aes(x = factor(year))) +  # Use year as a factor for x-axis
   geom_boxplot(
     aes(
       ymin = loan_amount_q25 - 1.5 * loan_amount_iqr,    # Lower whisker
@@ -912,7 +924,11 @@ ggplot(desc_stats_tot, aes(x = factor(year))) +  # Use year as a factor for x-ax
   ) +
   theme_minimal()
 
-ggplot(desc_stats_tot, aes(x = factor(year))) +  # Use year as a factor for x-axis
+ggsave(filename = paste0(FIGURE, "boxplot_loan_amount.pdf"))
+
+# Boxplot for income
+
+boxplot_income <- ggplot(desc_stats_tot, aes(x = factor(year))) +  # Use year as a factor for x-axis
   geom_boxplot(
     aes(
       ymin = income_q25 - 1.5 * income_iqr,    # Lower whisker
@@ -925,15 +941,36 @@ ggplot(desc_stats_tot, aes(x = factor(year))) +  # Use year as a factor for x-ax
   ) +
   geom_point(aes(y = income_mean), color = "red", size = 3) +  # Add mean as a red point
   labs(
-    title = "Loan Amount Boxplot by Year",
+    title = "Income Boxplot by Year",
     x = "Year",
-    y = "Loan Amount"
+    y = "Income"
   ) +
   theme_minimal()
 
+ggsave(filename = paste0(FIGURE, "boxplot_income.pdf"))
 
+data19 <- data
+setDT(data19)
 
+data19 |> 
+  filter(income < 0) |> 
+  group_by(fips) |> 
+  mutate(
+    fips_loan_amount = sum(loan_amount), 
+  ) |> 
+  distinct(fips, fips_loan_amount) |> 
+  ungroup() |> 
+  mutate(
+    state_code = str_sub(fips, start = 1, end = 2)
+  ) |> 
+  left_join(fips_codes, by = "state_code")
 
+states <- fips_codes |> 
+  select(state_code, state_name) |> 
+  distinct(state_code, state_name)
+
+data18 <- data
+setDT(data18)
 
 ############
 
