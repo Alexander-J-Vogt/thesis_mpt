@@ -401,7 +401,7 @@ loan_amount_dist_list <- list()
 
 hmda_merged <- hmda_merged[1:2]
 hmda_sample <- hmda_sample[3]
-DEBUG <- F
+DEBUG <- T
 
 # Start to clean all years
 purrr::walk(seq_along(hmda_merged), function(x) {
@@ -540,137 +540,44 @@ purrr::walk(seq_along(hmda_merged), function(x) {
   
 ### Basic Filter for ... -------------------------------------------------------
 
-### Determine Missing Counties | Detailed --------------------------------------
-  
-  fips_before_filter <- unique(data$fips)
-  
   ## Only include states and Washington D.C. BUT no U.S. territory
   data <- data[!state_code %in% c("66", "60", "69","72", "74", "78")]
-  
-  # Determine missing counties
-  fips_after_noterritory <- unique(data$fips)
-  diff_after_noterritory <- setdiff(fips_before_filter, fips_after_noterritory)
   
   # Originated Loans 
   data <- data[action_taken == 1]
   
-  # Determine missing counties
-  fips_after_org <- unique(data$fips)
-  diff_after_org <- setdiff(fips_after_noterritory, fips_after_org)
-  
   # One-to-Four-Family Dwellings 
   data <- data[property_type == 1]
-  
-  # Determine missing counties
-  fips_after_onetofour <- unique(data$fips)
-  diff_after_onetofour <- setdiff(fips_after_org, fips_after_onetofour)
-  
+
   # First Mortgage Lien (No second mortgage on a house - interest rate are higher on these)
   data <- data[lien_status == 1]
-  
-  # Determine missing counties
-  fips_after_firstlien <- unique(data$fips)
-  diff_after_firstlien <- setdiff(fips_after_onetofour, fips_after_firstlien)
-  
+
   # Principle Residence (in order to exclude any investors)
   data <- data[occupancy_type == 1]
-  
-  # Determine missing counties
-  fips_after_occu <- unique(data$fips)
-  diff_after_occu <- setdiff(fips_after_firstlien, fips_after_occu)
   
   # Missings in Loan Amount, FIPS-Code, Income 
   data <- data[!is.na(fips)] # Exclude missing FIPS-code (There are multiple reasons on why they can miss. See: HMDA guide 2010)
   data <- data[!is.na(loan_amount)] # Should be not missing but just to be extra sure this line of code excludes all NAs 
+  data <- data[!is.na(loan_purpose)] # Exclude missings in loan purpose
   
+  # Exclude Observation with individual having an annual income of more than 100 Billion
+  data <- data[, income_chr := nchar(as.character(income))]
+  data <- data[income_chr != 9]
+  data <- data[, income_chr := NULL]
+    
+  # Home Purchase & Refinancing (for now to evaluate leave all loan purposes in)
+  data <- data[loan_purpose %in% c(1,3)]
   
+  # Depository Institutions (0) & mortgage banks subsidiary of commercial bank (1)
+  data <- data[other_lender_code %in% c(0, 1)]
   
-  # Determine missing counties
-  fips_after_na <- unique(data$fips)
-  diff_after_na <- setdiff(fips_after_occu, fips_after_na)
-  
-  # Missing Counties between filtering for originated loans and filtering for missings
-  diff_org_na <- setdiff(fips_after_org, fips_after_na)
-  diff_org_na <- diff_org_na[!is.na(diff_org_na)]
-  
-  # Save detailed missing counties
-  diff_vectors <- list(diff_after_noterritory, diff_after_org, diff_after_onetofour, diff_after_firstlien, diff_after_occu, diff_after_na, diff_org_na)
-  max_length <- max(sapply(diff_vectors, length))
-  
-  # Create DF
-  padded_vectors <- lapply(diff_vectors, function(x) c(x, rep(NA, max_length - length(x))))
-  df_fips_detailed <- as.data.frame(do.call(cbind, padded_vectors))
-  df_fips_detailed$year <- year
-  fips_detailed_names <- c("diff_after_noterritory", "diff_after_org", "diff_after_onetofour", "diff_after_firstlien", "diff_after_occu", "diff_after_na", "diff_org_na", "year")
-  colnames(df_fips_detailed) <- fips_detailed_names
-  
-  # Save in list
-  fips_detailed_list[[x]] <<- df_fips_detailed
-  names(fips_detailed_list)[[x]] <<- paste0("hdma_", year)
-
-  
-### Determine Missing Counties | General ---------------------------------------
-
-  # Final number of counties
-  fips_after_filter <- unique(data$fips)
-  
-  # List of Counties by TIGRIS
-  if (year <= 2010) {
-    fips_raw <- counties(year = 2000, progress_bar = FALSE)
-  } else if (year > 2010 & year <= 2020) {
-    fips_raw <- counties(year = 2010, progress_bar = FALSE)
-  } else if (year > 2020) {
-    fips_raw <- counties(year = 2020, progress_bar = FALSE)
-  }
-  
-  county_var <- if (year <= 2010) "CNTYIDFP00" else if (year > 2010 & year <= 2020) "GEOID10" else if (year > 2020) "GEOID"
-  county_name_var <- if (year <= 2010) "NAME00" else if (year > 2010 & year <= 2020) "NAME10" else if (year > 2020)"NAMELSAD"
-  
-  # Basic Transformations for a base dataset on available FIPS Codes
-  fips <- fips_raw |>
-    as_tibble() |> 
-    select(STATEFP, !!sym(county_var), !!sym(county_name_var)) |> 
-    filter(!STATEFP %in% c("66", "60", "69","72", "74", "78")) |> # 50 States + Washington D.C.
-    arrange(STATEFP, !!sym(county_var))
-  
-  fips_existing_counties <- fips[[county_var]]
-  
-  # Determine which of the counties are missing
-  diff_missings_counties <- setdiff(fips_existing_counties, fips_after_filter)
-  
-  # Create DF and add information on state and county name
-  df_missings <- data.frame(county_code = diff_missings_counties)
-  
-  # Load data on fips code and names
-  data(fips_codes)
-  
-  # select relevant variables
-  fips_code <- fips_codes |> 
-    mutate(
-      county_code = paste(state_code, county_code, sep = "")
-    ) |> 
-    filter(!state_code %in% c("66", "60", "69","72", "74", "78")) |> 
-    select(county_code, state_name, county)
-  
-  # Join Missing Counties with Information
-  df_missings <- df_missings |> 
-    left_join(fips_code, by = "county_code") |> 
-    mutate(year = year)
-  
-  # Save the DF into the list
-  fips_missings_list[[x]] <<- df_missings
-  names(fips_missings_list)[[x]] <<- paste0("hdma_", year)
-
-
-# Home Purchase & Refinancing (for now to evaluate leave all loan purposes in)
-# data <- data[loan_purpose %in% c(1,3)]
-
   # Delete not relevant variables
   data[, `:=` (
     action_taken = NULL,
     property_type = NULL,
     lien_status = NULL,
-    occupancy_type = NULL
+    occupancy_type = NULL,
+    lien_status = NULL
   )]
 
   message(paste0("Finished with FIPS code; year ", year))
@@ -713,6 +620,63 @@ purrr::walk(seq_along(hmda_merged), function(x) {
   data[, share_male_applicant := nr_male_applicant / tot_origin]
   data[, share_female_applicant := nr_female_applicant / tot_origin]
 
+## Save cleaned data
+  SAVE(dfx = paste0("hmda_clean_", year))
+}
+)
+
+
+### Determine Missing Counties | General ---------------------------------------
+
+# Final number of counties
+fips_after_filter <- unique(data$fips)
+
+# List of Counties by TIGRIS
+if (year <= 2010) {
+  fips_raw <- counties(year = 2000, progress_bar = FALSE)
+} else if (year > 2010 & year <= 2020) {
+  fips_raw <- counties(year = 2010, progress_bar = FALSE)
+} else if (year > 2020) {
+  fips_raw <- counties(year = 2020, progress_bar = FALSE)
+}
+
+county_var <- if (year <= 2010) "CNTYIDFP00" else if (year > 2010 & year <= 2020) "GEOID10" else if (year > 2020) "GEOID"
+county_name_var <- if (year <= 2010) "NAME00" else if (year > 2010 & year <= 2020) "NAME10" else if (year > 2020)"NAMELSAD"
+
+# Basic Transformations for a base dataset on available FIPS Codes
+fips <- fips_raw |>
+  as_tibble() |> 
+  select(STATEFP, !!sym(county_var), !!sym(county_name_var)) |> 
+  filter(!STATEFP %in% c("66", "60", "69","72", "74", "78")) |> # 50 States + Washington D.C.
+  arrange(STATEFP, !!sym(county_var))
+
+fips_existing_counties <- fips[[county_var]]
+
+# Determine which of the counties are missing
+diff_missings_counties <- setdiff(fips_existing_counties, fips_after_filter)
+
+# Create DF and add information on state and county name
+df_missings <- data.frame(county_code = diff_missings_counties)
+
+# Load data on fips code and names
+data(fips_codes)
+
+# select relevant variables
+fips_code <- fips_codes |> 
+  mutate(
+    county_code = paste(state_code, county_code, sep = "")
+  ) |> 
+  filter(!state_code %in% c("66", "60", "69","72", "74", "78")) |> 
+  select(county_code, state_name, county)
+
+# Join Missing Counties with Information
+df_missings <- df_missings |> 
+  left_join(fips_code, by = "county_code") |> 
+  mutate(year = year)
+
+# Save the DF into the list
+fips_missings_list[[x]] <<- df_missings
+names(fips_missings_list)[[x]] <<- paste0("hdma_", year)
 
 ### 2.4.3 Calculation in Total -------------------------------------------------
 
@@ -879,8 +843,7 @@ purrr::walk(seq_along(hmda_merged), function(x) {
   
   rm(data)
   gc()
-}
-)
+
 
 ## Combine to one data table
 
