@@ -392,12 +392,6 @@ if (!DEBUG) {
 
   }
 
-# Initiate list
-desc_stats_tot_list <- list()
-desc_stats_county_list <- list()
-fips_detailed_list <- list()
-fips_missings_list <- list()
-loan_amount_dist_list <- list()
 
 hmda_merged <- hmda_merged[1:2]
 hmda_sample <- hmda_sample[3]
