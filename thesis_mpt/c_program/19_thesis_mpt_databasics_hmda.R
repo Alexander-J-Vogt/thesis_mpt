@@ -540,7 +540,7 @@ purrr::walk(seq_along(hmda_merged), function(x) {
   
   # Exclude Observation with income of 9999 (before 2018 this was the limit for income)
   # in order to maintain precision of the analysis
-  if (year < 2018) data <- data[income < 99999]
+  if (year < 2018) data <- data[income < 9999]
     
   # Home Purchase & Refinancing (for now to evaluate leave all loan purposes in)
   data <- data[loan_purpose %in% c(1,3)]

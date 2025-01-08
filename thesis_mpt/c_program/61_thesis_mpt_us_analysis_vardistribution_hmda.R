@@ -45,11 +45,12 @@ desc_stats_county_list <- list()
 fips_detailed_list <- list()
 fips_missings_list <- list()
 
+
 ## 1.1 Loop for Descriptive Statistics -----------------------------------------
 
 purrr::walk(seq_along(hmda_clean), function(x) {
   
-  # x <- 5
+  x <- 5
   
   # ****************************************************************************
   # Determine file to analyse
@@ -60,7 +61,7 @@ purrr::walk(seq_along(hmda_clean), function(x) {
   
   # Update message
   message(paste0("\n",VISUALSEP))
-  message(paste0("Start to clean data for the year ", year, "."))
+  message(paste0("Start to analyse data for the year ", year, "."))
   
   # Load data
   data <- LOAD(dfinput = file)
@@ -186,7 +187,7 @@ purrr::walk(seq_along(hmda_clean), function(x) {
       loan_amount_q75 = quantile(loan_amount, probs = .75, na.rm = TRUE),
       loan_amount_max = max(loan_amount, na.rm= TRUE),
       loan_amount_iqr = IQR(loan_amount, na.rm = TRUE),
-      loan_amount_above2ß00 = sum(loan_amount > 2000) / tot_origin_all,
+      loan_amount_outside_iqr = sum(loan_amount > loan_amount_q75 + loan_amount_iqr * 1.5) / tot_origin_all * 100,
       hoepa_high_cost = sum(hoepa_status == 1),
       hoepa_share_high_cost = sum(hoepa_status == 1) / tot_origin_all,
       hoepa_non_high_cost = sum(hoepa_status == 2),
@@ -197,7 +198,7 @@ purrr::walk(seq_along(hmda_clean), function(x) {
       nr_obs = tot_origin_all
     )
   
-  desc_stats_tot_list[[x]] <<- df_descr_stats_tot
+  desc_stats_tot_list[[x]] <- df_descr_stats_tot
   names(desc_stats_tot_list)[[x]] <<- paste0("HDMA_", year)
   
   message("Finished calculating Descriptive Statistics for Total Population.")
@@ -274,8 +275,7 @@ purrr::walk(seq_along(hmda_clean), function(x) {
     scale_x_continuous(
       limits = c(0, 10000),  # Fixed x-axis range
       breaks = seq(0, 10000, by = 2000)  # Optional: Set axis breaks
-    )
-  
+    ) 
   ggsave(filename = paste0(FIGURE, "loan_amount_", year, ".pdf"), plot = graph)
   
   # Analyse the income distribution
@@ -296,18 +296,38 @@ purrr::walk(seq_along(hmda_clean), function(x) {
   
   ggsave(filename = paste0(FIGURE, "income_dist_", year, ".pdf"), plot = graph)
   
+  # Boxplot loan amount and log loan amount
+  graph <- ggplot(data = data, aes(x = loan_amount, y = "loan_amount")) +
+    geom_boxplot(outlier.colour = "red", outlier.shape = 18, outlier.size = 2) +
+    stat_summary(
+      fun = mean, geom = "point", shape = 18, size = 3, color = "blue"
+    ) +
+    labs(
+      title = paste0("Loan Amount Boxplot for the year ", year),
+      x = "Loan Amount in 000s",
+      y = ""
+    ) +
+     scale_x_continuous(
+       limits = c(0,15000),
+       breaks = seq(0, 15000, by = 2500)
+     ) +
+     theme_minimal()
+  
+  ggsave(filename = paste0(FIGURE, "boxplot_loan_amount_", year, ".pdf"), plot = graph)
+   
   # Update Message
   message("Finished creating Boxplot.")
   message("End of Analysis")
   
-  if (year == 2023) {
-    message(VISUASEP)
-    message(VISUASEP)
-    message("LOOP IS FINISHED")
-    message(VISUASEP)
-    message(VISUASEP)
+  year_max <- max(as.integer(str_replace_all(hmda_clean, "[^0-9]", "")))
+  
+  if (year == year_max) {
+    message(paste0("\n", VISUALSEP))
+    message(paste0("LOOP IS FINISHED AFTER ", year_max, "."))
+    message(VISUALSEP)
   }
   
+  # Boxplot
   # Clean environment from garbage
   rm(data)
   gc()
