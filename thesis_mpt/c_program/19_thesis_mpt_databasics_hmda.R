@@ -20,7 +20,7 @@ MAINNAME <- substr(MAINNAME,1,nchar(MAINNAME)-2) #cut off .R
 gc()
 
 ################################################################################################################+
-
+#### MAIN ####
 
 # Explanation:
 # This script produces for each year a .rda-file as combining all datasets without 
@@ -404,17 +404,19 @@ hmda_sample <- hmda_sample[3]
 DEBUG <- T
 
 # Start to clean all years
-purrr::walk(seq_along(hmda_merged), function(x) {
-  x <- 15
+purrr::walk(seq_along(hmda_sample), function(x) {
+  
+  
   # Determine file
   if (!DEBUG) file <- hmda_merged[x]
   if (DEBUG) file <- hmda_sample[x] 
 
   # Determine the year of data
   year <- as.integer(gsub("[^0-9]", "", file))
-  
-  # Determine lowest year of hmda_merged
-  # low_year_plus1 <- min(as.integer(gsub("[^0-9]", "", hmda_sample))) - 1
+
+  # Update message
+  message(paste0("\n",VISUALSEP))
+  message(paste0("Start to clean data for the year ", year, "."))
   
   # Load hmda_merged of this loop iteration
   data <- LOAD(dfinput = file, dfextension = ".rda")
@@ -535,8 +537,9 @@ purrr::walk(seq_along(hmda_merged), function(x) {
                 "income", "rate_spread", "applicant_sex", "applicant_race_1", "purchaser_type", "other_lender_code",
                 "respondent_rssd", "assets", "edit_status")
               )
-
-  message(paste0("Finished with basic transformation; year ", year))
+  
+  # Update message
+  message("Finished Basic Transformations.")
   
 ### Basic Filter for ... -------------------------------------------------------
 
@@ -576,11 +579,11 @@ purrr::walk(seq_along(hmda_merged), function(x) {
     action_taken = NULL,
     property_type = NULL,
     lien_status = NULL,
-    occupancy_type = NULL,
-    lien_status = NULL
+    occupancy_type = NULL
   )]
-
-  message(paste0("Finished with FIPS code; year ", year))
+  
+  # Update message
+  message("Finished Basic Filtering.")
   
 ## 2.4 Calculation of Common Characteristics -----------------------------------
 
@@ -588,11 +591,14 @@ purrr::walk(seq_along(hmda_merged), function(x) {
 
   # Loan-to-Income Ratio
   data[, lti_ratio := fifelse(!is.na(loan_amount) & !is.na(income), loan_amount / income, NA)]
+  
+  # log loan amount
+  data[, log_loan_amount := log(loan_amount)]
 
 
 ### 2.4.2  Calculations by FIPS ------------------------------------------------
 
-  # Share of Originated, Rejected and Purchased loans by Institutions 
+  # Total number of observations by county 
   data[, tot_origin := .N, by = fips] # total loan origination
   
   # Total Number of ...
@@ -620,9 +626,24 @@ purrr::walk(seq_along(hmda_merged), function(x) {
   data[, share_male_applicant := nr_male_applicant / tot_origin]
   data[, share_female_applicant := nr_female_applicant / tot_origin]
 
-## Save cleaned data
+  # Delete nr_* variables
+  data[, grep("^nr_", names(data), value = TRUE) := NULL]
+  
+  # Median loan by fips
+  data[, income_median := fquantile(income, probs = .5), by = fips]
+  
+  ## Save cleaned data set
   SAVE(dfx = paste0("hmda_clean_", year))
-}
+  
+  ## Save a sample of the dataset
+  frac <- 0.01
+  data_sample <- data[, .SD[sample(.N, size = max(1, .N * frac))], by = fips]
+  SAVE(dfx = paste0("hmda_clean_sample_", year))
+  
+  # Update message
+  message("End of data cleaning.")
+  
+  }
 )
 
 
