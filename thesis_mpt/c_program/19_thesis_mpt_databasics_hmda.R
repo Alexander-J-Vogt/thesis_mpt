@@ -371,6 +371,8 @@ hmda_merged <- gsub(".rda", "", hmda_merged)
 # Start to clean all years
 purrr::walk(seq_along(hmda_merged), function(x) {
   
+  # Determine file
+  file <- hmda_merged[x]
 
   # Determine the year of data
   year <- as.integer(gsub("[^0-9]", "", file))
