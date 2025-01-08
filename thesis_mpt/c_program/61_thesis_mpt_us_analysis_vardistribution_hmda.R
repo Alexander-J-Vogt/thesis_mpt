@@ -22,232 +22,302 @@ gc()
 ################################################################################################################+
 #### MAIN ####
 
-## 1. Descriptive Statistics for HMDA after Basic Cleaning =====================
+## 1. LAR - Descriptive Statistics for HMDA ====================================
+
+DEBUG <- T
 
 # Data was cleaned on and is on loan application level
 
+# Determine whether to debug the code or not
 hmda_clean <- list.files(path = TEMP, pattern = "hmda_clean")
+hmda_clean <- hmda_clean[!str_detect(hmda_clean, pattern = "sample")]
+hmda_clean <- gsub(hmda_clean, pattern = ".rda", replacement = "")
 
-### Determine Missing Counties | General ---------------------------------------
-
-# Final number of counties
-fips_after_filter <- unique(data$fips)
-
-# List of Counties by TIGRIS
-if (year <= 2010) {
-  fips_raw <- counties(year = 2000, progress_bar = FALSE)
-} else if (year > 2010 & year <= 2020) {
-  fips_raw <- counties(year = 2010, progress_bar = FALSE)
-} else if (year > 2020) {
-  fips_raw <- counties(year = 2020, progress_bar = FALSE)
+if (DEBUG) {
+  hmda_clean <- list.files(path = TEMP, pattern = "hmda_clean")
+  hmda_clean <- hmda_clean[str_detect(hmda_clean, pattern = "sample")]
+  hmda_clean <- gsub(hmda_clean, pattern = ".rda", replacement = "")
 }
 
-county_var <- if (year <= 2010) "CNTYIDFP00" else if (year > 2010 & year <= 2020) "GEOID10" else if (year > 2020) "GEOID"
-county_name_var <- if (year <= 2010) "NAME00" else if (year > 2010 & year <= 2020) "NAME10" else if (year > 2020)"NAMELSAD"
+# Initiate lists in order to save different statistics
+desc_stats_tot_list <- list()
+desc_stats_county_list <- list()
+fips_detailed_list <- list()
+fips_missings_list <- list()
 
-# Basic Transformations for a base dataset on available FIPS Codes
-fips <- fips_raw |>
-  as_tibble() |> 
-  select(STATEFP, !!sym(county_var), !!sym(county_name_var)) |> 
-  filter(!STATEFP %in% c("66", "60", "69","72", "74", "78")) |> # 50 States + Washington D.C.
-  arrange(STATEFP, !!sym(county_var))
+## 1.1 Loop for Descriptive Statistics -----------------------------------------
 
-fips_existing_counties <- fips[[county_var]]
+purrr::walk(seq_along(hmda_clean), function(x) {
+  
+  # x <- 5
+  
+  # ****************************************************************************
+  # Determine file to analyse
+  file <- hmda_clean[x]
+  
+  # Determine year
+  year <- as.integer(str_replace_all(file, "[^0-9]", ""))
+  
+  # Update message
+  message(paste0("\n",VISUALSEP))
+  message(paste0("Start to clean data for the year ", year, "."))
+  
+  # Load data
+  data <- LOAD(dfinput = file)
+  setDT(data)
+  #
+  # ****************************************************************************
+  
+  
+  ### i) Evaluation of missing counties ---
+  
+  ## Load Decennial Census ---
+  
+  # Final number of counties
+  fip_in_data <- unique(data$fips)
+  
+  # List of Counties by TIGRIS-Package - Decennial Census
+  if (year <= 2010) {
+    fips_raw <- counties(year = 2000, progress_bar = FALSE)
+  } else if (year > 2010 & year <= 2020) {
+    fips_raw <- counties(year = 2010, progress_bar = FALSE)
+  } else if (year > 2020) {
+    fips_raw <- counties(year = 2020, progress_bar = FALSE)
+  }
+  
+  # Vars for county are named differently across census - Adjust for that
+  county_var <- if (year <= 2010) "CNTYIDFP00" else if (year > 2010 & year <= 2020) "GEOID10" else if (year > 2020) "GEOID"
+  county_name_var <- if (year <= 2010) "NAME00" else if (year > 2010 & year <= 2020) "NAME10" else if (year > 2020)"NAMELSAD"
+  
+  # Basic Transformations for a base dataset on available FIPS Codes
+  fips <- fips_raw |>
+    as_tibble() |> 
+    select(STATEFP, !!sym(county_var), !!sym(county_name_var)) |> 
+    filter(!STATEFP %in% c("66", "60", "69","72", "74", "78")) |> # 50 States + Washington D.C.
+    arrange(STATEFP, !!sym(county_var))
+  
+  fips_existing_counties <- fips[[county_var]]
+  
+  ## Determine missing counties ---
+  
+  # Determine which of the counties are missing
+  diff_missings_counties <- setdiff(fips_existing_counties, fip_in_data)
+  
+  # Create DF and add information on state and county name
+  df_missings <- data.frame(county_code = diff_missings_counties)
+  
+  # Load data on fips code and names
+  data(fips_codes)
+  
+  # Select relevant variables
+  fips_code <- fips_codes |> 
+    mutate(
+      county_code = paste(state_code, county_code, sep = "")
+    ) |> 
+    filter(!state_code %in% c("66", "60", "69","72", "74", "78")) |> 
+    select(county_code, state_name, county)
+  
+  # Join Missing Counties with Information on state and county name
+  df_missings <- df_missings |> 
+    left_join(fips_code, by = "county_code") |> 
+    mutate(year = year)
+  
+  ## Save the DF into the list ---
+  fips_missings_list[[x]] <<- df_missings
+  names(fips_missings_list)[[x]] <<- paste0("hdma_", year)
+  
+  # Update Message
+  message("Finished Determining Missing Counties.")
+  
+  ### ii) Calculation for Total Population ---
+  
+  # Collect Descriptive Stats in DF
+  df_descr_stats_tot <- data.frame()
+  df_descr_stats_county <- data.frame()
+  
+  ## Key Numbers for ...
+  # General
+  tot_origin_all <-  nrow(data)
+  
+  # Sex
+  tot_male <- sum(data$applicant_sex == 1, na.rm = TRUE)
+  tot_female <- sum(data$applicant_sex == 2, na.rm = TRUE)
+  
+  # Race
+  tot_white <- sum(data$applicant_race_1 == 5, na.rm = TRUE)
+  tot_black <- sum(data$applicant_race_1 == 3, na.rm = TRUE)
+  tot_asian <- sum(data$applicant_race_1 == 2, na.rm = TRUE)
+  tot_americanindian <- sum(data$applicant_race_1 == 1, na.rm = TRUE)
+  tot_others <- sum(!data$applicant_race_1 %in% c(1, 2, 3, 5), na.rm = TRUE)
+  
+  # Save Descriptive Statistics for Total Population in DF
+  df_descr_stats_tot <- data |> 
+    summarise(
+      year = unique(year),
+      share_male_applicant = tot_male / tot_origin_all * 100,
+      share_female_applicant = tot_female / tot_origin_all * 100,
+      share_white_applicant = tot_white / tot_origin_all * 100,
+      share_black_applicant = tot_black / tot_origin_all * 100,
+      share_asian_applicant = tot_asian / tot_origin_all * 100,
+      share_american_indian = tot_americanindian / tot_origin_all * 100,
+      share_others = tot_others / tot_origin_all * 100,
+      rate_spread_NA = sum(is.na(data$rate_spread)) / tot_origin_all,
+      rate_spread_min = min(rate_spread, na.rm= TRUE),
+      rate_spread_q25 = quantile(rate_spread, probs = .25, na.rm = TRUE),
+      rate_spread_median = median(rate_spread, na.rm = TRUE),
+      rate_spread_mean = mean(rate_spread, na.rm = TRUE),
+      rate_spread_q75 = quantile(rate_spread, probs = .75, na.rm = TRUE),
+      rate_spread_max = max(rate_spread, na.rm= TRUE),
+      rate_spread_iqr = IQR(rate_spread, na.rm = TRUE),
+      income_NA = sum(is.na(income)) / tot_origin_all,
+      income_min = min(income, na.rm= TRUE),
+      income_q25 = quantile(income, probs = .25, na.rm = TRUE),
+      income_median = median(income, na.rm = TRUE),
+      income_mean = mean(income, na.rm = TRUE),
+      income_q75 = quantile(income, probs = .75, na.rm = TRUE),
+      income_max = max(income, na.rm = TRUE),
+      income_iqr = IQR(income, na.rm = TRUE),
+      income_above500 = sum(income > 500) / tot_origin_all,
+      loan_amount_NA = sum(is.na(loan_amount)) / tot_origin_all,
+      loan_amount_min = min(loan_amount, na.rm= TRUE),
+      loan_amount_q25 = quantile(loan_amount, probs = .25, na.rm = TRUE),
+      loan_amount_median = median(loan_amount, na.rm = TRUE),
+      loan_amount_mean = mean(loan_amount, na.rm = TRUE),
+      loan_amount_q75 = quantile(loan_amount, probs = .75, na.rm = TRUE),
+      loan_amount_max = max(loan_amount, na.rm= TRUE),
+      loan_amount_iqr = IQR(loan_amount, na.rm = TRUE),
+      loan_amount_above2ß00 = sum(loan_amount > 2000) / tot_origin_all,
+      hoepa_high_cost = sum(hoepa_status == 1),
+      hoepa_share_high_cost = sum(hoepa_status == 1) / tot_origin_all,
+      hoepa_non_high_cost = sum(hoepa_status == 2),
+      hoepa_share_non_high_cost = sum(hoepa_status == 2) / tot_origin_all,
+      loan_purpose_hp = sum(loan_type == 1) / tot_origin_all * 100,
+      loan_purpose_hi = sum(loan_type == 2) / tot_origin_all * 100,
+      loan_purpose_refin = sum(loan_type == 3) / tot_origin_all * 100,
+      nr_obs = tot_origin_all
+    )
+  
+  desc_stats_tot_list[[x]] <<- df_descr_stats_tot
+  names(desc_stats_tot_list)[[x]] <<- paste0("HDMA_", year)
+  
+  message("Finished calculating Descriptive Statistics for Total Population.")
+  
+  
+  ### iii) Calculation by FIPS ---
+  
+  # Save Descriptive Statistics by FIPS in DF
+  df_descr_stats_county <- data |> 
+    group_by(fips) |> 
+    reframe(
+      year = unique(year),
+      share_male_applicant = sum(applicant_sex == 1) / n() * 100,
+      share_female_applicant = sum(applicant_sex == 2) / n() * 100,
+      share_white_applicant = sum(applicant_race_1 == 5) / n() * 100,
+      share_black_applicant = sum(applicant_race_1 == 3) / n() * 100,
+      share_asian_applicant = sum(applicant_race_1 == 2) / n() * 100,
+      share_american_indian = sum(applicant_race_1 == 1) / n() * 100,
+      share_others = sum(!applicant_race_1 %in% c(1, 2, 3, 5)) / n() * 100,
+      rate_spread_exist = any(!is.na(rate_spread)),
+      rate_spread_NA = sum(is.na(rate_spread)),
+      rate_spread_min = if (rate_spread_exist) min(rate_spread, na.rm = TRUE) else NA,
+      rate_spread_q25 = if (rate_spread_exist) quantile(rate_spread, probs = .25, na.rm = TRUE) else NA,
+      rate_spread_median = if (rate_spread_exist) median(rate_spread, na.rm = TRUE) else NA,
+      rate_spread_mean = if (rate_spread_exist) mean(rate_spread, na.rm = TRUE) else NA,
+      rate_spread_q75 = if (rate_spread_exist) quantile(rate_spread, probs = .75, na.rm = TRUE) else NA,
+      rate_spread_max = if (rate_spread_exist) max(rate_spread, na.rm = TRUE) else NA,
+      income_exist = any(!is.na(income)),
+      income_NA = sum(is.na(income)),
+      income_min = if (income_exist) min(income, na.rm= TRUE) else NA,
+      income_q25 = if (income_exist) quantile(income, probs = .25, na.rm = TRUE) else NA,
+      income_median = if (income_exist) median(income, na.rm = TRUE) else NA,
+      income_mean = if (income_exist) mean(income, na.rm = TRUE) else NA,
+      income_q75 = if (income_exist) quantile(income, probs = .75, na.rm = TRUE) else NA,
+      income_max = if (income_exist) max(income, na.rm= TRUE) else NA,
+      income_negativ = sum(income < 0),
+      income_excesive = sum(income > 9999),
+      loan_amount_NA = sum(is.na(loan_amount)),
+      loan_amount_min = min(loan_amount, na.rm= TRUE),
+      loan_amount_q25 = quantile(loan_amount, probs = .25, na.rm = TRUE),
+      loan_amount_median = median(loan_amount, na.rm = TRUE),
+      loan_amount_mean = mean(loan_amount, na.rm = TRUE),
+      loan_amount_q75 = quantile(loan_amount, probs = .75, na.rm = TRUE),
+      loan_amount_max = max(loan_amount, na.rm= TRUE),
+      income_negativ = sum(income < 0),
+      hoepa_high_cost = sum(hoepa_status == 1),
+      hoepa_share_high_cost = sum(hoepa_status == 1) / n() * 100,
+      hoepa_non_high_cost = sum(hoepa_status == 2),
+      hoepa_share_non_high_cost = sum(hoepa_status == 2) / n() * 100,
+      loan_purpose_hp = sum(loan_type == 1) / n() * 100,
+      loan_purpose_hi = sum(loan_type == 2) / n() * 100,
+      loan_purpose_refin = sum(loan_type == 3) / n() * 100
+    )
+  
+  desc_stats_county_list[[x]] <<- df_descr_stats_county
+  names(desc_stats_county_list)[[x]] <<- paste0("HDMA_", year)
+  
+  
+  message("Finished calculating Descriptive Statistics for by County")
+          
+  ### iv) Boxplot for loan amount and income by year ---
+  
+  # Analyse the loan_amount distribution
+  graph <- ggplot(data = data, aes(loan_amount)) +
+    geom_density(fill = "blue", alpha = 0.4, size = 0.7, na.rm = TRUE) +
+    ggtitle(paste0("Density of Loan Amount for the year ", year)) +  
+    xlab("Value") +                     
+    ylab("Density") +                   
+    theme_minimal() +
+    scale_y_continuous(
+      limits = c(0,0.004),
+      breaks = seq(0, 0.004, by = 0.001)
+    ) +
+    scale_x_continuous(
+      limits = c(0, 10000),  # Fixed x-axis range
+      breaks = seq(0, 10000, by = 2000)  # Optional: Set axis breaks
+    )
+  
+  ggsave(filename = paste0(FIGURE, "loan_amount_", year, ".pdf"), plot = graph)
+  
+  # Analyse the income distribution
+  graph <- ggplot(data = data, aes(income)) +
+    geom_density(fill = "blue", alpha = 0.4, size = 0.7, na.rm = TRUE) +
+    ggtitle(paste0("Density of Income for the year ", year)) +
+    xlab("Value") +
+    ylab("Density") +
+    theme_minimal() +
+    scale_y_continuous(
+      limits = c(0,0.02),
+      breaks = seq(0, 0.02, by = 0.005)
+    ) +
+    scale_x_continuous(
+      limits = c(0, 500),  # Fixed x-axis range
+      breaks = seq(0, 500, by = 50)  # Optional: Set axis breaks
+    )
+  
+  ggsave(filename = paste0(FIGURE, "income_dist_", year, ".pdf"), plot = graph)
+  
+  # Update Message
+  message("Finished creating Boxplot.")
+  message("End of Analysis")
+  
+  if (year == 2023) {
+    message(VISUASEP)
+    message(VISUASEP)
+    message("LOOP IS FINISHED")
+    message(VISUASEP)
+    message(VISUASEP)
+  }
+  
+  # Clean environment from garbage
+  rm(data)
+  gc()
+  
+  } # End of function
+) # End of purrr:walk
 
-# Determine which of the counties are missing
-diff_missings_counties <- setdiff(fips_existing_counties, fips_after_filter)
+## 1.2 Evaluate Descriptive Statistics -----------------------------------------
 
-# Create DF and add information on state and county name
-df_missings <- data.frame(county_code = diff_missings_counties)
-
-# Load data on fips code and names
-data(fips_codes)
-
-# select relevant variables
-fips_code <- fips_codes |> 
-  mutate(
-    county_code = paste(state_code, county_code, sep = "")
-  ) |> 
-  filter(!state_code %in% c("66", "60", "69","72", "74", "78")) |> 
-  select(county_code, state_name, county)
-
-# Join Missing Counties with Information
-df_missings <- df_missings |> 
-  left_join(fips_code, by = "county_code") |> 
-  mutate(year = year)
-
-# Save the DF into the list
-fips_missings_list[[x]] <<- df_missings
-names(fips_missings_list)[[x]] <<- paste0("hdma_", year)
-
-### 2.4.3 Calculation in Total -------------------------------------------------
-
-# Collect Descriptive Stats in DF
-df_descr_stats_tot <- data.frame()
-df_descr_stats_county <- data.frame()
-
-## Key Numbers for ...
-# General
-tot_origin_all <-  nrow(data)
-
-# Sex
-tot_male <- sum(data$applicant_sex == 1, na.rm = TRUE)
-tot_female <- sum(data$applicant_sex == 2, na.rm = TRUE)
-
-# Race
-tot_white <- sum(data$applicant_race_1 == 5, na.rm = TRUE)
-tot_black <- sum(data$applicant_race_1 == 3, na.rm = TRUE)
-tot_asian <- sum(data$applicant_race_1 == 2, na.rm = TRUE)
-tot_americanindian <- sum(data$applicant_race_1 == 1, na.rm = TRUE)
-tot_others <- sum(!data$applicant_race_1 %in% c(1, 2, 3, 5), na.rm = TRUE)
-
-# Save Descriptive Statistics for Total Population in DF
-df_descr_stats_tot <- data |> 
-  summarise(
-    year = unique(year),
-    share_male_applicant = tot_male / tot_origin_all * 100,
-    share_female_applicant = tot_female / tot_origin_all * 100,
-    share_white_applicant = tot_white / tot_origin_all * 100,
-    share_black_applicant = tot_black / tot_origin_all * 100,
-    share_asian_applicant = tot_asian / tot_origin_all * 100,
-    share_american_indian = tot_americanindian / tot_origin_all * 100,
-    share_others = tot_others / tot_origin_all * 100,
-    rate_spread_NA = sum(is.na(data$rate_spread)) / tot_origin_all,
-    rate_spread_min = min(rate_spread, na.rm= TRUE),
-    rate_spread_q25 = quantile(rate_spread, probs = .25, na.rm = TRUE),
-    rate_spread_median = median(rate_spread, na.rm = TRUE),
-    rate_spread_mean = mean(rate_spread, na.rm = TRUE),
-    rate_spread_q75 = quantile(rate_spread, probs = .75, na.rm = TRUE),
-    rate_spread_max = max(rate_spread, na.rm= TRUE),
-    rate_spread_iqr = IQR(rate_spread, na.rm = TRUE),
-    income_NA = sum(is.na(income)) / tot_origin_all,
-    income_min = min(income, na.rm= TRUE),
-    income_q25 = quantile(income, probs = .25, na.rm = TRUE),
-    income_median = median(income, na.rm = TRUE),
-    income_mean = mean(income, na.rm = TRUE),
-    income_q75 = quantile(income, probs = .75, na.rm = TRUE),
-    income_max = max(income, na.rm = TRUE),
-    income_iqr = IQR(income, na.rm = TRUE),
-    income_above500 = sum(income > 500) / tot_origin_all,
-    loan_amount_NA = sum(is.na(loan_amount)) / tot_origin_all,
-    loan_amount_min = min(loan_amount, na.rm= TRUE),
-    loan_amount_q25 = quantile(loan_amount, probs = .25, na.rm = TRUE),
-    loan_amount_median = median(loan_amount, na.rm = TRUE),
-    loan_amount_mean = mean(loan_amount, na.rm = TRUE),
-    loan_amount_q75 = quantile(loan_amount, probs = .75, na.rm = TRUE),
-    loan_amount_max = max(loan_amount, na.rm= TRUE),
-    loan_amount_iqr = IQR(loan_amount, na.rm = TRUE),
-    loan_amount_above2ß00 = sum(loan_amount > 2000) / tot_origin_all,
-    hoepa_high_cost = sum(hoepa_status == 1),
-    hoepa_share_high_cost = sum(hoepa_status == 1) / tot_origin_all,
-    hoepa_non_high_cost = sum(hoepa_status == 2),
-    hoepa_share_non_high_cost = sum(hoepa_status == 2) / tot_origin_all,
-    loan_purpose_hp = sum(loan_type == 1) / tot_origin_all * 100,
-    loan_purpose_hi = sum(loan_type == 2) / tot_origin_all * 100,
-    loan_purpose_refin = sum(loan_type == 3) / tot_origin_all * 100,
-    nr_obs = tot_origin_all
-  )
-
-desc_stats_tot_list[[x]] <<- df_descr_stats_tot
-names(desc_stats_tot_list)[[x]] <<- paste0("HDMA_", year)
-
-message(paste0("Finished Descriptive Stats Part 1; year ", year))
-
-### 2.4.3 Calculation by FIPS -------------------------------------------------
-
-# Save Descriptive Statistics by FIPS in DF
-df_descr_stats_county <- data |> 
-  group_by(fips) |> 
-  reframe(
-    year = unique(year),
-    share_male_applicant = sum(applicant_sex == 1) / n() * 100,
-    share_female_applicant = sum(applicant_sex == 2) / n() * 100,
-    share_white_applicant = sum(applicant_race_1 == 5) / n() * 100,
-    share_black_applicant = sum(applicant_race_1 == 3) / n() * 100,
-    share_asian_applicant = sum(applicant_race_1 == 2) / n() * 100,
-    share_american_indian = sum(applicant_race_1 == 1) / n() * 100,
-    share_others = sum(!applicant_race_1 %in% c(1, 2, 3, 5)) / n() * 100,
-    rate_spread_exist = any(!is.na(rate_spread)),
-    rate_spread_NA = sum(is.na(rate_spread)),
-    rate_spread_min = if (rate_spread_exist) min(rate_spread, na.rm = TRUE) else NA,
-    rate_spread_q25 = if (rate_spread_exist) quantile(rate_spread, probs = .25, na.rm = TRUE) else NA,
-    rate_spread_median = if (rate_spread_exist) median(rate_spread, na.rm = TRUE) else NA,
-    rate_spread_mean = if (rate_spread_exist) mean(rate_spread, na.rm = TRUE) else NA,
-    rate_spread_q75 = if (rate_spread_exist) quantile(rate_spread, probs = .75, na.rm = TRUE) else NA,
-    rate_spread_max = if (rate_spread_exist) max(rate_spread, na.rm = TRUE) else NA,
-    income_exist = any(!is.na(income)),
-    income_NA = sum(is.na(income)),
-    income_min = if (income_exist) min(income, na.rm= TRUE) else NA,
-    income_q25 = if (income_exist) quantile(income, probs = .25, na.rm = TRUE) else NA,
-    income_median = if (income_exist) median(income, na.rm = TRUE) else NA,
-    income_mean = if (income_exist) mean(income, na.rm = TRUE) else NA,
-    income_q75 = if (income_exist) quantile(income, probs = .75, na.rm = TRUE) else NA,
-    income_max = if (income_exist) max(income, na.rm= TRUE) else NA,
-    income_negativ = sum(income < 0),
-    income_excesive = sum(income > 9999),
-    loan_amount_NA = sum(is.na(loan_amount)),
-    loan_amount_min = min(loan_amount, na.rm= TRUE),
-    loan_amount_q25 = quantile(loan_amount, probs = .25, na.rm = TRUE),
-    loan_amount_median = median(loan_amount, na.rm = TRUE),
-    loan_amount_mean = mean(loan_amount, na.rm = TRUE),
-    loan_amount_q75 = quantile(loan_amount, probs = .75, na.rm = TRUE),
-    loan_amount_max = max(loan_amount, na.rm= TRUE),
-    income_negativ = sum(income < 0),
-    hoepa_high_cost = sum(hoepa_status == 1),
-    hoepa_share_high_cost = sum(hoepa_status == 1) / n() * 100,
-    hoepa_non_high_cost = sum(hoepa_status == 2),
-    hoepa_share_non_high_cost = sum(hoepa_status == 2) / n() * 100,
-    loan_purpose_hp = sum(loan_type == 1) / n() * 100,
-    loan_purpose_hi = sum(loan_type == 2) / n() * 100,
-    loan_purpose_refin = sum(loan_type == 3) / n() * 100
-  )
-
-desc_stats_county_list[[x]] <<- df_descr_stats_county
-names(desc_stats_county_list)[[x]] <<- paste0("HDMA_", year)
-
-# Analyse the loan_amount distribution
-graph <- ggplot(data = data, aes(loan_amount)) +
-  geom_density(fill = "blue", alpha = 0.4, size = 0.7, na.rm = TRUE) +
-  ggtitle(paste0("Density of Loan Amount for the year ", year)) +  
-  xlab("Value") +                     
-  ylab("Density") +                   
-  theme_minimal() +
-  scale_y_continuous(
-    limits = c(0,0.004),
-    breaks = seq(0, 0.004, by = 0.001)
-  ) +
-  scale_x_continuous(
-    limits = c(0, 10000),  # Fixed x-axis range
-    breaks = seq(0, 10000, by = 2000)  # Optional: Set axis breaks
-  )
-
-ggsave(filename = paste0(FIGURE, "loan_amount_", year, ".pdf"), plot = graph)
-
-# Analyse the income distribution
-graph <- ggplot(data = data, aes(income)) +
-  geom_density(fill = "blue", alpha = 0.4, size = 0.7, na.rm = TRUE) +
-  ggtitle(paste0("Density of Income for the year ", year)) +
-  xlab("Value") +
-  ylab("Density") +
-  theme_minimal() +
-  scale_y_continuous(
-    limits = c(0,0.02),
-    breaks = seq(0, 0.02, by = 0.005)
-  ) +
-  scale_x_continuous(
-    limits = c(0, 500),  # Fixed x-axis range
-    breaks = seq(0, 500, by = 50)  # Optional: Set axis breaks
-  )
-
-ggsave(filename = paste0(FIGURE, "income_dist_", year, ".pdf"), plot = graph)
-
-message(paste0("Finished for year ", year))
-
-rm(data)
-gc()
-
-
-## Combine to one data table
+### 1.2.1 Create DT and Save ---------------------------------------------------
 
 # Descriptive Statistics on Total Population
 desc_stats_tot <- bind_rows(desc_stats_tot_list)
@@ -268,6 +338,8 @@ SAVE(dfx = desc_stats_tot, namex = "fips_missing")
 fips_detailed <- bind_rows(fips_detailed_list)
 setDT(fips_detailed)
 SAVE(dfx = fips_detailed, namex = "fips_detailed_missing")
+
+# 1.2.3 Create Boxplot for Loan Amount and Income ------------------------------
 
 ## Boxplot for loan amount
 boxplot_loan_amount <- ggplot(desc_stats_tot, aes(x = factor(year))) +  # Use year as a factor for x-axis
@@ -291,7 +363,7 @@ boxplot_loan_amount <- ggplot(desc_stats_tot, aes(x = factor(year))) +  # Use ye
 
 ggsave(filename = paste0(FIGURE, "boxplot_loan_amount.pdf"))
 
-# Boxplot for income
+## Boxplot for income
 
 boxplot_income <- ggplot(desc_stats_tot, aes(x = factor(year))) +  # Use year as a factor for x-axis
   geom_boxplot(
@@ -313,3 +385,9 @@ boxplot_income <- ggplot(desc_stats_tot, aes(x = factor(year))) +  # Use year as
   theme_minimal()
 
 ggsave(filename = paste0(FIGURE, "boxplot_income.pdf"))
+
+
+
+
+
+############################### END ###########################################+
