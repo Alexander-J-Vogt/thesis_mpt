@@ -655,30 +655,4 @@ purrr::walk(seq_along(hmda_merged), function(x) {
 ) # End of purrr::walk
 
 
-
-
-data19 <- data
-setDT(data19)
-
-data19 |> 
-  filter(income < 0) |> 
-  group_by(fips) |> 
-  mutate(
-    fips_loan_amount = sum(loan_amount), 
-  ) |> 
-  distinct(fips, fips_loan_amount) |> 
-  ungroup() |> 
-  mutate(
-    state_code = str_sub(fips, start = 1, end = 2)
-  ) |> 
-  left_join(fips_codes, by = "state_code")
-
-states <- fips_codes |> 
-  select(state_code, state_name) |> 
-  distinct(state_code, state_name)
-
-data18 <- data
-setDT(data18)
-
-
 ############################### END ###########################################+
