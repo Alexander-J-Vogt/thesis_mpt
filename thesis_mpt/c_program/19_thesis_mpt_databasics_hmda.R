@@ -645,7 +645,7 @@ purrr::walk(seq_along(hmda_merged), function(x) {
   data[, income_median := fquantile(income, probs = .5), by = fips]
   
   ## Save cleaned data set
-  SAVE(dfx = paste0("hmda_clean_", year))
+  SAVE(dfx = data, namex = paste0("hmda_clean_", year))
   
   ## Save a sample of the dataset
   frac <- 0.01
