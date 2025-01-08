@@ -401,11 +401,10 @@ loan_amount_dist_list <- list()
 
 hmda_merged <- hmda_merged[1:2]
 hmda_sample <- hmda_sample[3]
-DEBUG <- T
+DEBUG <- F
 
 # Start to clean all years
-purrr::walk(seq_along(hmda_sample), function(x) {
-  
+purrr::walk(seq_along(hmda_merged), function(x) {
   
   # Determine file
   if (!DEBUG) file <- hmda_merged[x]
@@ -422,7 +421,7 @@ purrr::walk(seq_along(hmda_sample), function(x) {
   data <- LOAD(dfinput = file, dfextension = ".rda")
   setDT(data)
   
-  ## 2.1 Formatting Variables ----------------------------------------------------
+  ## 2.1 Formatting Variables --------------------------------------------------
 
   # Columns as character
   if (year >= 2018) {
@@ -448,7 +447,7 @@ purrr::walk(seq_along(hmda_sample), function(x) {
   }
 
 
-## 2.2 Variable Transformations based on time-varying Data Structure -----------
+  ## 2.2 Variable Transformations based on time-varying Data Structure ---------
 
   # Variable Transformation for the years after 2017
   if (year >= 2018) {
@@ -481,6 +480,12 @@ purrr::walk(seq_along(hmda_sample), function(x) {
     data <- data[, property_type := fifelse(property_type %in% c("Single Family (1-4 Units):Manufactured", "Multifamily:Manufactured"), "2", property_type)]
     data <- data[, property_type := fifelse(property_type == "Multifamily:Site-Built", "3", property_type)]
     data <- data[, property_type := as.numeric(property_type)]
+    
+    ## Recode loan purpose
+    # Post-2017: more granular documentation of loan purpose
+    # Relevant for the later analysis is 1- Home Purchase & 3 - Refinancing
+    data[loan_purpose == 31, loan_purpose := 3]
+    data[loan_purpose == 32, loan_purpose := 3]
     
     # Unify lei and fips code across all years
     setnames(data,
@@ -522,7 +527,7 @@ purrr::walk(seq_along(hmda_sample), function(x) {
   }
 
   
-## 2.3 Variable Transformation for all data structures -------------------------
+  ## 2.3 Variable Transformation for all data structures -----------------------
 
   # Adjust year variable
   setnames(data,
@@ -540,8 +545,9 @@ purrr::walk(seq_along(hmda_sample), function(x) {
   
   # Update message
   message("Finished Basic Transformations.")
-  
-### Basic Filter for ... -------------------------------------------------------
+
+
+  ### Basic Filter for ... -----------------------------------------------------
 
   ## Only include states and Washington D.C. BUT no U.S. territory
   data <- data[!state_code %in% c("66", "60", "69","72", "74", "78")]
@@ -563,10 +569,14 @@ purrr::walk(seq_along(hmda_sample), function(x) {
   data <- data[!is.na(loan_amount)] # Should be not missing but just to be extra sure this line of code excludes all NAs 
   data <- data[!is.na(loan_purpose)] # Exclude missings in loan purpose
   
-  # Exclude Observation with individual having an annual income of more than 100 Billion
+  # Exclude Observation with individual having an annual income of more than 100 Billion (see year 2018)
   data <- data[, income_chr := nchar(as.character(income))]
   data <- data[income_chr != 9]
   data <- data[, income_chr := NULL]
+  
+  # Exclude Observation with income of 9999 (before 2018 this was the limit for income)
+  # in order to maintain precision of the analysis
+  if (year < 2018) data <- data[income < 99999]
     
   # Home Purchase & Refinancing (for now to evaluate leave all loan purposes in)
   data <- data[loan_purpose %in% c(1,3)]
@@ -584,10 +594,11 @@ purrr::walk(seq_along(hmda_sample), function(x) {
   
   # Update message
   message("Finished Basic Filtering.")
-  
-## 2.4 Calculation of Common Characteristics -----------------------------------
 
-### 2.4.1 Calculation on Loan Application Level --------------------------------
+
+  ## 2.4 Calculation of Common Characteristics ---------------------------------
+
+  ### 2.4.1 Calculation on Loan Application Level ------------------------------
 
   # Loan-to-Income Ratio
   data[, lti_ratio := fifelse(!is.na(loan_amount) & !is.na(income), loan_amount / income, NA)]
@@ -596,7 +607,7 @@ purrr::walk(seq_along(hmda_sample), function(x) {
   data[, log_loan_amount := log(loan_amount)]
 
 
-### 2.4.2  Calculations by FIPS ------------------------------------------------
+  ### 2.4.2  Calculations by FIPS ----------------------------------------------
 
   # Total number of observations by county 
   data[, tot_origin := .N, by = fips] # total loan origination
@@ -626,6 +637,7 @@ purrr::walk(seq_along(hmda_sample), function(x) {
   data[, share_male_applicant := nr_male_applicant / tot_origin]
   data[, share_female_applicant := nr_female_applicant / tot_origin]
 
+  
   # Delete nr_* variables
   data[, grep("^nr_", names(data), value = TRUE) := NULL]
   
@@ -638,13 +650,15 @@ purrr::walk(seq_along(hmda_sample), function(x) {
   ## Save a sample of the dataset
   frac <- 0.01
   data_sample <- data[, .SD[sample(.N, size = max(1, .N * frac))], by = fips]
-  SAVE(dfx = paste0("hmda_clean_sample_", year))
+  SAVE(dfx = data_sample, namex = paste0("hmda_clean_sample_", year))
   
   # Update message
   message("End of data cleaning.")
+  message(paste0("Observations: ", nrow(data)))
+  message(paste0("File Size: ", object.size(data) / (1024^2), " MB."))
   
-  }
-)
+  } # End of function
+) # End of purrr::walk
 
 
 ### Determine Missing Counties | General ---------------------------------------
