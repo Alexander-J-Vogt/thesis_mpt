@@ -368,41 +368,9 @@ hmda_merged <- list.files(path = TEMP, pattern = "hmda_merge_")
 hmda_merged <- hmda_merged[as.integer(gsub("[^0-9]", "", hmda_merged)) >= 2004]
 hmda_merged <- gsub(".rda", "", hmda_merged)
 
-if (DEBUG) {
-  hmda_sample <- list.files(path = TEMP, pattern = "hmda_sample_")
-  hmda_sample <- hmda_sample[as.integer(gsub("[^0-9]", "", hmda_sample)) >= 2004]
-  hmda_sample <- gsub(".rda", "", hmda_sample)
-}
-
-
-if (!DEBUG) {
-  
-  x <- hmda_merged[19]
-  y <- hmda_merged[10]
-  
-  datax <- LOAD(dfinput = x)
-  datax <- head(datax, n = 1000000)
-  datay <- LOAD(dfinput = y)
-  datay <- head(datay, n = 1000000)
-  setDT(datax)
-  setDT(datay)
-  ## CURRENT DATASET
-  data <- datay
-  setDT(data)
-
-  }
-
-
-hmda_merged <- hmda_merged[1:2]
-hmda_sample <- hmda_sample[3]
-DEBUG <- F
-
 # Start to clean all years
 purrr::walk(seq_along(hmda_merged), function(x) {
   
-  # Determine file
-  if (!DEBUG) file <- hmda_merged[x]
-  if (DEBUG) file <- hmda_sample[x] 
 
   # Determine the year of data
   year <- as.integer(gsub("[^0-9]", "", file))
