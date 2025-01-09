@@ -40,8 +40,10 @@ gc()
 ##  1.1 List Panel and Loan Application Records Files (LRA) --------------------   
 lra_files <- list.files(paste0(A, "p_hmda_lra/"))
 lra_files <- lra_files[gsub("[^0-9]", "", lra_files) %in% c(2004:2023)]
+lra_files <- lra_files[!str_detect(lra_files, "2017_public_lar.csv")]
 panel_files <- list.files(paste0(A, "q_hmda_panel/"))
 panel_files <- panel_files[gsub("[^0-9]", "", panel_files) %in% c(2004:2023)]
+panel_files <- panel_files[!str_detect(panel_files, "2017_public_panel.csv")]
 
 DEBUG <- F
 if (DEBUG) {
