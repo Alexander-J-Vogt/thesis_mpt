@@ -24,7 +24,7 @@ gc()
 
 ## 1. LAR - Descriptive Statistics for HMDA ====================================
 
-DEBUG <- T
+DEBUG <- F
 
 # Data was cleaned on and is on loan application level
 
@@ -50,7 +50,7 @@ fips_missings_list <- list()
 
 purrr::walk(seq_along(hmda_clean), function(x) {
   
-  x <- 5
+  # x <- 5
   
   # ****************************************************************************
   # Determine file to analyse
