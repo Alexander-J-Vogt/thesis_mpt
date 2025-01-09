@@ -63,141 +63,144 @@ source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
 ################################################################################################################+
 # MAIN PART ####
 
-#############################################+
-# read-in + basic editing of raw data: create base df ####
-input <- 'm6practice_databasics_ex4.R'
+input <- '61_thesis_mpt_us_analysis_vardistribution_hmda.R'
 source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
 
-#############################################+
-# variable grouping, selection, creation ####
-input <- 'm6practice_varcreation_outcomes_ex4.R'
-source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
-
-input <- 'm6practice_varcreation_treatments_ex4.R'
-source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
-
-# input <- 'm6practice_varcreation_controls_ex4.R'
+# #############################################+
+# # read-in + basic editing of raw data: create base df ####
+# input <- 'm6practice_databasics_ex4.R'
 # source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
-
-#...
-
-input <- 'm6practice_varcreation_merge_ex4.R'
-source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
-
-#############################################+
-# main & subsample creation ####
-input <- 'm6practice_samplecreation_main_ex4.R'
-source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
-
-#...
-
-#############################################+
-# regressions ####
-input <- 'm6practice_analysis_regressions_ex4.R'
-source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
-
-
-
-
-
-
-
-
-
-
-##########################################################################################+
-# exercise 2 ####
-
-#############################################+
-# read-in + basic editing of raw data: create base df ####
-input <- 'm6practice_databasics_ex2.R'
-source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
-
-#############################################+
-# variable grouping, selection, creation ####
-input <- 'm6practice_varcreation_outcomes_ex2.R'
-source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
-
-input <- 'm6practice_varcreation_treatments_ex2.R'
-source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
-
-# input <- 'm6practice_varcreation_controls_ex2.R'
+# 
+# #############################################+
+# # variable grouping, selection, creation ####
+# input <- 'm6practice_varcreation_outcomes_ex4.R'
 # source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
-
-#...
-
-input <- 'm6practice_varcreation_merge_ex2.R'
-source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
-
-#############################################+
-# main & subsample creation ####
-input <- 'm6practice_samplecreation_main_ex2.R'
-source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
-
-#...
-
-#############################################+
-# var distribution checks (inherent and coding quality) ####
-input <- 'm6practice_analysis_vardistribution_ex2.R'
-source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
-
-#############################################+
-# regressions ####
-input <- 'm6practice_analysis_regressions_ex2.R'
-source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
-
-#...
-
-#############################################+
-# figures ####
-input <- 'm6practice_analysis_figures_ex2.R'
-source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
-
-
-##########################################################################################+
-# exercise 1 ####
-
-#############################################+
-# read-in + basic editing of raw data: create base df ####
-input <- 'm6practice_databasics_ex1.R'
-source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
-
-#############################################+
-# variable grouping, selection, creation ####
-input <- 'm6practice_varcreation_outcomes_ex1.R'
-source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
-
-input <- 'm6practice_varcreation_treatments_ex1.R'
-source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
-
-# input <- 'm6practice_varcreation_controls_ex1.R'
+# 
+# input <- 'm6practice_varcreation_treatments_ex4.R'
 # source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
-
-#...
-
-input <- 'm6practice_varcreation_merge_ex1.R'
-source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
-
-#############################################+
-# main & subsample creation ####
-input <- 'm6practice_samplecreation_main_ex1.R'
-source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
-
-#...
-
-#############################################+
-# var distribution checks (inherent and coding quality) ####
-input <- 'm6practice_analysis_vardistribution_ex1.R'
-source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
-
-#############################################+
-# regressions ####
-input <- 'm6practice_analysis_regressions_ex1.R'
-source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
-
-#...
-
-#############################################+
-# figures ####
-input <- 'm6practice_analysis_figures_ex1.R'
-source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+# 
+# # input <- 'm6practice_varcreation_controls_ex4.R'
+# # source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+# 
+# #...
+# 
+# input <- 'm6practice_varcreation_merge_ex4.R'
+# source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+# 
+# #############################################+
+# # main & subsample creation ####
+# input <- 'm6practice_samplecreation_main_ex4.R'
+# source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+# 
+# #...
+# 
+# #############################################+
+# # regressions ####
+# input <- 'm6practice_analysis_regressions_ex4.R'
+# source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# ##########################################################################################+
+# # exercise 2 ####
+# 
+# #############################################+
+# # read-in + basic editing of raw data: create base df ####
+# input <- 'm6practice_databasics_ex2.R'
+# source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+# 
+# #############################################+
+# # variable grouping, selection, creation ####
+# input <- 'm6practice_varcreation_outcomes_ex2.R'
+# source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+# 
+# input <- 'm6practice_varcreation_treatments_ex2.R'
+# source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+# 
+# # input <- 'm6practice_varcreation_controls_ex2.R'
+# # source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+# 
+# #...
+# 
+# input <- 'm6practice_varcreation_merge_ex2.R'
+# source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+# 
+# #############################################+
+# # main & subsample creation ####
+# input <- 'm6practice_samplecreation_main_ex2.R'
+# source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+# 
+# #...
+# 
+# #############################################+
+# # var distribution checks (inherent and coding quality) ####
+# input <- 'm6practice_analysis_vardistribution_ex2.R'
+# source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+# 
+# #############################################+
+# # regressions ####
+# input <- 'm6practice_analysis_regressions_ex2.R'
+# source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+# 
+# #...
+# 
+# #############################################+
+# # figures ####
+# input <- 'm6practice_analysis_figures_ex2.R'
+# source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+# 
+# 
+# ##########################################################################################+
+# # exercise 1 ####
+# 
+# #############################################+
+# # read-in + basic editing of raw data: create base df ####
+# input <- 'm6practice_databasics_ex1.R'
+# source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+# 
+# #############################################+
+# # variable grouping, selection, creation ####
+# input <- 'm6practice_varcreation_outcomes_ex1.R'
+# source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+# 
+# input <- 'm6practice_varcreation_treatments_ex1.R'
+# source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+# 
+# # input <- 'm6practice_varcreation_controls_ex1.R'
+# # source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+# 
+# #...
+# 
+# input <- 'm6practice_varcreation_merge_ex1.R'
+# source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+# 
+# #############################################+
+# # main & subsample creation ####
+# input <- 'm6practice_samplecreation_main_ex1.R'
+# source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+# 
+# #...
+# 
+# #############################################+
+# # var distribution checks (inherent and coding quality) ####
+# input <- 'm6practice_analysis_vardistribution_ex1.R'
+# source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+# 
+# #############################################+
+# # regressions ####
+# input <- 'm6practice_analysis_regressions_ex1.R'
+# source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+# 
+# #...
+# 
+# #############################################+
+# # figures ####
+# input <- 'm6practice_analysis_figures_ex1.R'
+# source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
