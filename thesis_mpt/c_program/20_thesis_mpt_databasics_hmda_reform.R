@@ -106,6 +106,111 @@ purrr::walk(seq_along(lar_files), function(file){
 })
 
 
+# Basic Filtering
+hmda_reform <- list.files(path = TEMP, pattern = "reform")
+hmda_reform <- hmda_reform[!str_detect(hmda_reform, "sample")]
+hmda_reform <- gsub(".rda", "", hmda_reform)
+
+# 
+hmda_panel <- list.files(path = TEMP, pattern = "panel")
+hmda_panel <- hmda_panel[as.integer(str_replace_all(hmda_panel, "[^0-9]", "")) >= 2018]
+hmda_panel <- str_replace(hmda_panel, ".rda", "")
+
+if (DEBUG) {
+  hmda_reform <- list.files(path = TEMP, pattern = "reform")
+  hmda_reform <- hmda_reform[!str_detect(hmda_reform, "sample")]
+}
+
+
+purrr::walk(seq_along(hmda_reform), function(x) {
+  
+  # **************************************************************
+  # Determine year
+  year <- as.integer(str_replace_all(hmda_reform[1], "[^0-9]", ""))
+  
+  # Load data
+  data <- Load(dfinput = hmda_reform[1])
+
+  # **************************************************************
+  
+  ## Format Variables ---
+  
+  # Determine, which columns are supposed to be numeric or character
+  col_names_old <- colnames(data)
+  chr_cols <- c("lei", "derived_msa_md", "county_code", "derived_dwelling_category","applicant_age", "debt_to_income_ratio")
+  num_cols <- setdiff(col_names_old, chr_cols)
+  
+  # Format variables
+  data[, (num_cols) := lapply(.SD, as.numeric), .SDcols = num_cols]
+  
+  ## Basic Cleaning of data ---
+  
+  # Select only originated loans
+  data <- data[action_taken == 1]
+  
+  # One-to-Four Single Family Dwellings
+  data <- data[derived_dwelling_category %in% c("Single Family (1-4 Units):Site-Built", "Single Family (1-4 Units):Manufactured")]
+  
+  # First Mortgage Lien (No second mortgage on a house - interest rate are higher on these)
+  data <- data[lien_status == 1]
+  
+  # 30-year Mortgages
+  data <- data[loan_term == 360]
+  
+  ## Filter via county variable ---
+  
+  # Create state code variable
+  data[, state_code := str_sub(county_code, start = 1, end = 2)]
+  
+  # Filter all False state/county codes
+  data <- data[state_code != "00"]
+  
+  # Filter all U.S. Territory
+  data <- data[!state_code %in% c("66", "60", "69","72", "74", "78")]
+
+  ## Create Variables ---
+  
+  # Log Loan Amount
+  data[, log_loan_amount := log_loan_amount]
+   
+  
+  ## Merge with panel data ---
+  
+  # Load panel data
+  data_panel <- LOAD(dfinput = hmda_panel[1]) 
+  
+  # Determine the year of the panel dataset
+  year_panel <- as.integer(str_replace_all(hmda_panel[2], "[^0-9]", ""))
+  
+  # Check if both datasets are from the same year
+  if (year != year_panel) {
+    stop("Panel and LAR are not from the same year.")
+  }
+  
+  # Left join on lei
+  data_merge <- collapse::join(data, data_panel, on = "lei", how = "left")
+  
+  ## Save ---
+  
+  # Save total dataset
+  SAVE(dfx = df_merge, namex = paste0("hmda_reform_clean_", year))
+  
+  # Save sample
+  frac <- 0.01
+  data_sample <- data[, .SD[sample(.N, size = max(1, .N * frac))], by = county_code]
+  SAVE(dfx = data_sample, namex = paste0("hmda_clean_reform_sample_", year))
+  
+  # Delete not used variables
+  data[, `:=`(
+    action_taken = NULL,
+    lien_status = NULL,
+    loan_term = NULL
+  )]
+  
+  
+  
+})
+
 
 
 
@@ -128,7 +233,69 @@ data[, total_points_and_fees := NULL]
 data <- data[!is.na(county_code)]
 data <- data[loan_term == 360]
 
+# More Precise analysis of the loan amount
+# 1. Normality Check for whole dataset
+normality(data, loan_amount)
 
+# 2. Normality Check by County
+norm_check <- data |> 
+  group_by(county_code) |> 
+  normality(loan_amount) |> 
+  mutate(normality_fulfilled = p_value > .05) # If p-value is above 5%, than it follows a normal distribution
+
+table(norm_check$normality_fulfilled)
+
+# 3. Check Missings for total dataset
+diagnose(data) |> flextable()
+
+# 4. Check outliers for whole dataset
+diagnose_outlier(data) |> flextable()
+# -> log loan amount is more promising as it has a smaller rate of outliers
+
+# 5. Check normaluty of log loan amount
+normality(data, log_loan_amount)
+
+# 6. Plot Density of log loan amount
+mean_value <- mean(data$log_loan_amount, na.rm = TRUE)  # Calculate mean
+median_value <- median(data$log_loan_amount, na.rm = TRUE)  # Calculate median
+
+ggplot(data) +
+  geom_histogram(aes(x = log_loan_amount), binwidth = 0.5) +
+  geom_vline(xintercept = mean_value, colour = "red", linetype = "dashed") +
+  geom_vline(xintercept = median_value, colour = "darkblue", linetype = "solid") +
+  labs(title = "Histogram with Mean and Median Lines",
+       x = "Log Loan Amount", y = "Count")
+
+
+data |> 
+  group_by(county_code) |> 
+  diagnose_outlier(log_loan_amount) |> 
+  View()
+
+# Visual inspection suggest normal distribution but not the statistical normality test
+
+# Check normality by county
+norm_check_log <- data |> 
+  group_by(county_code) |> 
+  normality(log_loan_amount) |> 
+  mutate(normality_fulfilled = p_value > .05) # If p-value is above 5%, than it follows a normal distribution
+
+table(norm_check_log$normality_fulfilled)
+
+# Is there are a correlation between size of county and normality?
+ggplot(data = norm_check_log, aes(x = sample, y = normality_fulfilled)) +
+  geom_point()
+# Interesting: It seems like that it is more likely that there is non-normally distributed log loan amount 
+# with larger counties. 
+# Maybe I can the normally distribution holds conditionally?
+model <- lm(log_loan_amount ~ applicant_sex + applicant_race_1, data = data)
+resid <- residuals(model)
+
+qqnorm(resid)
+qqline(resid, col = "red")
+qqnorm(data$log_loan_amount)
+
+##model
 
 
 # purchaser type
