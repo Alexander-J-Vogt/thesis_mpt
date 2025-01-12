@@ -24,7 +24,7 @@ gc()
 
 # 1. Lar Data More Precise Inforatm
 
-DEBUG <- T
+DEBUG <- F
 if(DEBUG) stop("Do not run import code!")
 ##  1.1 List Panel and Loan Application Records Files (LRA) --------------------   
 
@@ -126,10 +126,10 @@ purrr::walk(seq_along(hmda_reform), function(x) {
   
   # **************************************************************
   # Determine year
-  year <- as.integer(str_replace_all(hmda_reform[1], "[^0-9]", ""))
+  year <- as.integer(str_replace_all(hmda_reform[x], "[^0-9]", ""))
   
   # Load data
-  data <- Load(dfinput = hmda_reform[1])
+  data <- Load(dfinput = hmda_reform[x])
 
   # **************************************************************
   
@@ -173,14 +173,20 @@ purrr::walk(seq_along(hmda_reform), function(x) {
   # Log Loan Amount
   data[, log_loan_amount := log_loan_amount]
    
+  ## Delete not used variables ---
+  data[, `:=`(
+    action_taken = NULL,
+    lien_status = NULL,
+    loan_term = NULL
+  )]
   
   ## Merge with panel data ---
   
   # Load panel data
-  data_panel <- LOAD(dfinput = hmda_panel[1]) 
+  data_panel <- LOAD(dfinput = hmda_panel[x]) 
   
   # Determine the year of the panel dataset
-  year_panel <- as.integer(str_replace_all(hmda_panel[2], "[^0-9]", ""))
+  year_panel <- as.integer(str_replace_all(hmda_panel[x], "[^0-9]", ""))
   
   # Check if both datasets are from the same year
   if (year != year_panel) {
@@ -200,12 +206,6 @@ purrr::walk(seq_along(hmda_reform), function(x) {
   data_sample <- data[, .SD[sample(.N, size = max(1, .N * frac))], by = county_code]
   SAVE(dfx = data_sample, namex = paste0("hmda_clean_reform_sample_", year))
   
-  # Delete not used variables
-  data[, `:=`(
-    action_taken = NULL,
-    lien_status = NULL,
-    loan_term = NULL
-  )]
   
   
   
