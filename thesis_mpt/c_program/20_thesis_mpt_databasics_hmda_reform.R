@@ -71,23 +71,23 @@ purrr::walk(seq_along(lar_files), function(file){
     showProgress = FALSE
   )
   
-  # Update message
-  message("Start to do basic filtering.")
-  
-  # Select only originated loans
-  data <- data[action_taken == 1]
-  
-  # One-to-Four Single Family
-  data <- data[derived_dwelling_category %in% c("Single Family (1-4 Units):Site-Built", "Single Family (1-4 Units):Manufactured")]
-  
-  # First Mortgage Lien (No second mortgage on a house - interest rate are higher on these)
-  data <- data[lien_status == 1]
-  
-  # Delete not used variables
-  data[, `:=`(
-    action_taken = NULL,
-    lien_status = NULL
-    )]
+  # # Update message
+  # message("Start to do basic filtering.")
+  # 
+  # # Select only originated loans
+  # data <- data[action_taken == 1]
+  # 
+  # # One-to-Four Single Family
+  # data <- data[derived_dwelling_category %in% c("Single Family (1-4 Units):Site-Built", "Single Family (1-4 Units):Manufactured")]
+  # 
+  # # First Mortgage Lien (No second mortgage on a house - interest rate are higher on these)
+  # data <- data[lien_status == 1]
+  # 
+  # # Delete not used variables
+  # data[, `:=`(
+  #   action_taken = NULL,
+  #   lien_status = NULL
+  #   )]
   
   # Save
   SAVE(dfx = data, namex = paste0("hmda_reform_", year))
@@ -118,20 +118,31 @@ hmda_panel <- str_replace(hmda_panel, ".rda", "")
 
 if (DEBUG) {
   hmda_reform <- list.files(path = TEMP, pattern = "reform")
-  hmda_reform <- hmda_reform[!str_detect(hmda_reform, "sample")]
+  hmda_reform <- hmda_reform[str_detect(hmda_reform, "sample")]
+  hmda_reform <- gsub(".rda", "", hmda_reform)
 }
 
 
 purrr::walk(seq_along(hmda_reform), function(x) {
   
+  # x <- 1
+  
   # **************************************************************
   # Determine year
   year <- as.integer(str_replace_all(hmda_reform[x], "[^0-9]", ""))
   
+  # Update message
+  message(VISUALSEP)
+  message(paste0("Start importing data for the year ", year, "."))
+  
+  
   # Load data
-  data <- Load(dfinput = hmda_reform[x])
-
-  # **************************************************************
+  data <- LOAD(dfinput = hmda_reform[x])
+  setDT(data)
+  # **********************************************************************
+  
+  # Update message
+  message("\nStart Data Cleaning Process.")
   
   ## Format Variables ---
   
@@ -146,16 +157,16 @@ purrr::walk(seq_along(hmda_reform), function(x) {
   ## Basic Cleaning of data ---
   
   # Select only originated loans
-  data <- data[action_taken == 1]
+  data <- fsubset(data, action_taken %==% 1)
   
   # One-to-Four Single Family Dwellings
-  data <- data[derived_dwelling_category %in% c("Single Family (1-4 Units):Site-Built", "Single Family (1-4 Units):Manufactured")]
+  data <- fsubset(data, derived_dwelling_category %in% c("Single Family (1-4 Units):Site-Built", "Single Family (1-4 Units):Manufactured"))
   
   # First Mortgage Lien (No second mortgage on a house - interest rate are higher on these)
-  data <- data[lien_status == 1]
+  data <- fsubset(data, lien_status %==% 1)
   
   # 30-year Mortgages
-  data <- data[loan_term == 360]
+  data <- fsubset(data, loan_term %==% 360)
   
   ## Filter via county variable ---
   
@@ -163,15 +174,15 @@ purrr::walk(seq_along(hmda_reform), function(x) {
   data[, state_code := str_sub(county_code, start = 1, end = 2)]
   
   # Filter all False state/county codes
-  data <- data[state_code != "00"]
+  data <- fsubset(data, state_code != "00")
   
   # Filter all U.S. Territory
-  data <- data[!state_code %in% c("66", "60", "69","72", "74", "78")]
+  data <- fsubset(data, !state_code %in% c("66", "60", "69","72", "74", "78"))
 
   ## Create Variables ---
   
   # Log Loan Amount
-  data[, log_loan_amount := log_loan_amount]
+  data[, log_loan_amount := log(loan_amount)]
    
   ## Delete not used variables ---
   data[, `:=`(
@@ -199,15 +210,19 @@ purrr::walk(seq_along(hmda_reform), function(x) {
   ## Save ---
   
   # Save total dataset
-  SAVE(dfx = df_merge, namex = paste0("hmda_reform_clean_", year))
+  SAVE(dfx = data_merge, namex = paste0("hmda_reform_clean_", year))
   
   # Save sample
   frac <- 0.01
-  data_sample <- data[, .SD[sample(.N, size = max(1, .N * frac))], by = county_code]
-  SAVE(dfx = data_sample, namex = paste0("hmda_clean_reform_sample_", year))
+  data_merge <- data_merge[, .SD[sample(.N, size = max(1, .N * frac))], by = county_code]
+  SAVE(dfx = data_merge, namex = paste0("hmda_clean_reform_sample_", year))
   
+  # Update message
+  message("Finished data cleaning process.\n")
   
-  
+  # Clean up garbage
+  gc()
+  rm(data)
   
 })
 
