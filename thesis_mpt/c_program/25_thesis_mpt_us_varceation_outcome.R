@@ -115,11 +115,14 @@ hmda_list <- purrr::map(seq_along(hmda_clean), function(x) {
         share_male_applicant = sum(applicant_sex == 1, na.rm = TRUE) / .N, # share of male applicants
         share_female_applicant = sum(applicant_sex == 2, na.rm = TRUE) / .N, # share of female applicants
         income_mean = fmean(income, na.rm = TRUE), # mean income
-        income_weighted_mean = fmean(income, na.rm = TRUE, w = weight_loan_amount), # mean, weight = loan amount
+        income_mean_wloan = fmean(income, na.rm = TRUE, w = weight_loan_amount), # mean, weight = loan amount
+        income_mean_wnr = fmean(income, na.rm = TRUE, w = weight_org_loans), # mean, weight = Number of originated Loans
         income_median = fquantile(income, probs = .5), # median income
         lti_ratio_mean = fmean(lti_ratio, na.rm = TRUE), # mean loan-to-income ratio
         lti_ratio_median = fmedian(lti_ratio, na.rm = TRUE), # median loan-to-income ratio
-        rate_spread = fmean(rate_spread, na.rm = TRUE, w = weight_loan_amount), # rate spread, weighted by loan amount
+        rate_spread_wloan = fmean(rate_spread, na.rm = TRUE, w = weight_loan_amount), # rate spread, weighted by loan amount
+        rate_spread_winc = fmean(rate_spread, na.rm = TRUE, w = weight_income), # rate spread, weighted by income
+        rate_spread_wnr = fmean(rate_spread, na.rm = TRUE, w = weight_org_loans), # rate spread, weighted by number of originated loans
         nr_originated_loan = .N # Number of originated loans
       ), by = fips]
       
@@ -262,6 +265,7 @@ hmda_list <- purrr::map(seq_along(hmda_reform), function(x) {
       data <- data[, .(
         year = unique(year),
         loan_amount = sum(loan_amount, na.rm = TRUE), # loan amount by county
+        log_loan_amount_dir = mean(log_loan_amount), # Caluclate log loan amount based on the available var log_loan_amount in LAR
         share_white_applicant = sum(applicant_race_1 == 5, na.rm = TRUE) / .N, # share of white applicants
         share_black_applicant = sum(applicant_race_1 == 3, na.rm = TRUE) / .N, # share of black applicants
         share_asian_applicant = sum(applicant_race_1 == 2, na.rm = TRUE) / .N, # share of asian applicant
@@ -269,12 +273,22 @@ hmda_list <- purrr::map(seq_along(hmda_reform), function(x) {
         share_others_applicant = sum(!applicant_race_1 %in% c(1:3, 5)) / .N, # share of applicants with other race
         share_male_applicant = sum(applicant_sex == 1, na.rm = TRUE) / .N, # share of male applicants
         share_female_applicant = sum(applicant_sex == 2, na.rm = TRUE) / .N, # share of female applicants
+        share_hoepa = sum(hoepa_state == 1, na.rm = TRUE) / N, # Share of High Risk Loans
         income_mean = fmean(income, na.rm = TRUE), # mean income
-        income_weighted_mean = fmean(income, na.rm = TRUE, w = weight_loan_amount), # mean, weight = loan amount
+        income_mean_wloan = fmean(income, na.rm = TRUE, w = weight_loan_amount), # mean, weight = loan amount
+        income_mean_wnr = fmean(income, na.rm = TRUE, w = weight_org_loans), # mean, weight = loan amount
         income_median = fquantile(income, probs = .5), # median income
-        lti_ratio_mean = fmean(lti_ratio, na.rm = TRUE), # mean loan-to-income ratio
-        lti_ratio_median = fmedian(lti_ratio, na.rm = TRUE), # median loan-to-income ratio
-        rate_spread = fmean(rate_spread, na.rm = TRUE, w = weight_loan_amount), # rate spread, weighted by loan amount
+        lti_ratio_mean = fmean(loan_to_value_ratio, na.rm = TRUE), # mean loan-to-income ratio
+        lti_ratio_median = fmedian(loan_to_value_ratio, na.rm = TRUE), # median loan-to-income ratio
+        rate_spread_wloan = fmean(rate_spread, na.rm = TRUE, w = weight_loan_amount), # rate spread, weighted by loan amount
+        rate_spread_winc = fmean(rate_spread, na.rm = TRUE, w = weight_income), # rate spread, weighted by loan amount
+        rate_spread_wnr = fmean(rate_spread, na.rm = TRUE, w = weight_org_loans), # rate spread, weighted by loan amount
+        interest_rate_wloan = fmean(interest_rate, na.rm = TRUE, w = weight_loan_amount), # interest_rate, weight = loan amount
+        interest_rate_winc = fmean(interest_rate, na.rm = TRUE, w = weight_income), # interest_rate, weighted by loan amount
+        interest_rate_wnr = fmean(interest_rate, na.rm = TRUE, w = weight_org_loans), # interest_rate, weighted by loan amount
+        property_value_wloan = fmean(property_value, na.rm = TRUE, w = weight_loan_amount), # property_value, weight = loan amount
+        property_value_winc = fmean(property_value, na.rm = TRUE, w = weight_income), # property_value, weighted by loan amount
+        property_value_wnr = fmean(property_value, na.rm = TRUE, w = weight_org_loans), # property_value, weighted by loan amount
         nr_originated_loan = .N # Number of originated loans
       ), by = fips]
       
