@@ -528,7 +528,7 @@ purrr::walk(seq_along(hmda_merged), function(x) {
   data <- data[lien_status == 1]
 
   # Principle Residence (in order to exclude any investors)
-  data <- data[occupancy_type == 1]
+  # data <- data[occupancy_type == 1]
   
   # Missings in Loan Amount, FIPS-Code, Income 
   data <- data[!is.na(fips)] # Exclude missing FIPS-code (There are multiple reasons on why they can miss. See: HMDA guide 2010)
@@ -545,10 +545,10 @@ purrr::walk(seq_along(hmda_merged), function(x) {
   if (year < 2018) data <- data[income < 9999]
     
   # Home Purchase & Refinancing (for now to evaluate leave all loan purposes in)
-  data <- data[loan_purpose %in% c(1,3)]
+  # data <- data[loan_purpose %in% c(1,3)]
   
   # Depository Institutions (0) & mortgage banks subsidiary of commercial bank (1)
-  data <- data[other_lender_code %in% c(0, 1)]
+  # data <- data[other_lender_code %in% c(0, 1)]
   
   # Delete not relevant variables
   data[, `:=` (
