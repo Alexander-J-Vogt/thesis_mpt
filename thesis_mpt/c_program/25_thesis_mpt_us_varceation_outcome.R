@@ -131,8 +131,9 @@ hmda_list <- purrr::map(seq_along(hmda_clean), function(x) {
         log_loan_amount = log(loan_amount),
         log_income_median = log(income_median),
         log_income_mean = log(income_mean),
-        log_income_weighted_mean = log(income_weighted_mean)
+        log_income_weighted_mean = log(income_mean_wloan)
         )]
+      
       # Update Message
       message("End of collapse.\n")
       
@@ -193,7 +194,7 @@ hmda_reform <- str_replace_all(hmda_reform, ".rda", "")
 if (DEBUG) {
   hmda_reform <- list.files(path = TEMP, pattern = "clean_reform")
   hmda_reform <- str_replace_all(hmda_reform, ".rda", "") 
-  x <- 1
+  x <- 2
   hmda_reform <- hmda_reform[1:3]
 }
 
@@ -201,7 +202,7 @@ if (DEBUG) {
 loan_purpose_id <- c(1,3)
 
 # 1.1  Iteration over all years + Creating Main Dataset on County-level --------
-hmda_list <- purrr::map(seq_along(hmda_reform), function(x) {
+hmda_reform_list <- purrr::map(seq_along(hmda_reform), function(x) {
   
   #*******************************************************************
   # Basic Setup to run iteration
@@ -216,6 +217,10 @@ hmda_list <- purrr::map(seq_along(hmda_reform), function(x) {
   data_lar <- LOAD(dfinput = file)
   setDT(data_lar)
   
+  if (DEBUG) {
+    setnames(data_lar, old = c("county_code"), new = c("fips"))
+    if (year > 2018) setnames(data_lar, old = c("combined_loan_to_value_ratio"), new = c("loan_to_value_ratio"))
+  }
   # Update Message
   message(VISUALSEP)
   message(paste0("START TO COLLAPSE DATA FOR THE YEAR ", year, ".\n"))
@@ -225,6 +230,7 @@ hmda_list <- purrr::map(seq_along(hmda_reform), function(x) {
   # Dynamically create dataset for refinancing and home purchase
   dataset <- purrr::map(loan_purpose_id, function(i){
     
+    i <- 1
     # Determine loan purpose by name
     loan_purpose_name <- if(i == 1) "home_purchase" else "refinancing"
     
@@ -241,7 +247,7 @@ hmda_list <- purrr::map(seq_along(hmda_reform), function(x) {
     for (lender in names(lender_filters)) {
       
       # Update message
-      message(paste0("Collapsing Data for loan purpose ", loan_purpose_name , " and ", lender, " ."))
+      message(paste0("Collapsing Data for loan purpose ", loan_purpose_name , " and ", lender, "."))
       
       # Define set of lender for this loop
       lender_set <- lender_filters[[lender]]
@@ -252,14 +258,13 @@ hmda_list <- purrr::map(seq_along(hmda_reform), function(x) {
       # Filter for Financial Institution
       data <- data[other_lender_code %in% lender_set]
       
-      
       # Create Weights by loan application
       data <- data[, `:=` (
         weight_loan_amount = loan_amount / sum(loan_amount, na.rm = TRUE),
         weight_income = income / sum(income, na.rm = TRUE)
       )] 
       
-      data <- data[, weight_org_loans = .N, by = fips]
+      data <- data[, weight_org_loans := .N, by = fips]
       
       # Create Dataset County-level
       data <- data[, .(
@@ -273,7 +278,7 @@ hmda_list <- purrr::map(seq_along(hmda_reform), function(x) {
         share_others_applicant = sum(!applicant_race_1 %in% c(1:3, 5)) / .N, # share of applicants with other race
         share_male_applicant = sum(applicant_sex == 1, na.rm = TRUE) / .N, # share of male applicants
         share_female_applicant = sum(applicant_sex == 2, na.rm = TRUE) / .N, # share of female applicants
-        share_hoepa = sum(hoepa_state == 1, na.rm = TRUE) / N, # Share of High Risk Loans
+        share_hoepa = sum(hoepa_status == 1, na.rm = TRUE) / .N, # Share of High Risk Loans
         income_mean = fmean(income, na.rm = TRUE), # mean income
         income_mean_wloan = fmean(income, na.rm = TRUE, w = weight_loan_amount), # mean, weight = loan amount
         income_mean_wnr = fmean(income, na.rm = TRUE, w = weight_org_loans), # mean, weight = loan amount
@@ -297,7 +302,7 @@ hmda_list <- purrr::map(seq_along(hmda_reform), function(x) {
         log_loan_amount = log(loan_amount),
         log_income_median = log(income_median),
         log_income_mean = log(income_mean),
-        log_income_weighted_mean = log(income_weighted_mean)
+        log_income_weighted_mean = log(income_mean_wnr)
       )]
       # Update Message
       message("End of collapse.\n")
@@ -317,6 +322,12 @@ hmda_list <- purrr::map(seq_along(hmda_reform), function(x) {
   return(dataset)
   
 }) # End of purrr:map #1
+
+# Save datasets
+hmda_reform_hp_dep <- save_combined_datasets(hmda_reform_list, "home_purchase", "depository_only", paste0(MAINNAME, "_reform_hp_depsitory_only"))
+hmda_reform_hp_deb_mbs <- save_combined_datasets(hmda_reform_list, "home_purchase", "depository_and_mbs", paste0(MAINNAME, "_reform_hp_depository_and_mbs"))
+hmda_reform_ref_dep <- save_combined_datasets(hmda_reform_list, "refinancing", "depository_only", paste0(MAINNAME, "_reform_ref_depository"))
+hmda_reform_ref_dep_mbs <- save_combined_datasets(hmda_reform_list, "refinancing", "depository_and_mbs", paste0(MAINNAME, "_reform_ref_depository_and_mbs"))
 
 
 ########################## ENDE ###############################################+
