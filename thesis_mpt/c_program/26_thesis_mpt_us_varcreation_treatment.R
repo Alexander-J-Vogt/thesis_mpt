@@ -26,7 +26,7 @@ gc()
 
 ## 1.1 Load the Dataset ---------------------------------------------------------
 
-# Load the Summary of Deposits for the period 1994 to 2020
+# Load the Summary of Deposits for the period 1994 to 2023
 sod <- LOAD(dfinput = "07_thesis_mpt_databasics_sod", dfextension = ".rda")
 setDT(sod)
 
@@ -35,7 +35,7 @@ sod <- sod[, .(year, fips, state, county, depsumbr, rssdid)]
 setorder(sod, year, fips, rssdid)
 
 # Exclude all irrelevant time periods
-sod <-  sod[inrange(year, 2002 , 2016)]
+sod <-  sod[inrange(year, 2004 , 2023)]
 
 
 ## 1.2 Create HHI by county -----------------------------------------------------
