@@ -37,8 +37,7 @@ lar_files <- lar_files[as.integer(str_replace_all(lar_files, "[^0-9]", "")) > 20
 lar_columns <- c("activity_year", "lei", "derived_msa_md", "county_code", "action_taken", "derived_dwelling_category",
                  "purchaser_type", "loan_type", "loan_purpose", "lien_status", "reverse_mortgage", 
                  "open_end_line_of_credit", "business_or_commercial_purpose", "loan_amount",
-                 "interest_rate", "rate_spread", "hoepa_status", "total_loan_costs", "total_points_and_fees",
-                 "origination_charges", "lender_credits", "loan_term", "negative_amortization", "interest_only_payment",
+                 "interest_rate", "rate_spread", "hoepa_status", "loan_term", "negative_amortization", "interest_only_payment",
                  "balloon_payment", "property_value", "occupancy_type", "total_units", "applicant_age", 
                  "income", "debt_to_income_ratio", "applicant_credit_score_type", "applicant_race_1", "applicant_sex")
 
@@ -109,6 +108,7 @@ purrr::walk(seq_along(lar_files), function(file){
 # Basic Filtering
 hmda_reform <- list.files(path = TEMP, pattern = "reform")
 hmda_reform <- hmda_reform[!str_detect(hmda_reform, "sample")]
+hmda_reform <- hmda_reform[!str_detect(hmda_reform, "clean")]
 hmda_reform <- gsub(".rda", "", hmda_reform)
 
 # 
@@ -119,13 +119,14 @@ hmda_panel <- str_replace(hmda_panel, ".rda", "")
 if (DEBUG) {
   hmda_reform <- list.files(path = TEMP, pattern = "reform")
   hmda_reform <- hmda_reform[str_detect(hmda_reform, "sample")]
+  hmda_reform <- hmda_reform[!str_detect(hmda_reform, "clean")]
   hmda_reform <- gsub(".rda", "", hmda_reform)
+  hmda_reform <- hmda_reform[1]
+  x <- 1
 }
 
 
 purrr::walk(seq_along(hmda_reform), function(x) {
-  
-  # x <- 1
   
   # **************************************************************
   # Determine year
@@ -161,12 +162,39 @@ purrr::walk(seq_along(hmda_reform), function(x) {
   
   # One-to-Four Single Family Dwellings
   data <- fsubset(data, derived_dwelling_category %in% c("Single Family (1-4 Units):Site-Built", "Single Family (1-4 Units):Manufactured"))
+  data[, derived_dwelling_category := as.factor(derived_dwelling_category)]
   
   # First Mortgage Lien (No second mortgage on a house - interest rate are higher on these)
   data <- fsubset(data, lien_status %==% 1)
   
   # 30-year Mortgages
   data <- fsubset(data, loan_term %==% 360)
+  
+  # Exclude Reverse Mortgages
+  data <- fsubset(data, reverse_mortgage != 1111)
+
+  # Age: 8888 to NA + to categorical var
+  data[, applicant_age := if_else(applicant_age == "8888", NA, applicant_age)]
+  data[, applicant_age := as.factor(applicant_age)]
+  
+  # Debt-To-Income Ratio
+  data[, debt_to_income_ratio := if_else(debt_to_income_ratio == "Exempt", NA_character_, debt_to_income_ratio)]
+  data[, debt_to_income_ratio := as.factor(debt_to_income_ratio)]
+  
+  # Negative Amortization
+  data[, negative_amortization := if_else(negative_amortization == 1111, NA, negative_amortization)] # Exempt
+
+  # Negative Interest Only Payment
+  data[, interest_only_payment := if_else(interest_only_payment == 1111, NA, interest_only_payment)] # Exempt
+  
+  # Balloon Payment
+  data[, balloon_payment := if_else(balloon_payment == 1111, NA, balloon_payment)] # Exempt
+  
+  # Balloon Payment
+  data[, open_end_line_of_credit := if_else(open_end_line_of_credit == 1111, NA, open_end_line_of_credit)] # Exempt
+  
+  # Balloon Payment
+  data[, applicant_credit_score_type := if_else(applicant_credit_score_type == 1111, NA, applicant_credit_score_type)] # Exempt
   
   ## Filter via county variable ---
   
@@ -177,12 +205,29 @@ purrr::walk(seq_along(hmda_reform), function(x) {
   data <- fsubset(data, state_code != "00")
   
   # Filter all U.S. Territory
-  data <- fsubset(data, !state_code %in% c("66", "60", "69","72", "74", "78"))
-
+  data <- fsubset(data, !state_code %in% c("66", "60", "69", "72", "74", "78"))
+  
+  ## Rename Variables according to the convention
+  setnames(
+    data,
+    old = c("county_code", "derived_dwelling_category"),
+    new = c("fips", "property_type")
+  )
+  
+  if (year > 2018) {
+    setnames(
+      data,
+      old = c("combined_loan_to_value_ratio"),
+      new = c("loan_to_value_ratio")
+    )
+  }
+  
   ## Create Variables ---
   
   # Log Loan Amount
   data[, log_loan_amount := log(loan_amount)]
+  
+  ##
    
   ## Delete not used variables ---
   data[, `:=`(
@@ -195,9 +240,18 @@ purrr::walk(seq_along(hmda_reform), function(x) {
   
   # Load panel data
   data_panel <- LOAD(dfinput = hmda_panel[x]) 
+  setDT(data_panel)
   
   # Determine the year of the panel dataset
   year_panel <- as.integer(str_replace_all(hmda_panel[x], "[^0-9]", ""))
+  
+  ## Manipulate Var after Merge ---
+  
+  # Assets: -1 to NA
+  data_panel[, assets := if_else(assets == -1, NA, assets)]
+  
+  # Other Lender Code
+  data_panel[, other_lender_code := if_else(other_lender_code == -1, NA, other_lender_code)]
   
   # Check if both datasets are from the same year
   if (year != year_panel) {
@@ -214,7 +268,7 @@ purrr::walk(seq_along(hmda_reform), function(x) {
   
   # Save sample
   frac <- 0.01
-  data_merge <- data_merge[, .SD[sample(.N, size = max(1, .N * frac))], by = county_code]
+  data_merge <- data_merge[, .SD[sample(.N, size = max(1, .N * frac))], by = fips]
   SAVE(dfx = data_merge, namex = paste0("hmda_clean_reform_sample_", year))
   
   # Update message
@@ -227,7 +281,7 @@ purrr::walk(seq_along(hmda_reform), function(x) {
 })
 
 
-
+################################### END ########################################
 
 # Basic Data Cleaning
 
