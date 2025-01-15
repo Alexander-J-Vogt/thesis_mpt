@@ -171,30 +171,20 @@ hmda_hp_deb_mbs <- save_combined_datasets(hmda_list, "home_purchase", "depositor
 hmda_ref_dep <- save_combined_datasets(hmda_list, "refinancing", "depository_only", paste0(MAINNAME, "_ref_depository"))
 hmda_ref_dep_mbs <- save_combined_datasets(hmda_list, "refinancing", "depository_and_mbs", paste0(MAINNAME, "_ref_depository_and_mbs"))
 
-
-
-# Create dataset for home purchases
-hmda_home_purchase <- map(hmda_list, "home_purchase")
-dt_hmda_home_purchase <- bind_rows(hmda_home_purchase)
-
-# Create dataset for refinancing
-hmda_refinancing <- map(hmda_list, "refinancing")
-dt_hmda_refinancing <- bind_rows(hmda_refinancing)
-
-# Save datasets
-SAVE(dfx = dt_hmda_home_purchase, namex = paste0(MAINNAME, "_HP"))
-SAVE(dfx = dt_hmda_refinancing, namex = paste0(MAINNAME, "_REF"))
-
-
 # 2. Data Collapsing - Data from 2018 on =======================================
 
+# HMDA has experienced a structural change and contains from 2018 more information
+# and more precise data, due to automatic quality checks during the collection
+# of the data. Therefore, a second set of data is created by taking advantage of a
+# more precise data filtering.
+
+# List all cleaned data from previous check
 hmda_reform <- list.files(path = TEMP, pattern = "reform_clean")
 hmda_reform <- str_replace_all(hmda_reform, ".rda", "")
 
 if (DEBUG) {
   hmda_reform <- list.files(path = TEMP, pattern = "clean_reform")
   hmda_reform <- str_replace_all(hmda_reform, ".rda", "") 
-  x <- 2
   hmda_reform <- hmda_reform[1:3]
 }
 
@@ -202,6 +192,13 @@ if (DEBUG) {
 loan_purpose_id <- c(1,3)
 
 # 1.1  Iteration over all years + Creating Main Dataset on County-level --------
+
+# This loop created for each year four different datasets.
+# 1. Data on Home Purchase Loans by only depository institutions
+# 2. Data on Home Purchase Loans by depository institutions + their mortgage subsidiaries
+# 3. Data on Refinancing Loans by only depository institutions 
+# 4. Data on Refinancing Loans by depository institutions + their mortgage subsidiaries 
+
 hmda_reform_list <- purrr::map(seq_along(hmda_reform), function(x) {
   
   #*******************************************************************
@@ -217,10 +214,6 @@ hmda_reform_list <- purrr::map(seq_along(hmda_reform), function(x) {
   data_lar <- LOAD(dfinput = file)
   setDT(data_lar)
   
-  if (DEBUG) {
-    setnames(data_lar, old = c("county_code"), new = c("fips"))
-    if (year > 2018) setnames(data_lar, old = c("combined_loan_to_value_ratio"), new = c("loan_to_value_ratio"))
-  }
   # Update Message
   message(VISUALSEP)
   message(paste0("START TO COLLAPSE DATA FOR THE YEAR ", year, ".\n"))
@@ -230,7 +223,7 @@ hmda_reform_list <- purrr::map(seq_along(hmda_reform), function(x) {
   # Dynamically create dataset for refinancing and home purchase
   dataset <- purrr::map(loan_purpose_id, function(i){
     
-    i <- 1
+    # i <- 1
     # Determine loan purpose by name
     loan_purpose_name <- if(i == 1) "home_purchase" else "refinancing"
     
