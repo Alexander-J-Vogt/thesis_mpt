@@ -55,6 +55,22 @@ stargazer(df_stats,
 
 
 # 02. Missings
+label_map <- c(
+  "hp_outst_amount_EUR" = "Housing Loan - Amount (M)",
+  "lending_hp_total_outst_amount" = "Housing Loan - Interest Rate (M)",
+  "hhi_assets" = "HHI - Assets (Q)",
+  "hhi_liabilities" = "HHI - Liabilities (Q)",
+  "hhi_ci_total_assets" = "HHI - Assets (A)",
+  "hhi_total_credit" = "HHI - Total Credit (A)",
+  "cr_outst_amount_EUR" = "Capital and Reserves (M)",
+  "dl_outst_amount_EUR" = "Deposit and Liabilities (M)",
+  "tl_outst_amount_EUR" = "Total Assets / Liabilities (M)",
+  "hicp" = "HICP (M)",
+  "reer" = "Effective Exchange Rates (M)",
+  "ur" = "Unemployment Rate (M)",
+  "ur" = "Commodity Index (M)",
+  "commodity_index" = "Commodity Index (M)"
+)
 
 missing_summary <- df_main %>%
   summarise(across(-c(1:4), ~ sum(is.na(.)), .names = "missing_{col}")) %>%
@@ -63,14 +79,15 @@ missing_summary <- df_main %>%
     Variable = gsub("missing_", "", Variable),
     Percentage = round(Missing / nrow(df_main) * 100, 2)
   ) |> 
-  select(-Missing)
+  select(-Missing) |> 
+  mutate(Variable = recode(Variable, !!!label_map)) |> 
+  filter(Variable != "share_top5_largest_ci_total_asset")
 
 library(knitr)
 library(kableExtra)
 
 missings_tex <- missing_summary %>%
   kable(
-    caption = "Summary of Missing Values",
     col.names = c("Variable",  "Missing in %"),
     format = "latex",    # Output format
     booktabs = TRUE      # Adds LaTeX booktabs for cleaner tables
@@ -81,7 +98,7 @@ missings_tex <- missing_summary %>%
     full_width = FALSE                   # Prevents table from spanning the full page
   )
 
-save_kable(missings_tex, file = "eurozone_missings.tex")
+save_kable(missings_tex, file = paste0(FIGURE, "eurozone_missings.tex"))
 
 
 ###############################################################################+

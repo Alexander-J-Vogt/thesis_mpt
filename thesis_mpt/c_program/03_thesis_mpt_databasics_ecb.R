@@ -52,7 +52,7 @@ df_ssi <- df_ssi_raw |>
 
 ## 2.1 CBD (Discontinued) ------------------------------------------------------
 # Data from 2007 and 2013
-
+if (DEBUG) {
 df_cbd <- read.csv(paste0(A, "b_ecb/cbd.csv"), colClasses = "character")
 
 
@@ -63,7 +63,7 @@ df_cbd2 <- read.csv(paste0(A, "b_ecb/cbd2.csv"), colClasses = "character")
 
 test <- df_cbd |> 
   filter(substr(CB_ITEM, 1, 3) == "D12")
-
+}
 
 
 # 3. Monetary Finanical Institutions (MFI) =====================================
@@ -197,7 +197,7 @@ df_bsi_a22 <- df_bsi |>
   select(c("REF_AREA", "TIME_PERIOD", "data_type", "OBS_VALUE", "OBS_STATUS")) |> 
   pivot_wider(names_from = "data_type", 
               values_from = "OBS_VALUE") |>
-  mutate(across(-c(1:4), as.numeric)) |> 
+  mutate(across(-c(1:3), as.numeric)) |> 
   arrange(REF_AREA, TIME_PERIOD) |> 
   mutate(month = as.Date(paste0(TIME_PERIOD, "-01" )), .after = TIME_PERIOD) |> # Format Data Variable
   rename(country = REF_AREA) |> 
@@ -263,7 +263,7 @@ df_bsi_t00 <- df_bsi |>
   select(-c("TIME_PERIOD"))
 
 df_bsi_t00 <- df_bsi_t00 |> 
-  filter(month > as.Date("1999-09-01") & month < as.Date("2023-12-01")) |> 
+  filter(month > as.Date("1999-09-01") & month < as.Date("2024-01-01")) |> 
   filter(!(country == "GR" & month < as.Date("2001-01-01"))) |> # Filter for years with GR being part of the Eurozone
   filter(!(country == "SI" & month < as.Date("2007-01-01"))) |> # Filter for year with SI being part of the Eurozone
   filter(!(country == "SK" & month < as.Date("2009-01-01"))) # Filter for years with SK being part of the Eurozone
@@ -291,7 +291,7 @@ df_bsi_l60 <- df_bsi |>
   select(-c("TIME_PERIOD"))
 
 df_bsi_l60 <- df_bsi_l60 |> 
-  filter(month > as.Date("1999-01-01") & month < as.Date("2023-12-01")) |> 
+  filter(month > as.Date("1999-01-01") & month < as.Date("2024-01-01")) |> 
   filter(!(country == "GR" & month < as.Date("2001-01-01"))) |> # Filter for years with GR being part of the Eurozone
   filter(!(country == "SI" & month < as.Date("2007-01-01"))) |> # Filter for year with SI being part of the Eurozone
   filter(!(country == "SK" & month < as.Date("2009-01-01"))) # Filter for years with SK being part of the Eurozone

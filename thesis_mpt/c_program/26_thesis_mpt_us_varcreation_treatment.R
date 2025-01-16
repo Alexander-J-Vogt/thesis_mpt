@@ -57,7 +57,7 @@ sod <- sod[, bank_market_share_sq := bank_market_share^2]
 sod <- unique(sod, by = c("year", "fips", "rssdid"))
 
 # Calculate the HHI for each county based on the deposits of one banks in one county in one year.
-sod <- sod[, .(hhi = sum(bank_market_share_sq)), by = .(fips, year)]
+sod <- sod[, .(hhi = sum(bank_market_share_sq) / 10000) , by = .(fips, year)]
 
 # 1.3 Mean HHI for each county ---------------------------------------
 

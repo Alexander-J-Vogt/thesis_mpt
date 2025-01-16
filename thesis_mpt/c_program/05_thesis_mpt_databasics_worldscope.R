@@ -60,40 +60,16 @@ df_worldscope_raw <- df_wroldscope_raw |>
     total_liabilities = as.numeric(total_liabilities)
     )
 
+# 02. Basic Data Cleaning ======================================================
+
 # Filter for the right banks: Banks, Corporate Banks, Retail & Mortgage Banks
 df_worldscope <- df_worldscope_raw |> 
-  filter(str_detect(tr_business_code, "55101010")) |>  # Banks, Corporate Banks, Retail $ Mortgage Banks & Private Banks
-  filter(!str_detect(tr_business_code, "14")) |> # Exclude Private Banks as they are not participating in the mortgage market
+  filter(str_detect(tr_business_code, "55101010")) |>  # Banks, Corporate Banks, Retail & Mortgage Banks & Private Banks
+  # filter(!str_detect(tr_business_code, "14")) |> # Exclude Private Banks as they are not participating in the mortgage market
   arrange(country, quarter)
 
-# Create measure for mark concentration by total asset and total liabilities 
-# for each country in each year
-df_worldscope <- df_worldscope |> 
-  group_by(country, quarter) |> 
-  mutate(
-    cntry_year_asset = sum(total_assets, na.rm = TRUE),
-    cntry_year_liabilities = sum(total_liabilities,  na.rm = TRUE)
-    ) |>  # Sum of Total Assets and Liabilities in a year for a country
-  ungroup() |> 
-  mutate(
-    market_share_assets = total_assets / cntry_year_asset,
-    market_share_liabilities = total_liabilities / cntry_year_liabilities
-    ) |>  # Calculating the market share for each bank in a year for a country
-  mutate(
-    market_share_assets2 = market_share_assets^2,
-    market_share_liabilities2 = market_share_liabilities^2
-  ) |> 
-  group_by(country, quarter) |> 
-  mutate(
-    hhi_assets = sum(market_share_assets2),
-    hhi_liabilities = sum(market_share_liabilities2)
-  )
+# 03. Save =====================================================================
 
-df_hhi <- df_worldscope |> 
-  distinct(country, quarter, hhi_assets, hhi_liabilities) |> 
-  filter(quarter > as.Date("2002-12-01"))
+SAVE(dfx = df_worldscope)
 
-ggplot(data = df_hhi, aes(x = quarter, y = hhi_assets, color = country)) +
-  geom_point() +
-  geom_line() +
-  geom_jitter(width = 0, height = 0.01)
+################################ END ##########################################+

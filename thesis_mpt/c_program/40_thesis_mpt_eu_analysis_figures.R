@@ -51,7 +51,6 @@ for (names in df_names) {
   
   data <- get(names)
   
-
   graph <- ggplot(data = data, aes(x = year, y = hhi_ci_total_assets, color = country)) +
       geom_point(alpha = 0.7, size = 2) +  # Slight transparency and size adjustment
       geom_line(size = 0.6) + # Increase line width for better visibility
@@ -59,7 +58,8 @@ for (names in df_names) {
         title = "Herfindahl-Hirschman Index (HHI) of Total Assets by Country",
         x = "Year",
         y = "HHI",
-        color = "Country"
+        color = "Country",
+        caption = "Source: Banking Structural Statistical Indicators"
       ) +
       theme_minimal() +  # Apply a clean and simple theme
       theme(
@@ -86,8 +86,61 @@ for (names in df_names) {
 
 ## 01.2 Worldscope  ============================================================
 
+df_worldscope <- LOAD(dfinput = "35_thesis_mpt_eu_varcreation_treatment") 
 
+df_worldscope <- df_worldscope |> 
+  select(country, quarter, hhi_assets, hhi_liabilities) |> 
+  mutate(year = year(quarter)) |> 
+  filter(!(country == "GR" & year < 2001)) |> # Filter for years with GR being part of the Eurozone
+  filter(!(country == "SI" & year < 2007)) |> # Filter for year with SI being part of the Eurozone
+  filter(!(country == "SK" & year < 2009)) # Filter for years with SK being part of the Eurozone
+  
 
+# Restrict sample by countries
+df_worldscope_large_countries <- df_worldscope |> 
+  filter(country %in% c("AT", "BE", "DE", "FR", "ES", "IT", "NL"))
 
+df_worldscope_small_countries <- df_worldscope |> 
+  filter(!(country %in%  c("AT", "BE", "DE", "FR", "ES", "IT", "NL")))
 
+# Vector over the three different df
+df_names <- c("df_worldscope", "df_worldscope_large_countries", "df_worldscope_small_countries")
 
+# Generate three graphs
+for (names in df_names) {
+  
+  data <- get(names)
+  
+  graph <- ggplot(data = data, aes(x = quarter, y = hhi_assets, color = country)) +
+    geom_point(alpha = 0.7, size = 2) +  # Slight transparency and size adjustment
+    geom_line(size = 0.6, na.rm = FALSE) + # Increase line width for better visibility
+    labs(
+      title = "Herfindahl-Hirschman Index (HHI) of Total Assets by Country",
+      x = "Year",
+      y = "HHI",
+      color = "Country",
+      caption = "Source: Worldscope"
+    ) +
+    theme_minimal() +  # Apply a clean and simple theme
+    theme(
+      plot.title = element_text(size = 16, face = "bold", hjust = 0.5),  # Center and bold title
+      axis.title = element_text(size = 12, face = "bold"),  # Emphasize axis titles
+      axis.text.x = element_text(angle = 45, hjust = 1),
+      legend.position = "bottom",  # Move legend to the bottom
+      legend.title = element_text(face = "bold"),  # Emphasize legend title
+      plot.caption = element_text(size = 10, hjust = 0) 
+    ) +
+    scale_x_continuous(breaks = unique(data$quarter[grepl("-10-01", data$quarter)]))
+  
+  name <- str_replace(names, "df_", "")
+  
+  ggsave(
+    filename = paste0(FIGURE, paste0("graph_", name, ".pdf")),  
+    plot = graph,                   
+    device = "pdf",                   
+    width = 10,                       
+    height = 6,                       
+    units = "in"                      
+  )
+}
+  

@@ -138,17 +138,41 @@ merged_data <- merged_data[, pop_density := cnty_pop / landarea_sqkm]
 # 
 # # Creating log mean_earnings in order to get normally distributed variables
 # merged_data[, log_earnings := log(mean_earning)]
+DEBUG <- T
+# 4. Imputation of Missings ====================================================
+if (DEBUG) {
+# Basic Imputation of Data
+df_imputation <- merged_data |> 
+  select(-c("state")) |> 
+  mutate(fips = as.numeric(fips)) |> 
+  select(-c("cnty_main_office", "landarea_sqm", "landarea_sqkm", "fips", "year" ))
 
-# 4. Saving ====================================================================
+imp <- mice(df_imputation, seed = SEED, print = F)
 
-lapply(colnames(merged_data), function(x) {
-  cat(paste0("Variable: ", x)) 
-  print(table(is.na(merged_data[[x]])))
-  cat("\n")
-})
+test <- complete(imp)
+
+
+test <- merged_data |> 
+  mutate(
+    ur_imputed = missForest(df_imputation)$ximp$ur
+  )
+
 
 missing <- merged_data |> 
-  filter(is.na(d_msa)) # |> 
+  filter(is.na(ur)) |> 
+  arrange(fips) |> 
+  mutate(ones = 1) |> 
+  group_by(state, fips) |> 
+  mutate(na_by_state = sum(ones))
+# 4. Saving ====================================================================
+
+
+missing <- merged_data |> 
+  filter(is.na(ur)) 
+fips_na <- unique(missing$fips)
+
+test <- merged_data |> 
+  filter(fips %in% fips_na)
 
 
 

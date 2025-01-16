@@ -24,7 +24,7 @@ gc()
 
 # 1. Data Collapsing - Data from 2004 on ======================================= 
 
-DEBUG <- T
+DEBUG <- F
 
 # Determine whether to debug the code or not
 hmda_clean <- list.files(path = TEMP, pattern = "hmda_clean")
@@ -101,7 +101,7 @@ hmda_list <- purrr::map(seq_along(hmda_clean), function(x) {
         weight_income = income / sum(income, na.rm = TRUE)
       )] 
       
-      data <- data[, weight_org_loans = .N, by = fips]
+      data <- data[, weight_org_loans := .N, by = fips]
       
       # Create Dataset County-level
       data <- data[, .(

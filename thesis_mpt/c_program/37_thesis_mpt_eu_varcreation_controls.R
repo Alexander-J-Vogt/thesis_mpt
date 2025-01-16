@@ -32,14 +32,29 @@ df_imf <- LOAD(dfinput = "06_thesis_mpt_databasics_imf")
 
 # 02. Relevant Variables =======================================================
 
+# Select relevant variables from the BSI
 df_ecb <- df_ecb |> 
-  select(country, month, cr_outst_amount_EUR, dl_outst_amount_EUR, tl_outst_amount_EUR)
+  select(country, month, cr_outst_amount_EUR, dl_outst_amount_EUR, tl_outst_amount_EUR) 
+# |> 
+  # mutate(quarter = yq(paste0(year(month), "-Q", quarter(month))), .before = "month")
 
 # 03. Merge to Dataset =========================================================
 
+# Merge datasets
 df_controls <- df_ecb |> 
   full_join(df_eurostat, by = c("country", "month")) |> 
   full_join(df_imf, by = c("country", "month"))
+
+# 
+if (DEBUG) {
+df_controls <- df_controls |> 
+  filter(month > as.Date("2002-12-01") & month < as.Date("2024-01-01"))
+
+
+miss_var_summary(df_controls)
+gg_miss_var(df_controls)
+vis_miss(df_controls)
+}
 
 # 04 SAVE ======================================================================
 

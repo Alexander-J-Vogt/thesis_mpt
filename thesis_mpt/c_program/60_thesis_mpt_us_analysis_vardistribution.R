@@ -167,6 +167,7 @@ for (i in seq_along(hmda_lra)) {
 
 nas <- bind_rows(nas_list)
 
+# 2. Descriptive Statistics on HMDA data =======================================
 
 
 

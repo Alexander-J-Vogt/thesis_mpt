@@ -1,6 +1,6 @@
-# TARGET: Import QWI 
-# INDATA: qwi_e14db0de913c427aa12de971a73eb389.csv
-# OUTDATA/ OUTPUT: mp_transmission_databasics_qwi
+# TARGET: Import SAIPE 
+# INDATA: .txt & .xls files from l_saipe folder
+# OUTDATA/ OUTPUT: 16_thesis_databasics_saipe
 
 ################################################################################################################+
 # INTRO	script-specific ####
@@ -211,7 +211,7 @@ for (i in envir[-c(4:(length(envir)-2))]) {
 # 03. Append Data ==============================================================
 
 # Select relevant variables
-vars <- c("state_fips", "year","county_fips", "postal_code", "name", "poverty_estimate_all_ages",
+vars <- c("state_fips", "year","county_fips", "postal_code", "name", "poverty_percent_all_ages",
          "median_household_income" )
 
 for (i in envir) {
@@ -240,7 +240,7 @@ df_saipe <- FIPSCREATOR(df_saipe_raw, state_col = "state_fips", county_col = "co
   
 df_saipe <- df_saipe |> 
   filter(county_fips != "000") |>  # Filter all state and national level observation
-  select(fips, year, poverty_estimate_all_ages, median_household_income) |> 
+  select(fips, year, poverty_percent_all_ages, median_household_income) |> 
   mutate(across(c(2:4), as.numeric)) |> 
   arrange(fips, year)
   

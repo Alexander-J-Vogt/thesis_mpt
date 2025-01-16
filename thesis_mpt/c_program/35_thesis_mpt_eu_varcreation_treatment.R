@@ -22,7 +22,7 @@ gc()
 ################################################################################################################+
 # MAIN PART ####
 
-# 01. Worldscope - Market Concentration ========================================
+# 01. Worldscope - Market Concentration - Quaterly =============================
 
 df_worldscope <- LOAD(dfinput = "05_thesis_mpt_databasics_worldscope")
 
@@ -52,6 +52,30 @@ df_worldscope <- df_worldscope |>
 # Create Qarter-level Dataset
 df_hhi <- df_worldscope |> 
   distinct(country, quarter, hhi_assets, hhi_liabilities) |> 
-  filter(quarter > as.Date("2002-12-01"))
+  filter(quarter > as.Date("2002-12-01")) |> 
+  mutate(year = year(quarter), .before = quarter)
+
+
+# 02. SSI - Market Concentration - Annual ======================================
+
+df_ssi <- LOAD(dfinput = "03_thesis_mpt_databasics_ecb_a")
+
+df_ssi <- df_ssi |>
+  select(-share_top5_largest_ci_total_asset)
+  # mutate(share_top5_largest_ci_total_asset = share_top5_largest_ci_total_asset / 100)
+
+
+# 03. Create Dataset ===========================================================
+
+# df_main <- df_hhi |> 
+#   left_join(df_ssi, by = c("country", "year"))
+df_main <- df_ssi
+# 04. SAVE =====================================================================
+
+SAVE(dfx = df_main)
+
+###############################################################################+
+################################# ENDE ########################################+
+###############################################################################+
 
 

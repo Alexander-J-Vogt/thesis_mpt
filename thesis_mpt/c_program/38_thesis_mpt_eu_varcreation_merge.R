@@ -36,7 +36,7 @@ df_controls <- LOAD(dfinput = "37_thesis_mpt_eu_varcreation_controls")
 # 02. Merge Datasets ===========================================================
 
 df_merged <- df_outcome |> 
-  full_join(df_treatment, by = c("country", "quarter")) |> 
+  full_join(df_treatment, by = c("country", "year")) |> 
   full_join(df_controls, by = c("country", "month"))
 
 # 03. Save =====================================================================

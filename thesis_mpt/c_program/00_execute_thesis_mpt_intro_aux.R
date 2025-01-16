@@ -7,13 +7,16 @@
 ADO <-  paste0(HOME,"/project_00generalproject/00_r_userwritten/") #here: path to subfolder with all userwritten routines like function scripts, etc.
 #
 A <- paste0(HOME,"/thesis_mpt/a_microdata/") #here: path to folder with data
-TEMP <- paste0(A,"/","temp",sep="") # path to subfolder with intermediate output, optionally reset/ deleted/created anew
+TEMP <- paste0(A, "temp",sep="") # path to subfolder with intermediate output, optionally reset/ deleted/created anew
 #
 D <- paste0(HOME,"/thesis_mpt/d_results/") #here: path to folder with output (tables, figures, logs)
 GEO <- D
 FIGURE <- D
 LATEX <- D
 LOG <- D
+
+# Scripts
+S <- paste0(HOME, "/thesis_mpt/c_program/")
 
 #shortcuts to central datasets ####
 DFBASE <- "thesis_mpt_databasics"
@@ -67,6 +70,11 @@ Sys.setenv(TZ=TIMEZONE) #to NOT depend on local time zone where script is execut
 #no impact on time zone!
 Sys.setlocale(category = "LC_ALL", locale = LANGUAGE)
 #weekdays(Sys.Date()+1:7)
+
+########################
+# Load Passwords
+name <- list.files(path = S, pattern = "passwords")
+if (!is.na(name)) source(paste0(S, name), echo = TRUE, max = 1000)
 
 ########################
 #save session info for backward compatibility
