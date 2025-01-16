@@ -164,6 +164,16 @@ combined_sod <- combined_sod[stnumbr %in% c(
   "46", "47", "48", "49", "50", "51", "53", "54", "55", "56", "11"
 )]
 
+# Filter for Commercial Banks (CB) and Savings Institutions (SA)
+combined_sod <- combined_sod[insured %in% c("CB", "SA")]
+
+# Delete irrelevant variable
+combined_sod[, stcntybr := NULL]
+combined_sod[, cntynumb := NULL]
+
+# Order Columns
+setcolorder(combined_sod, c("year", "stnumbr", "fips", "msabr", "uninumbr", "bkmo", "depsumbr", "specdesc", "rssdid", "insured" ))
+
 # Copy raw sod 
 raw_sod <- combined_sod
 
@@ -198,29 +208,26 @@ raw_sod <- combined_sod
 # combined_sod[, stcntybr := NULL]
 
 
-## 1.5 Collapse raw_sod to bank-county-year level ------------------------------
+## 1.4 Create Bank-County-Year-Level & Raw Dataset ------------------------------
 
 # Select year and variables 
-raw_sod <- raw_sod[insured == "CB"]
-raw_sod <- raw_sod[, .(year, fips, stnumbr, depsumbr, rssdid)] 
-setcolorder(raw_sod, c("year", "fips", "stnumbr", "rssdid", "depsumbr"))
+sod_county_level <- raw_sod[, .(year, fips, stnumbr, depsumbr, rssdid)] 
+setcolorder(sod_county_level, c("year", "fips", "stnumbr", "rssdid", "depsumbr"))
 
 # Collapse to bank-county-year level
-raw_sod <- raw_sod[, .(depsumcnty = sum(depsumbr)), by = .(year, fips, rssdid)]
+sod_county_level <- sod_county_level[, .(depsum_bank_cnty = sum(depsumbr)), by = .(year, fips, rssdid)]
 
 
 ## 1.6 Save datasets  ----------------------------------------------------------
 
 # Create two different datasets
-# i. Only Commercial banks
-sod_banks <- combined_sod[insured == "CB"]
-sod_banks <- sod_banks[, insured := NULL]
+# sod_banks <- raw_sod[, insured := NULL]
 
 # Save Combined SOD dataset
-SAVE(dfx = sod_banks, namex = MAINNAME)
+SAVE(dfx = raw_sod, namex = MAINNAME)
 
 # Save raw sod dataset
-SAVE(dfx = raw_sod, namex = "raw_sod")
+SAVE(dfx = sod_county_level, namex = paste0(MAINNAME, "_bank_county_year_level"))
 
 
 ################################ END ##########################################+
