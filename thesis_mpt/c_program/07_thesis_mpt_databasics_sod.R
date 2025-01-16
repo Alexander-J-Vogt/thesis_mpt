@@ -48,8 +48,7 @@ for (i in files_sod) {
       )
   )
     
-  # Remover garbage  
-  rm(file, year)
+  # Remover garbage
   gc()
   
   # Update Message
@@ -177,37 +176,6 @@ setcolorder(combined_sod, c("year", "stnumbr", "fips", "msabr", "uninumbr", "bkm
 # Copy raw sod 
 raw_sod <- combined_sod
 
-
-## 1.4 Collapse combined_sod to county-year level ------------------------------
-
-# # Restrict the dataset the year 1999 to 2024
-# combined_sod <- raw_sod[year >= 1994 & year <= 2024]
-#   
-# # Only fips-codes, which are observed over the period of 2000 to 2020 are included
-# # in the dataset.
-# # Collapse data to county-year level
-# check_obs <- combined_sod[, .(fips, year, rssdid)]
-# check_obs <- check_obs |> distinct(fips, year, rssdid)
-# check_obs <- check_obs |> distinct(fips, year)
-# 
-# # Irrelevant warning that is supressed. Warning is related to the data.table package.
-# check_obs <- suppressWarnings(check_obs[, ones := 1])
-# 
-# # Determine the counties that are observed over all periods and filter for those counties
-# county_matrix <- dcast(check_obs, fips ~ year, value.var = "ones", fill = 0)
-# filtered_data <- county_matrix[apply(county_matrix == 0, 1, any), ]
-# 
-# setDT(county_matrix)
-# year_nr <- ncol(county_matrix) - 1 # Number of years observed in the restricted dataset
-# counties_full_obs <- county_matrix[rowSums(county_matrix[ , 2:ncol(county_matrix), with = FALSE] > 0) == year_nr]
-# combined_sod <- combined_sod[fips %in% counties_full_obs$fips]
-# 
-# # Rename variables and sort columns
-# setnames(combined_sod, old = c("stnumbr", "cntynumb"), new = c("state", "county"))
-# setcolorder(combined_sod,c("year", "fips", "state"))
-# combined_sod[, stcntybr := NULL]
-
-
 ## 1.4 Create Bank-County-Year-Level & Raw Dataset ------------------------------
 
 # Select year and variables 
@@ -218,7 +186,7 @@ setcolorder(sod_county_level, c("year", "fips", "stnumbr", "rssdid", "depsumbr")
 sod_county_level <- sod_county_level[, .(depsum_bank_cnty = sum(depsumbr)), by = .(year, fips, rssdid)]
 
 
-## 1.6 Save datasets  ----------------------------------------------------------
+## 1.7 Save datasets  ----------------------------------------------------------
 
 # Create two different datasets
 # sod_banks <- raw_sod[, insured := NULL]
