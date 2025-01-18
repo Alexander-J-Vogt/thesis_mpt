@@ -27,19 +27,20 @@ gc()
 # Create control variables based on variables available in the SOD
 
 # Load the Summary of Deposits for the period 1994 to 2020
-# sod <- LOAD(dfinput = "banks_sod", dfextension = ".rda")
-sod <- LOAD(dfinput = "07_thesis_mpt_databasics_sod", dfextension = ".rda")
+sod <- LOAD(dfinput = "07_thesis_mpt_databasics_sod")
 setDT(sod)
 
 # Restrict to the relevant variables
-sod <- sod[, .(year, fips, msabr, bkmo)]
+sod <- sod[, .(year, fips, msabr, bkmo, rssdid)]
 
 # Number of Main offices in a county:
 # Create dummy whether county is has the main office or not (bkmo)
-sod <-  sod[, cnty_main_office := sum(bkmo), by = .(fips, year)]
+sod[, tot_nr_banks := .N, by = year]
+sod[, `:=` (
+  share_main_office_cnty = sum(bkmo) / tot_nr_banks,
+  nr_main_office_cnty = sum(bkmo)
+  ), by = .(fips, year)]
 
-# Collapse by year and fips 
-sod <- unique(sod, by = c("year", "fips"))
 
 # Indicator whether a county lays in a Metropolitan Statistical Area (MSA) or not:
 # MSA tells whether an areas has than 50000 inhabitants
@@ -48,8 +49,8 @@ sod <- unique(sod, by = c("year", "fips"))
 # with less than 50000.
 sod <- sod[, d_msa := as.integer(ifelse(msabr > 0, 1, 0))]
 
-# Select relevant variables
-sod <-  sod[, c("year", "fips", "cnty_main_office", "d_msa")]
+# Collapse by year and fips 
+sod <- distinct(sod, year, fips, share_main_office_cnty, nr_main_office_cnty, d_msa)
 
 # SAVE
 SAVE(dfx = sod, name = "controls_sod")
@@ -57,22 +58,25 @@ SAVE(dfx = sod, name = "controls_sod")
 # clear global environment
 rm(list = c("sod"))
 
-# 2. Creating a variable for firmsize
+
+# 2. Indicator for Firm Size ===================================================
 
 # load dataset
-raw_sod <- LOAD(dfinput = "raw_sod")
+raw_sod <- LOAD(dfinput = "07_thesis_mpt_databasics_sod")
 setDT(raw_sod)
 
-# Market power of commercial banks
-top_banks <- raw_sod[, .(depsumbank = sum(depsumcnty)), by = .(year, rssdid)]
+# Market Power of Depository Institutions 
+# top_banks <- raw_sod[insured == "CB"]
+top_banks <- raw_sod[, .(depsumbank = sum(depsumbr)), by = .(year, rssdid)]
 top_banks <- top_banks[, tot_marketvalue_yearly  := as.numeric(sum(depsumbank)), by = year]
 top_banks <- top_banks[, marketshare_yearly := depsumbank / tot_marketvalue_yearly]
 
 # Get all top 5 banks for each year
 top_banks <- top_banks |> 
   group_by(year) |>
-  arrange(desc(marketshare_yearly)) |> 
-  slice_head(n = 5) |>
+  arrange(desc(marketshare_yearly)) |>
+  arrange(year) |> 
+  slice_max(marketshare_yearly, n = 5) |>
   mutate(d_top_bank = 1) |>
   ungroup() |> 
   select(year, rssdid, d_top_bank)
@@ -92,25 +96,18 @@ raw_sod <- raw_sod %>%
 # 2. Creating Control Dataset ==================================================
 
 # Import Population County dataset
-# pop_cnty <- LOAD(dfinput = "pop_cnty")
 pop_cnty <- LOAD(dfinput = "12_thesis_mpt_databasics_us_pop")
 
 # Import Population State dataset
 pop_state <- LOAD(dfinput = "pop_state")
 
 # Import Unemployment Rate
-# ur_cnty <- LOAD(dfinput = "ur_cnty")
 ur_cnty <- LOAD(dfinput = "10_thesis_mpt_databasics_us_ur")
-
-# Import Average Earnings Data
-# qwi_earnings <- LOAD(dfinput = "qwi_earnings")
-# qwi_earnings <- LOAD(dfinput = "mp_transmission_databasics_qwi")
 
 # Import Controls from sod
 controls_sod <- LOAD(dfinput = "controls_sod")
 
 # Population density
-# pop_density <- LOAD(dfinput = "landarea_data")
 pop_density <- LOAD(dfinput = "13_thesis_mpt_databasics_us_landarea")
 
 # Median Household Income and Poverty Rate
@@ -118,7 +115,6 @@ saipe <- LOAD(dfinput = "16_thesis_mpt_databasics_saipe")
 
 # Combining datasets by county and year
 merged_data <- left_join(pop_cnty, controls_sod, by = c("fips", "year"))
-# merged_data <- left_join(merged_data, qwi_earnings, by = c("fips", "year"))
 merged_data <- left_join(merged_data, ur_cnty, by = c("fips", "year"))
 merged_data <- left_join(merged_data, pop_density, by = "fips")
 merged_data <- left_join(merged_data, raw_sod, by = c("year", "fips"))
@@ -138,7 +134,7 @@ merged_data <- merged_data[, pop_density := cnty_pop / landarea_sqkm]
 # 
 # # Creating log mean_earnings in order to get normally distributed variables
 # merged_data[, log_earnings := log(mean_earning)]
-DEBUG <- T
+DEBUG <- F
 # 4. Imputation of Missings ====================================================
 if (DEBUG) {
 # Basic Imputation of Data
@@ -164,6 +160,7 @@ missing <- merged_data |>
   mutate(ones = 1) |> 
   group_by(state, fips) |> 
   mutate(na_by_state = sum(ones))
+}
 # 4. Saving ====================================================================
 
 
