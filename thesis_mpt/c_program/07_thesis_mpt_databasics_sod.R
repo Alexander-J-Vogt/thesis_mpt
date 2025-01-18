@@ -173,6 +173,13 @@ combined_sod[, cntynumb := NULL]
 # Order Columns
 setcolorder(combined_sod, c("year", "stnumbr", "fips", "msabr", "uninumbr", "bkmo", "depsumbr", "specdesc", "rssdid", "insured" ))
 
+# Rename
+setnames(
+  combined_sod,
+  old = "stnumbr",
+  new = "state"
+)
+
 # Copy raw sod 
 raw_sod <- combined_sod
 
@@ -180,21 +187,18 @@ raw_sod <- combined_sod
 
 # Select year and variables 
 sod_county_level <- raw_sod[, .(year, fips, stnumbr, depsumbr, rssdid)] 
-setcolorder(sod_county_level, c("year", "fips", "stnumbr", "rssdid", "depsumbr"))
+setcolorder(sod_county_level, c("year", "fips", "state_code", "rssdid", "depsumbr"))
 
 # Collapse to bank-county-year level
 sod_county_level <- sod_county_level[, .(depsum_bank_cnty = sum(depsumbr)), by = .(year, fips, rssdid)]
 
 
-## 1.7 Save datasets  ----------------------------------------------------------
+## 1.5 Save datasets  ----------------------------------------------------------
 
-# Create two different datasets
-# sod_banks <- raw_sod[, insured := NULL]
-
-# Save Combined SOD dataset
+# Save Raw SOD dataset - NOT Collapsed
 SAVE(dfx = raw_sod, namex = MAINNAME)
 
-# Save raw sod dataset
+# Save SOD - Collapsed to Bank-County-Year level
 SAVE(dfx = sod_county_level, namex = paste0(MAINNAME, "_bank_county_year_level"))
 
 
