@@ -237,11 +237,23 @@ df_saipe_raw <- bind_rows(df_saipe_raw)
 
 # Create FIPS ID
 df_saipe <- FIPSCREATOR(df_saipe_raw, state_col = "state_fips", county_col = "county_fips")
-  
-df_saipe <- df_saipe |> 
+
+# County: 15005 has no information on poverty median income
+df_saipe <- df_saipe |>
+  filter(state_fips %in%  c(
+    "01", "02", "04", "05", "06", "08", "09", "10", "12", "13",
+    "15", "16", "17", "18", "19", "20", "21", "22", "23", "24",
+    "25", "26", "27", "28", "29", "30", "31", "32", "33", "34",
+    "35", "36", "37", "38", "39", "40", "41", "42", "44", "45",
+    "46", "47", "48", "49", "50", "51", "53", "54", "55", "56", "11"
+  )) |> # Make sure that only the 50 states + D.C. is available
   filter(county_fips != "000") |>  # Filter all state and national level observation
   select(fips, year, poverty_percent_all_ages, median_household_income) |> 
-  mutate(across(c(2:4), as.numeric)) |> 
+  mutate(across(c(2:4), as.numeric)) |>
+  mutate(
+    poverty_percent_all_ages = if_else(poverty_percent_all_ages == 0, NA, poverty_percent_all_ages), # County: 15005 has no information on poverty median income
+    median_household_income = if_else(median_household_income == 0, NA, median_household_income), # County: 15005 has no information on poverty median income
+  ) |> 
   arrange(fips, year)
   
 # 05. Save =====================================================================
