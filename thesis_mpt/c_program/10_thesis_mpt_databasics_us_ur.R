@@ -83,6 +83,14 @@ fips_master <- data.frame(fips = unique(df_gazette$fips))
 fips_master <- fips_master |> 
   mutate(series_id = paste0("LAUCN", fips, "0000000003"))
 
+# Add data
+new_fips <- c("02105", "02195", "02198", "02230", "02270", "02275", 
+              "15005", "46113", "51515", "09110", "09120", "09130", 
+              "09140", "09150", "09160", "09170", "09180", "09190")
+
+fips_master <- c(fips_master, new_fips)
+
+
 # Define a function to fetch unemployment rate using the BLS API (version 2)
 fetch_unemployment_rate_v2 <- function(series_ids, start_year = 2004, end_year = 2023, api_key) {
   # """
