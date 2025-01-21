@@ -169,7 +169,7 @@ if (interactive()) {
 }
 
 # SAVE raw API data
-SAVE(dfx = unemployment_rate, namex = "bls_api_ur")
+SAVE(dfx = unemployment_data, namex = "bls_api_ur")
 
 ## 1.2 Clean & Collapse Data ---------------------------------------------------
 
