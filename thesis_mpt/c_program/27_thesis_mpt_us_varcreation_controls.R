@@ -104,14 +104,6 @@ SAVE(dfx = raw_sod, namex= "sod_top5_banks")
 # Import Population County dataset
 pop_cnty <- LOAD(dfinput = "12_thesis_mpt_databasics_us_pop")
 
-# Link New Fips Codes for CT to Old Ones for 2020+
-df_crosswalk_ct <- LOAD(dfinput = "22_thesis_mpt_databasics_ct_crosswalk_file")
-
-pop_cnty <- pop_cnty |> 
-  left_join(df_crosswalk_ct, by = "fips", , relationship = "many-to-many") |> 
-  mutate(fips = if_else(!is.na(fips_old), fips_old, fips)) |> 
-  select(-fips_old)
-
 
 # Import Population State dataset
 pop_state <- LOAD(dfinput = "pop_state")
@@ -130,6 +122,39 @@ gazette <- LOAD(dfinput = "13_thesis_mpt_databasics_us_landarea")
 # Median Household Income and Poverty Rate
 saipe <- LOAD(dfinput = "16_thesis_mpt_databasics_saipe")
 
+# Accounting for Changes in FIPS Codes
+
+# Link New Fips Codes for CT to Old Ones for 2020+
+df_crosswalk_ct <- LOAD(dfinput = "22_thesis_mpt_databasics_ct_crosswalk_file")
+
+pop_cnty <- pop_cnty |> 
+  left_join(df_crosswalk_ct, by = "fips", , relationship = "many-to-many") |> 
+  mutate(fips = if_else(!is.na(fips_old), fips_old, fips)) |> 
+  select(-fips_old)
+
+pop_cnty[str_sub(fips %in% df_crosswalk_ct$fips_old)]
+
+# Manually Change the FIPS code for Oglala Lakota for the Period before 2010 from
+# 46113 to 46102 (46102 is the uptodata code and was changed due to a county name change 
+# from Shannon County to Oglala Lakota County)
+datasets_list <- c("pop_cnty", "bls_ur", "sod_msa_main_office", "sod_top5_banks", "gazette", "saipe")
+
+for (i in datasets_list) {
+  
+  # Retrieve object
+  data <- get(i)
+  setDT(data)
+  
+  # Change FIPS code
+  data[,  fips := if_else(fips == "46113", "46102", fips)]
+  data <- data[fips != "51515"] # Drop Bredford City, VA
+  data <- data[fips != "15005"] # Drop Kalawao County, HI
+  
+  # Assign to original object name
+  assign(i, data)
+  
+}
+
 # Combining datasets by county and year
 data_merged <- left_join(pop_cnty, sod_msa_main_office, by = c("fips", "year"))
 data_merged <- left_join(data_merged, sod_top5_banks, by = c("fips", "year"))
@@ -143,8 +168,8 @@ data_merged <- left_join(data_merged, gazette, by = c("fips", "year"))
 
 setDT(data_merged)
 
+# Filter for the year 2004 to 2023
 data_merged <- data_merged[inrange(year, 2004, 2023)]
-
 
 ##  Dealing with Missings ---
 
@@ -156,12 +181,66 @@ data_merged[, c("share_main_office_cnty", "nr_main_office_cnty", "d_top_bank") :
 # Fill landarea data
 data_merged <- data_merged[order(fips, year)] # Ensure data is sorted
 landarea_vars <- c("landarea_sqm", "landarea_smi", "landarea_sqkm", "landarea_sqkm")
-data_merged[,  (landarea_vars) := nafill(.SD, type = "nocb"), .SDcols = landarea_vars, by = fips] # Backward fill within each county
+data_merged[, (landarea_vars) := nafill(.SD, type = "nocb"), .SDcols = landarea_vars, by = fips] # Backward fill within each county
 
-# Calculate population desnity of a county
+# Calculate population density of a county
 data_merged[, pop_density := cnty_pop / landarea_sqkm]
 
+# Imputate missings for Alaska: 02105, 02195, 02198, 02230, 02270, 02275
+# Impute by using mean
+data_merged[, ur := ifelse(is.na(ur), mean(ur, na.rm = T), ur)]
+data_merged[, median_household_income := ifelse(is.na(median_household_income), mean(median_household_income, na.rm = T), median_household_income)]
+data_merged[, poverty_percent_all_ages := ifelse(is.na(poverty_percent_all_ages), mean(poverty_percent_all_ages, na.rm = T), poverty_percent_all_ages)]
 
+
+data_sum <- data_merged |> 
+  filter(fips %in% c("02105", "02195", "02198", "02230", "02270", "02275")) 
+  group_by(fips) |> 
+  reframe(
+    mean_ur = mean(ur, na.rm = TRUE),
+    mean_income = mean(median_household_income, na.rm = TRUE),
+    mean_pov = mean(poverty_percent_all_ages, na.rm = TRUE)
+  )
+
+data_sum_imp <- data_merged |> 
+  filter(fips %in% c("02105", "02195", "02198", "02230", "02270", "02275")) |> 
+  group_by(fips) |> 
+  mutate(
+    ur = ifelse(is.na(ur), mean(ur, na.rm = T), ur),
+    median_household_income = ifelse(is.na(median_household_income), mean(median_household_income, na.rm = T), median_household_income),
+    poverty_percent_all_ages = ifelse(is.na(poverty_percent_all_ages), mean(poverty_percent_all_ages, na.rm = T), poverty_percent_all_ages)
+  ) |> 
+  reframe(
+    mean_ur = mean(ur, na.rm = TRUE),
+    mean_income = mean(median_household_income, na.rm = TRUE),
+    mean_pov = mean(poverty_percent_all_ages, na.rm = TRUE)
+  )
+
+data_merged |> filter(fips %in% c("02105", "02195", "02198", "02230", "02270", "02275"))
+data_merged |> filter(is.na(ur))
+pov_cnty <- data_merged |> filter(is.na(poverty_percent_all_ages))
+data_merged |> filter(is.na(median_household_income))
+
+imputed_data <- kNN(data_merged, k = 5, variable = c("ur"))
+
+
+
+aggr(data_merged, col = c("skyblue", "red"), numbers = TRUE)
+marginplot(data_merged[, c("fips", "ur")])
+marginplot(data_merged[, c("fips", "poverty_percent_all_ages")])
+marginplot(data_merged[, c("fips", "median_household_income")])
+marginplot(data_merged[, c("fips", "ur")])
+
+
+
+
+test <- data_merged |> 
+  filter(is.na(ur))
+
+fips_in <- unique(test$fips)
+
+bls_ur |> 
+  filter(fips %in% fips_in) |> arrange( fips, year)
 
 test_landarea <- data_merged |> filter(is.na(landarea_sqm)) |> filter(year > 2019)
 unique_landare <- unique(test_landarea$fips)
