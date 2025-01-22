@@ -104,7 +104,6 @@ SAVE(dfx = raw_sod, namex= "sod_top5_banks")
 # Import Population County dataset
 pop_cnty <- LOAD(dfinput = "12_thesis_mpt_databasics_us_pop")
 
-
 # Import Population State dataset
 pop_state <- LOAD(dfinput = "pop_state")
 
@@ -122,17 +121,20 @@ gazette <- LOAD(dfinput = "13_thesis_mpt_databasics_us_landarea")
 # Median Household Income and Poverty Rate
 saipe <- LOAD(dfinput = "16_thesis_mpt_databasics_saipe")
 
-# Accounting for Changes in FIPS Codes
+# MSA/MD Crosswalk files
+df_crosswalk_msamd <- LOAD("23_thesis_mpt_databasics_msa_county_crosswalk_file")
+
+# Accounting for Changes in FIPS Codes ---
 
 # Link New Fips Codes for CT to Old Ones for 2020+
 df_crosswalk_ct <- LOAD(dfinput = "22_thesis_mpt_databasics_ct_crosswalk_file")
 
-pop_cnty <- pop_cnty |> 
-  left_join(df_crosswalk_ct, by = "fips", , relationship = "many-to-many") |> 
-  mutate(fips = if_else(!is.na(fips_old), fips_old, fips)) |> 
+pop_cnty <- pop_cnty |>
+  left_join(df_crosswalk_ct, by = "fips", , relationship = "many-to-many") |>
+  mutate(fips = if_else(!is.na(fips_old), fips_old, fips)) |>
   select(-fips_old)
 
-pop_cnty[str_sub(fips %in% df_crosswalk_ct$fips_old)]
+# Manuel Fix of Chaning Fips-Codes ---
 
 # Manually Change the FIPS code for Oglala Lakota for the Period before 2010 from
 # 46113 to 46102 (46102 is the uptodata code and was changed due to a county name change 
@@ -155,7 +157,8 @@ for (i in datasets_list) {
   
 }
 
-# Combining datasets by county and year
+# Combining datasets by county and year ---
+
 data_merged <- left_join(pop_cnty, sod_msa_main_office, by = c("fips", "year"))
 data_merged <- left_join(data_merged, sod_top5_banks, by = c("fips", "year"))
 data_merged <- left_join(data_merged, bls_ur, by = c("fips", "year"))
@@ -187,10 +190,86 @@ data_merged[, (landarea_vars) := nafill(.SD, type = "nocb"), .SDcols = landarea_
 data_merged[, pop_density := cnty_pop / landarea_sqkm]
 
 # Imputate missings for Alaska: 02105, 02195, 02198, 02230, 02270, 02275
-# Impute by using mean
+# Impute by  mean
 data_merged[, ur := ifelse(is.na(ur), mean(ur, na.rm = T), ur)]
 data_merged[, median_household_income := ifelse(is.na(median_household_income), mean(median_household_income, na.rm = T), median_household_income)]
 data_merged[, poverty_percent_all_ages := ifelse(is.na(poverty_percent_all_ages), mean(poverty_percent_all_ages, na.rm = T), poverty_percent_all_ages)]
+
+## Fixing Double Counties in Conneticute (due to the change of FIPS codes; see crosswalk files)
+# Calculate `nr` for each `(fips, year)`
+data_merged[, nr := .N, by = .(fips, year)]
+
+# Update rows where `nr != 1`
+data_merged[nr != 1, `:=` (
+  msabr = zoo::na.locf(msabr, na.rm = FALSE),
+  d_msa = zoo::na.locf(d_msa, na.rm = FALSE)
+), by = fips]
+
+# Calculate `sum_pop` for rows where `nr != 1`
+data_merged[nr != 1, sum_pop := sum(cnty_pop), by = .(fips, year)]
+
+# Compute `weight_pop` for rows where `nr != 1`
+data_merged[nr != 1, weight_pop := cnty_pop / sum_pop]
+
+# Collapse and aggregate rows where `nr != 1`
+data_merged[nr != 1, c(
+  "cnty_pop",
+  "msabr",
+  "share_main_office_cnty",
+  "nr_main_office_cnty",
+  "d_msa",
+  "d_top_bank",
+  "ur",
+  "poverty_percent_all_ages",
+  "median_household_income",
+  "landarea_sqm",
+  "landarea_smi",
+  "landarea_sqkm",
+  "pop_density"
+) := .(
+  sum(cnty_pop),
+  msabr[1],  # Use the first value of `msabr` (already carried forward)
+  sum(share_main_office_cnty * weight_pop),
+  sum(nr_main_office_cnty * weight_pop),
+  d_msa[1],  # Use the first value of `d_msa` (already carried forward)
+  sum(d_top_bank * weight_pop),
+  sum(ur * weight_pop),
+  sum(poverty_percent_all_ages * weight_pop),
+  sum(median_household_income * weight_pop),
+  sum(landarea_sqm * weight_pop),
+  sum(landarea_smi * weight_pop),
+  sum(landarea_sqkm * weight_pop),
+  sum(pop_density * weight_pop)
+), by = .(fips, year)]
+
+# Remove duplicate rows to retain only one per `(fips, year)`
+data_merged <- data_merged[!duplicated(data_merged, by = c("fips", "year"))]
+data_merged[, c("nr", "sum_pop", "weight_pop") := NULL]
+
+# Linking MSA/MD Codes with crosswalk files ---
+data_merged <- merge(data_merged, df_crosswalk_msamd, by = c("year", "fips"), all.x = TRUE)
+data_merged[, msa := if_else(is.na(msa), "0", msa)]
+data_merged[, c("msabr", "state_name", "fips_name") := NULL]
+data_merged[, d_msa := if_else(msa != "0", 1, 0)]
+setcolorder(data_merged, c("year", "fips", "state", "msa"))
+
+
+
+checkmsa <- data_merged |> 
+  filter(is.na(msabr))
+
+unique_fips <- unique(checkmsa$fips)
+
+data_msa <- data_merged[fips %in% unique_fips]
+data_msa[, msabr := zoo::na.locf(msabr, na.rm = FALSE)]
+View(data_msa)
+
+data <- data_merged |> 
+  filter(state == "09") |> 
+  group_by(fips, year) |> 
+  mutate(nr = n()) |> 
+  filter(nr != 1)
+data
 
 
 data_sum <- data_merged |> 
