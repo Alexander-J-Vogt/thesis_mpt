@@ -36,7 +36,7 @@ if (DEBUG) {
   hmda_clean <- hmda_clean[str_detect(hmda_clean, pattern = "sample")]
   hmda_clean <- hmda_clean[!str_detect(hmda_clean, pattern = "reform")]
   hmda_clean <- gsub(hmda_clean, pattern = ".rda", replacement = "")
-  x <- 1
+  # x <- 1
 }
 
 # Values for loan purpose 
@@ -75,8 +75,9 @@ hmda_list <- purrr::map(seq_along(hmda_clean), function(x) {
     
     # Loop over lender code filters
     lender_filters <- list(
-      "depository_only" = c(1),
-      "depository_and_mbs" = c(1, 2)
+      "depository" = c(0),
+      "depository_mbs" = c(0, 1),
+      "depository_mbs_bhc" = c(0, 1, 2)
     )
     
     # Dynamiccal create extra 
@@ -154,7 +155,7 @@ hmda_list <- purrr::map(seq_along(hmda_clean), function(x) {
 }) # End of purrr:map #1
 
 # 1.2 Save Datasets by Year, Loan Purpose and Lender Group ---------------------
-
+if (!DEBUG) {
 # Combine and save datasets for all years by loan purpose and lender group
 save_combined_datasets <- function(hmda_list, purpose, lender_group, file_name) {
   combined_data <- rbindlist(
@@ -166,10 +167,31 @@ save_combined_datasets <- function(hmda_list, purpose, lender_group, file_name) 
 }
 
 # Save datasets
-hmda_hp_dep <- save_combined_datasets(hmda_list, "home_purchase", "depository_only", paste0(MAINNAME, "_hp_depsitory_only"))
-hmda_hp_deb_mbs <- save_combined_datasets(hmda_list, "home_purchase", "depository_and_mbs", paste0(MAINNAME, "_hp_depository_and_mbs"))
-hmda_ref_dep <- save_combined_datasets(hmda_list, "refinancing", "depository_only", paste0(MAINNAME, "_ref_depository"))
-hmda_ref_dep_mbs <- save_combined_datasets(hmda_list, "refinancing", "depository_and_mbs", paste0(MAINNAME, "_ref_depository_and_mbs"))
+hmda_hp_dep <- save_combined_datasets(hmda_list, "home_purchase", "depository", paste0(MAINNAME, "_hp_depsitory"))
+hmda_hp_dep_mbs <- save_combined_datasets(hmda_list, "home_purchase", "depository_mbs", paste0(MAINNAME, "_hp_depository_mbs"))
+hmda_hp_dep_mbs_bhc <- save_combined_datasets(hmda_list, "home_purchase", "depository_mbs_bhc", paste0(MAINNAME, "_hp_depository_mbs_bhc"))
+hmda_ref_dep <- save_combined_datasets(hmda_list, "refinancing", "depository", paste0(MAINNAME, "_ref_depository"))
+hmda_ref_dep_mbs <- save_combined_datasets(hmda_list, "refinancing", "depository_mbs", paste0(MAINNAME, "_ref_depository_mbs"))
+hmda_ref_deb_mbs_bhc <- save_combined_datasets(hmda_list, "refinancing", "depository_mbs_bhc", paste0(MAINNAME, "_hp_depository_mbs_bhc"))
+
+}
+
+if (DEBUG) {
+  bind_datasets <- function(hmda_list, purpose, lender_group, file_name) {
+    combined_data <- rbindlist(
+      lapply(hmda_list, function(year_data) year_data[[purpose]][[lender_group]]),
+      fill = TRUE
+    )
+    return(combined_data)
+  }
+  hmda_hp_dep <- bind_datasets(hmda_list, "home_purchase", "depository", paste0(MAINNAME, "_hp_depsitory"))
+  hmda_hp_dep_mbs <- bind_datasets(hmda_list, "home_purchase", "depository_mbs", paste0(MAINNAME, "_hp_depository_mbs"))
+  hmda_hp_dep_mbs_bhc <- bind_datasets(hmda_list, "home_purchase", "depository_mbs_bhc", paste0(MAINNAME, "_hp_depository_mbs_bhc"))
+  hmda_ref_dep <- bind_datasets(hmda_list, "refinancing", "depository", paste0(MAINNAME, "_ref_depository"))
+  hmda_ref_dep_mbs <- bind_datasets(hmda_list, "refinancing", "depository_mbs", paste0(MAINNAME, "_ref_depository_mbs"))
+  hmda_ref_deb_mbs_bhc <- bind_datasets(hmda_list, "refinancing", "depository_mbs_bhc", paste0(MAINNAME, "_hp_depository_mbs_bhc"))
+}
+
 
 # 2. Data Collapsing - Data from 2018 on =======================================
 
@@ -232,8 +254,9 @@ hmda_reform_list <- purrr::map(seq_along(hmda_reform), function(x) {
     
     # Loop over lender code filters
     lender_filters <- list(
-      "depository_only" = c(1),
-      "depository_and_mbs" = c(1, 2)
+      "depository" = c(0),
+      "depository_mbs" = c(0, 1),
+      "depository_mbs_bhc" = c(0, 1, 2)
     )
     
     # Dynamiccal create extra 
@@ -317,11 +340,12 @@ hmda_reform_list <- purrr::map(seq_along(hmda_reform), function(x) {
 }) # End of purrr:map #1
 
 # Save datasets
-hmda_reform_hp_dep <- save_combined_datasets(hmda_reform_list, "home_purchase", "depository_only", paste0(MAINNAME, "_reform_hp_depsitory_only"))
-hmda_reform_hp_deb_mbs <- save_combined_datasets(hmda_reform_list, "home_purchase", "depository_and_mbs", paste0(MAINNAME, "_reform_hp_depository_and_mbs"))
-hmda_reform_ref_dep <- save_combined_datasets(hmda_reform_list, "refinancing", "depository_only", paste0(MAINNAME, "_reform_ref_depository"))
-hmda_reform_ref_dep_mbs <- save_combined_datasets(hmda_reform_list, "refinancing", "depository_and_mbs", paste0(MAINNAME, "_reform_ref_depository_and_mbs"))
-
+hmda_reform_hp_dep <- save_combined_datasets(hmda_reform_list, "home_purchase", "depository", paste0(MAINNAME, "_reform_hp_depsitory_only"))
+hmda_reform_hp_deb_mbs <- save_combined_datasets(hmda_reform_list, "home_purchase", "depository_mbs", paste0(MAINNAME, "_reform_hp_depository_mbs"))
+hmda_reform_hp_deb_mbs_bhc <- save_combined_datasets(hmda_reform_list, "home_purchase", "depository_mbs_bhc", paste0(MAINNAME, "_reform_hp_depository_mbs_bhc"))
+hmda_reform_ref_dep <- save_combined_datasets(hmda_reform_list, "refinancing", "depository", paste0(MAINNAME, "_reform_ref_depository"))
+hmda_reform_ref_dep_mbs <- save_combined_datasets(hmda_reform_list, "refinancing", "depository_mbs", paste0(MAINNAME, "_reform_ref_depository_mbs"))
+hmda_reform_ref_deb_mbs_bhc <- save_combined_datasets(hmda_reform_list, "home_purchase", "depository_mbs_bhc", paste0(MAINNAME, "_reform_ref_depository_mbs_bhc"))
 
 ########################## ENDE ###############################################+
 
