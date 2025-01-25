@@ -253,6 +253,8 @@ data_merged[, c("msabr", "state_name", "fips_name") := NULL]
 data_merged[, d_msa := if_else(msa != "0", 1, 0)]
 setcolorder(data_merged, c("year", "fips", "state", "msa"))
 
+# Drop Double Observation from 15009
+data_merged <- unique(data_merged, by = c("fips", "year"))
 
 # 
 # checkmsa <- data_merged |>  
