@@ -180,8 +180,6 @@ setnames(
   new = "state"
 )
 
-# Copy raw sod 
-raw_sod <- combined_sod
 
 ## 1.4 Create Bank-County-Year-Level & Raw Dataset ------------------------------
 
