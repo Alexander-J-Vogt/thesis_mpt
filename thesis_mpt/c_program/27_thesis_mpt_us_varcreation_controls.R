@@ -115,6 +115,10 @@ bls_ur$year <- as.numeric(bls_ur$year)
 sod_msa_main_office <- LOAD(dfinput = "sod_msa_main_office")
 sod_top5_banks <- LOAD(dfinput = "sod_top5_banks")
 
+# Combine control dataset
+sod_controls <- sod_msa_main_office |> 
+  full_join(sod_top5_banks, by = c("fips", "year")) 
+
 # Population density
 gazette <- LOAD(dfinput = "13_thesis_mpt_databasics_us_landarea")
 
@@ -126,13 +130,50 @@ df_crosswalk_msamd <- LOAD("23_thesis_mpt_databasics_msa_county_crosswalk_file")
 
 # Accounting for Changes in FIPS Codes ---
 
-# Link New Fips Codes for CT to Old Ones for 2020+
+# Link New Fips Codes for CT to Old Ones for 2022+
+# AND adjust for many-to-many match by assuming that the new counties population,
+# sod variables, poverty and median income is equally distributed over the 
+# new county definitions (Simplifying assumption)
 df_crosswalk_ct <- LOAD(dfinput = "22_thesis_mpt_databasics_ct_crosswalk_file")
 
+# ... for Population data
 pop_cnty <- pop_cnty |>
   left_join(df_crosswalk_ct, by = "fips", , relationship = "many-to-many") |>
   mutate(fips = if_else(!is.na(fips_old), fips_old, fips)) |>
-  select(-fips_old)
+  select(-fips_old) |> 
+  group_by(year, fips) |> 
+  mutate(cnty_pop = mean(cnty_pop)) |>
+  ungroup() |> 
+  distinct(fips, year, state, cnty_pop)
+  
+# ... for SAIPE
+saipe <- saipe |> 
+  left_join(df_crosswalk_ct, by = "fips", relationship = "many-to-many") |> 
+  mutate(fips = if_else(!is.na(fips_old), fips_old, fips)) |> 
+  select(-fips_old) |> 
+  group_by(fips, year) |> 
+  mutate(
+    poverty_percent_all_ages   = mean(poverty_percent_all_ages  , na.rm = TRUE),
+    median_household_income = mean(median_household_income, na.rm = TRUE)
+  ) |> 
+  ungroup() |> 
+  distinct(year, fips, poverty_percent_all_ages, median_household_income)
+  
+# ... for SOD
+sod_controls <- sod_controls |> 
+  left_join(df_crosswalk_ct, by = "fips", , relationship = "many-to-many") |>
+  mutate(fips = if_else(!is.na(fips_old), fips_old, fips)) |>
+  select(-fips_old) |> 
+  group_by(fips, year) |> 
+  mutate(
+    share_main_office_cnty   = mean(share_main_office_cnty ),
+    nr_main_office_cnty = round(mean(nr_main_office_cnty, na.rm = TRUE), 0),
+    d_msa = round(mean(d_msa, na.rm = TRUE), 0),
+    d_top_bank = round(mean(d_top_bank, na.rm = TRUE), 0)
+  ) |> 
+  ungroup() |> 
+  distinct(fips, year, msabr, share_main_office_cnty, nr_main_office_cnty, d_msa, d_top_bank)
+
 
 # Manuel Fix of Chaning Fips-Codes ---
 
@@ -159,16 +200,15 @@ for (i in datasets_list) {
 
 # Combining datasets by county and year ---
 
-data_merged <- left_join(pop_cnty, sod_msa_main_office, by = c("fips", "year"))
-data_merged <- left_join(data_merged, sod_top5_banks, by = c("fips", "year"))
+data_merged <- left_join(pop_cnty, sod_controls, by = c("fips", "year"))
 data_merged <- left_join(data_merged, bls_ur, by = c("fips", "year"))
 data_merged <- left_join(data_merged, saipe, by = c("fips", "year"))
 data_merged <- left_join(data_merged, gazette, by = c("fips", "year"))
 
 
-
 # 3. Variable Creation =========================================================
 
+# Declare as dt
 setDT(data_merged)
 
 # Filter for the year 2004 to 2023
@@ -195,56 +235,6 @@ data_merged[, ur := ifelse(is.na(ur), mean(ur, na.rm = T), ur)]
 data_merged[, median_household_income := ifelse(is.na(median_household_income), mean(median_household_income, na.rm = T), median_household_income)]
 data_merged[, poverty_percent_all_ages := ifelse(is.na(poverty_percent_all_ages), mean(poverty_percent_all_ages, na.rm = T), poverty_percent_all_ages)]
 
-## Fixing Double Counties in Conneticute (due to the change of FIPS codes; see crosswalk files)
-# Calculate `nr` for each `(fips, year)`
-data_merged[, nr := .N, by = .(fips, year)]
-
-# Update rows where `nr != 1`
-data_merged[nr != 1, `:=` (
-  msabr = zoo::na.locf(msabr, na.rm = FALSE),
-  d_msa = zoo::na.locf(d_msa, na.rm = FALSE)
-), by = fips]
-
-# Calculate `sum_pop` for rows where `nr != 1`
-data_merged[nr != 1, sum_pop := sum(cnty_pop), by = .(fips, year)]
-
-# Compute `weight_pop` for rows where `nr != 1`
-data_merged[nr != 1, weight_pop := cnty_pop / sum_pop]
-
-# Collapse and aggregate rows where `nr != 1`
-data_merged[nr != 1, c(
-  "cnty_pop",
-  "msabr",
-  "share_main_office_cnty",
-  "nr_main_office_cnty",
-  "d_msa",
-  "d_top_bank",
-  "ur",
-  "poverty_percent_all_ages",
-  "median_household_income",
-  "landarea_sqm",
-  "landarea_smi",
-  "landarea_sqkm",
-  "pop_density"
-) := .(
-  sum(cnty_pop),
-  msabr[1],  # Use the first value of `msabr` (already carried forward)
-  sum(share_main_office_cnty * weight_pop),
-  sum(nr_main_office_cnty * weight_pop),
-  d_msa[1],  # Use the first value of `d_msa` (already carried forward)
-  sum(d_top_bank * weight_pop),
-  sum(ur * weight_pop),
-  sum(poverty_percent_all_ages * weight_pop),
-  sum(median_household_income * weight_pop),
-  sum(landarea_sqm * weight_pop),
-  sum(landarea_smi * weight_pop),
-  sum(landarea_sqkm * weight_pop),
-  sum(pop_density * weight_pop)
-), by = .(fips, year)]
-
-# Remove duplicate rows to retain only one per `(fips, year)`
-data_merged <- data_merged[!duplicated(data_merged, by = c("fips", "year"))]
-data_merged[, c("nr", "sum_pop", "weight_pop") := NULL]
 
 # Linking MSA/MD Codes with crosswalk files ---
 data_merged <- merge(data_merged, df_crosswalk_msamd, by = c("year", "fips"), all.x = TRUE)
