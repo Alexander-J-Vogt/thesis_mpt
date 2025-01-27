@@ -157,10 +157,16 @@ purrr::walk(all_outcome, ~ {
 
 # 3. House Purchase ============================================================
 
+# Create a balanced dataset for all home purchases for 3001 counties for the period
+# between 2004 to 2023
 
+# Determine df as dt and filter for relevant time period
 df_hp_depository_full <- df_hp_depsitory_full
 setDT(df_hp_depository_full)
 df_hp_depository_full <- df_hp_depository_full[inrange(year, 2004, 2023)]
+
+# Determine number of years
+year_length <- length(unique(df_hp_depository$year))
 
 # Determine the Counties with missing observation
 df_hp_balanced <- df_hp_depository_full |> 
@@ -176,7 +182,7 @@ df_hp_balanced <- df_hp_depository_full |>
 
 # Determine Counties which are not observed over the whole period
 df_counties_missing <- df_hp_balanced |> 
-  filter(nr_year != 20) |> 
+  filter(nr_year != year_length) |> 
   pivot_longer(
     cols = starts_with("year"),
     names_to = "year",
@@ -188,11 +194,85 @@ df_counties_missing <- df_hp_balanced |>
 
 unique_fips <- unique(df_counties_missing$fips)
 
-df_hp_depository <-  df_hp_depository_full |> 
-  filter(!fips %in% unique_fips)
+# Determine Missing Counties in Outcome after Merge
+df_outcome_unique_fips <- df_hp_depository_full |> 
+  filter(is.na(loan_amount))
+outcome_unique_fips <- unique(df_outcome_unique_fips$fips)
+
+# Determine Missing Counties in Treatment after Merge
+df_treatment_unique_fips <- df_hp_depository_full |> 
+  filter(is.na(hhi))
+treatment_unique_fips <- unique(df_treatment_unique_fips$fips)
+
+# Determine combined unique missing counties (in at least on period)
+fips_combined <- c(treatment_unique_fips, outcome_unique_fips)
+unique_fips_combined <- unique(fips_combined)
+
+# Document missing Counties with corresponding population
+df_document_fips <- df_pop |> 
+  filter(fips %in% unique_fips_combined) |> 
+  filter(fips %in% unique_fips)
+
+# Save as .csv
+write.csv(df_document_fips, file = paste0(FIGURE, "hp_excluded_counties.csv"))
+
+# Document missing countues by state
+df_document_state <- df_document_fips |> 
+  group_by(state) |> 
+  summarise(
+    mean_pop = mean(cnty_pop),
+    nr_fips = n_distinct(fips)
+  )
+
+# Filter counties as they are small and thus in some years do not experience mortgage
+df_hp_depository_panel <- df_hp_depository_full |> 
+  filter(!fips %in% unique_fips_combined) |> # Filter for partly missing observation of counties in outcome and treatment variables
+  filter(!fips %in% unique_fips) |> # Filter for counties which are either missing, not observed over all periods (because they have small population or there is a change in county code) or do not exist 
+  mutate(state = str_sub(fips, 1, 2), .after = "year") |> 
+  filter(state %in% STATE) |> 
+  arrange(fips, year)
+
+# Check if panel is balanced
+is.pbalanced(df_hp_depository_panel)
+
+# 4. Refinancing ===============================================================
+
+# Determine df as dt
+setDT(df_ref_depository_full)
+
+# Filter for time range 2004 to 2023
+df_ref_depository_full <- df_ref_depository_full[inrange(year, 2004, 2023)]
+
+year_length <- length(unique(df_ref_depository_full$year))
+
+# Determine the Counties with missing observation
+df_ref_balanced <- df_ref_depository_full |> 
+  mutate(id_available = 1) |> 
+  select(fips, year, id_available) |> 
+  pivot_wider(
+    id_cols = "fips",
+    names_from = "year",
+    values_from = "id_available",
+    names_prefix = "year_"
+  ) |> 
+  mutate(nr_year = rowSums(across(starts_with("year_")), na.rm = TRUE))
+
+# Determine Counties which are not observed over the whole period
+df_ref_counties_missing <- df_ref_balanced |> 
+  filter(nr_year != year_length) |> 
+  pivot_longer(
+    cols = starts_with("year"),
+    names_to = "year",
+    values_to = "years_available",
+    names_prefix = "year_"
+  ) |> 
+  select(fips, year) |> 
+  mutate(year = as.numeric(year))
+
+unique_ref_fips <- unique(df_ref_counties_missing$fips)
 
 # Determine Missing Counties in Outcome & Treatement after Merge
-df_outcome_unique_fips <- df_hp_depository_full |> 
+df_outcome_unique_fips <- df_ref_depository_full |> 
   filter(is.na(loan_amount))
 outcome_unique_fips <- unique(df_outcome_unique_fips$fips)
 
@@ -205,12 +285,14 @@ fips_combined <- c(treatment_unique_fips, outcome_unique_fips)
 unique_fips_combined <- unique(fips_combined)
 
 # Document missing Counties with corresponding population
-df_document_fips <- df_pop |> 
+df_ref_document_fips <- df_pop |> 
   filter(fips %in% unique_fips_combined)
 
-write.csv(df_document_fips, file = paste0(FIGURE, "hp_excluded_counties.csv"))
+# Save as .csv
+write.csv(df_ref_document_fips, file = paste0(FIGURE, "ref_excluded_counties.csv"))
 
-df_document_state <- df_document |> 
+# Document missing countues by state
+df_document_state <- df_ref_document_fips |> 
   group_by(state) |> 
   summarise(
     mean_pop = mean(cnty_pop),
@@ -218,8 +300,21 @@ df_document_state <- df_document |>
   )
 
 # Filter counties as they are small and thus in some years do not experience mortgage
-df_hp_depository_full <- df_hp_depository_full |> 
-  filter(!fips %in% unique_fips_combined)
+df_ref_depository_panel <- df_ref_depository_full |> 
+  filter(!fips %in% unique_fips_combined) |> # Filter for partly missing observation of counties in outcome and treatment variables
+  filter(!fips %in% unique_ref_fips) |> # Filter for counties which are either missing, not observed over all periods (because they have small population or there is a change in county code) or do not exist 
+  mutate(state = str_sub(fips, 1, 2), .after = "year") |> 
+  filter(state %in% STATE)
+
+# Check if panel is balanced
+is.pbalanced(df_ref_depository_panel)
+
+
+
+
+
+
+
 
 
 
