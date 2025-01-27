@@ -22,35 +22,229 @@ gc()
 ################################################################################################################+
 # MAIN PART ####
 
+# Import later needed dataset besides the outcome, treatment and control dataset
+
+# Load CT Crosswalk file
+df_crosswalk_ct <- LOAD("22_thesis_mpt_databasics_ct_crosswalk_file")
+df_pop <- LOAD(dfinput = "12_thesis_mpt_databasics_us_pop")
+
+# Determine all 51 States of Interst
+STATE <- c(
+  "01", "02", "04", "05", "06", "08", "09", "10", "12", "13",
+  "15", "16", "17", "18", "19", "20", "21", "22", "23", "24",
+  "25", "26", "27", "28", "29", "30", "31", "32", "33", "34",
+  "35", "36", "37", "38", "39", "40", "41", "42", "44", "45",
+  "46", "47", "48", "49", "50", "51", "53", "54", "55", "56", "11"
+)
+
 # 1. Merging the dataset from outcome, treatment and control script ============
 
-# Loading Mortgage Data from Outcome Script
-# Dataset that only includes Commercial Banks and their Mortgage Subdivisions
-# that lended mortgages
-outcome_banks_data <- LOAD(dfinput = "25_thesis_mpt_us_varceation_outcome")
-setDT(outcome_banks_data)
+# Loading Mortgage Datasets: All four variants ---
+vector_outcomes <- list.files(path = TEMP)
+vector_outcomes <- vector_outcomes[grepl("25", vector_outcomes) & grepl("(hp|ref)", vector_outcomes)]
+vector_outcomes <- str_replace_all(vector_outcomes, ".rda", "")
 
-# Loading treatment data from Treatment Script
+purrr::walk(vector_outcomes, function(dataset) {
+  
+  # dataset <- vector_outcomes[1]
+  # Import data
+  data <- LOAD(dfinput = dataset)
+  
+  # Assign name to dataset
+  name <- str_replace_all(dataset, "25_thesis_mpt_us_varceation_outcome_", "") 
+  assign(
+    paste0("df_", name),
+    data,
+    envir = .GlobalEnv
+  )
+  
+  return(data)
+  
+})
+
+all_outcome <- ls(envir = .GlobalEnv, pattern = "df")
+all_outcome <- all_outcome[str_detect(all_outcome, pattern = "(ref|hp)")]
+
+## Outcome Data ---
+
+# Adjusting code for changes in county
+
+purrr::walk(all_outcome, function(i) {
+  # i <- all_outcome[1]
+  # Retrieve data object
+  data <- get(i)
+  setDT(data)
+  
+  # Change FIPS code
+  data[,  fips := if_else(fips == "46113", "46102", fips)]
+  data <- data[fips != "51515"] # Drop Bredford City, VA
+  data <- data[fips != "15005"] # Drop Kalawao County, HI
+  
+  # Save in global environment
+  assign(i, data, envir = .GlobalEnv)
+  
+})
+
+# Depository Inst. - Home Purchase
+df_hp_depository <- df_hp_depsitory
+setDT(df_hp_depository)
+
+# Depositiry Inst. - Refinancing
+df_ref_depository <- df_ref_depository
+
+
+## Loading treatment data from Treatment Script --- 
+
 # (important as this contains counties, which are observed over all time periods in the SOD)
-treatment_data <- LOAD(dfinput = "26_thesis_mpt_us_varcreation_treatment")
-setDT(treatment_data)
+data_treatment <- LOAD(dfinput = "26_thesis_mpt_us_varcreation_treatment")
+setDT(data_treatment)
 
-# Loading control data from the control scripts
-controls_data <- LOAD(dfinput = "27_thesis_mpt_us_varcreation_controls")
-setDT(controls_data)
-controls_data <- controls_data[, state := NULL]
+# Adjusting code for changes in county 
 
-# 2. Commercial Banks ==========================================================
+# Load CT Crosswalk file
+df_crosswalk_ct <- LOAD("22_thesis_mpt_databasics_ct_crosswalk_file")
+
+# Change FIPS code
+data_treatment[,  fips := if_else(fips == "46113", "46102", fips)]
+data_treatment <- data_treatment[fips != "51515"] # Drop Bredford City, VA
+data_treatment <- data_treatment[fips != "15005"] # Drop Kalawao County, HI
+
+# Adjust CT from New Counties to Old Counties for 2021+
+data_treatment <- data_treatment |> 
+  left_join(df_crosswalk_ct, by = "fips", , relationship = "many-to-many") |>
+  mutate(fips = if_else(!is.na(fips_old), fips_old, fips)) |>
+  select(-fips_old) |> 
+  group_by(fips, year) |> 
+  mutate(
+    hhi               = mean(hhi),
+    ffr               = round(mean(ffr , na.rm = TRUE), 0),
+    d_ffr_mean_1perc  = round(mean(d_ffr_mean_1perc , na.rm = TRUE), 0),
+    d_ffr_mean_2perc  = round(mean(d_ffr_mean_2perc , na.rm = TRUE), 0),
+    d_ffr_last_1perc  = round(mean(d_ffr_last_1perc  , na.rm = TRUE), 0),
+    d_ffr_last_2perc  = round(mean(d_ffr_last_2perc  , na.rm = TRUE), 0),
+    d_great_recession = round(mean(d_great_recession, na.rm = TRUE), 0),
+  ) |> 
+  ungroup() |> 
+  distinct(fips, year, hhi, ffr, d_ffr_mean_1perc, d_ffr_mean_2perc, d_ffr_last_1perc, d_ffr_last_2perc, d_great_recession)
+
+# Loading control data from the control scripts ---
+data_controls <- LOAD(dfinput = "27_thesis_mpt_us_varcreation_controls")
+setDT(data_controls)
+data_controls <- data_controls[, state := NULL]
+
+
+# 2. Merge Outcome, Treatment and Controls =====================================
 
 # Perform Full Join between Mortgage Data, treatment (SOD + FFR) & control data if only 
 # mortgages of commercial banks are observed
-banks_data <- full_join(outcome_banks_data, treatment_data, by = c("fips", "year"))
-banks_data <- full_join(banks_data, controls_data, by = c("fips", "year"))
+
+purrr::walk(all_outcome, ~ {
+  
+  data <- get(.x)
+    
+  data_merge <- full_join(data, data_treatment, by = c("fips", "year"))
+  data_merge <- full_join(data_merge, data_controls, by = c("fips", "year"))
+  setDT(data_merge)
+  data_merge <- data_merge[inrange(year, 2004, 2023)]
+  
+  assign(
+    paste0(.x, "_full"),
+    data_merge,
+    envir = .GlobalEnv
+    )
+  
+})
+
+# 3. House Purchase ============================================================
+
+
+df_hp_depository_full <- df_hp_depsitory_full
+setDT(df_hp_depository_full)
+df_hp_depository_full <- df_hp_depository_full[inrange(year, 2004, 2023)]
+
+# Determine the Counties with missing observation
+df_hp_balanced <- df_hp_depository_full |> 
+  mutate(id_available = 1) |> 
+  select(fips, year, id_available) |> 
+  pivot_wider(
+    id_cols = "fips",
+    names_from = "year",
+    values_from = "id_available",
+    names_prefix = "year_"
+  ) |> 
+  mutate(nr_year = rowSums(across(starts_with("year_")), na.rm = TRUE))
+
+# Determine Counties which are not observed over the whole period
+df_counties_missing <- df_hp_balanced |> 
+  filter(nr_year != 20) |> 
+  pivot_longer(
+    cols = starts_with("year"),
+    names_to = "year",
+    values_to = "years_available",
+    names_prefix = "year_"
+  ) |> 
+  select(fips, year) |> 
+  mutate(year = as.numeric(year))
+
+unique_fips <- unique(df_counties_missing$fips)
+
+df_hp_depository <-  df_hp_depository_full |> 
+  filter(!fips %in% unique_fips)
+
+# Determine Missing Counties in Outcome & Treatement after Merge
+df_outcome_unique_fips <- df_hp_depository_full |> 
+  filter(is.na(loan_amount))
+outcome_unique_fips <- unique(df_outcome_unique_fips$fips)
+
+df_treatment_unique_fips <- df_hp_depository_full |> 
+  filter(is.na(hhi))
+treatment_unique_fips <- unique(df_treatment_unique_fips$fips)
+
+# Determine combined unique missing counties (in at least on period)
+fips_combined <- c(treatment_unique_fips, outcome_unique_fips)
+unique_fips_combined <- unique(fips_combined)
+
+# Document missing Counties with corresponding population
+df_document_fips <- df_pop |> 
+  filter(fips %in% unique_fips_combined)
+
+write.csv(df_document_fips, file = paste0(FIGURE, "hp_excluded_counties.csv"))
+
+df_document_state <- df_document |> 
+  group_by(state) |> 
+  summarise(
+    mean_pop = mean(cnty_pop),
+    nr_fips = n_distinct(fips)
+  )
+
+# Filter counties as they are small and thus in some years do not experience mortgage
+df_hp_depository_full <- df_hp_depository_full |> 
+  filter(!fips %in% unique_fips_combined)
+
+
+
+marginplot(df_hp_depsitory_and_mbs_full[, c("fips", "log_loan_amount")])
+marginplot(dt_50000[, c("fips", "log_loan_amount")])
 
 # 3. Exclude non-relevant variables ============================================
 
 # Deselect variables
-banks_data <- banks_data[, c("date", "landarea_sqm", "ffr") := NULL]
+data_merge <- data_merge[, c("date", "landarea_sqm", "ffr") := NULL]
+data_merge <- data_merge[state %in% c(
+  "01", "02", "04", "05", "06", "08", "09", "10", "12", "13",
+  "15", "16", "17", "18", "19", "20", "21", "22", "23", "24",
+  "25", "26", "27", "28", "29", "30", "31", "32", "33", "34",
+  "35", "36", "37", "38", "39", "40", "41", "42", "44", "45",
+  "46", "47", "48", "49", "50", "51", "53", "54", "55", "56", "11"
+)]
+data_merge <- data_merge[inrange(year, 2004, 2023)]
+
+
+library(VIM)
+marginplot(data_merge[, c("fips", "total_amount_loan")])
+marginplot(data_merge[, c("fips", "poverty_percent_all_ages")])
+
+
 
 # 4. Saving ====================================================================
 
