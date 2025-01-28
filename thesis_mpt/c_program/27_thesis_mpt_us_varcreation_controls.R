@@ -24,7 +24,7 @@ gc()
 
 # 1. Summary of Deposits - Control Variables ===================================
 
-## 1.2 Indicator for MSA & Main Office -----------------------------------------
+## 1.1 Indicator for MSA & Main Office -----------------------------------------
 # Create control variables based on variables available in the SOD
 
 # Load the Summary of Deposits for the period 1994 to 2020
@@ -76,11 +76,11 @@ top_banks <- top_banks[, marketshare_yearly := depsumbank / tot_marketvalue_year
 top_banks <- top_banks |> 
   group_by(year) |>
   arrange(desc(marketshare_yearly)) |>
-  arrange(year) |> 
+  # arrange(year) |> 
   slice_max(marketshare_yearly, n = 5) |>
   mutate(d_top_bank = 1) |>
   ungroup() |> 
-  select(year, rssdid, d_top_bank)
+  dplyr::select(year, rssdid, d_top_bank)
 
 # Merge top 5 banks by rssdid and year + Substitute all missings by 0
 raw_sod <- raw_sod |> 
@@ -100,6 +100,8 @@ SAVE(dfx = raw_sod, namex= "sod_top5_banks")
 # 2. Creating Control Dataset ==================================================
 
 # Create a Master Control Dataset
+
+## 2.1 Import all datasets -----------------------------------------------------
 
 # Import Population County dataset
 pop_cnty <- LOAD(dfinput = "12_thesis_mpt_databasics_us_pop")
@@ -125,6 +127,9 @@ gazette <- LOAD(dfinput = "13_thesis_mpt_databasics_us_landarea")
 # Median Household Income and Poverty Rate
 saipe <- LOAD(dfinput = "16_thesis_mpt_databasics_saipe")
 
+# Monetary Shock
+# monetary_shock <- LOAD("24_thesis_mpt_databasics_monetary_shock.R")
+
 # MSA/MD Crosswalk files
 df_crosswalk_msamd <- LOAD("23_thesis_mpt_databasics_msa_county_crosswalk_file")
 
@@ -138,9 +143,9 @@ df_crosswalk_ct <- LOAD(dfinput = "22_thesis_mpt_databasics_ct_crosswalk_file")
 
 # ... for Population data
 pop_cnty <- pop_cnty |>
-  left_join(df_crosswalk_ct, by = "fips", , relationship = "many-to-many") |>
+  left_join(df_crosswalk_ct, by = "fips", relationship = "many-to-many") |>
   mutate(fips = if_else(!is.na(fips_old), fips_old, fips)) |>
-  select(-fips_old) |> 
+  dplyr::select(-fips_old) |> 
   group_by(year, fips) |> 
   mutate(cnty_pop = mean(cnty_pop)) |>
   ungroup() |> 
@@ -150,7 +155,7 @@ pop_cnty <- pop_cnty |>
 saipe <- saipe |> 
   left_join(df_crosswalk_ct, by = "fips", relationship = "many-to-many") |> 
   mutate(fips = if_else(!is.na(fips_old), fips_old, fips)) |> 
-  select(-fips_old) |> 
+  dplyr::select(-fips_old) |> 
   group_by(fips, year) |> 
   mutate(
     poverty_percent_all_ages   = mean(poverty_percent_all_ages  , na.rm = TRUE),
@@ -163,7 +168,7 @@ saipe <- saipe |>
 sod_controls <- sod_controls |> 
   left_join(df_crosswalk_ct, by = "fips", , relationship = "many-to-many") |>
   mutate(fips = if_else(!is.na(fips_old), fips_old, fips)) |>
-  select(-fips_old) |> 
+  dplyr::select(-fips_old) |> 
   group_by(fips, year) |> 
   mutate(
     share_main_office_cnty   = mean(share_main_office_cnty ),
