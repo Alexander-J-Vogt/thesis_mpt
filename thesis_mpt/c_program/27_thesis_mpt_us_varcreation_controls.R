@@ -127,9 +127,6 @@ gazette <- LOAD(dfinput = "13_thesis_mpt_databasics_us_landarea")
 # Median Household Income and Poverty Rate
 saipe <- LOAD(dfinput = "16_thesis_mpt_databasics_saipe")
 
-# Monetary Shock
-# monetary_shock <- LOAD("24_thesis_mpt_databasics_monetary_shock.R")
-
 # MSA/MD Crosswalk files
 df_crosswalk_msamd <- LOAD("23_thesis_mpt_databasics_msa_county_crosswalk_file")
 
@@ -204,7 +201,6 @@ for (i in datasets_list) {
 }
 
 # Combining datasets by county and year ---
-
 data_merged <- left_join(pop_cnty, sod_controls, by = c("fips", "year"))
 data_merged <- left_join(data_merged, bls_ur, by = c("fips", "year"))
 data_merged <- left_join(data_merged, saipe, by = c("fips", "year"))
@@ -251,132 +247,11 @@ setcolorder(data_merged, c("year", "fips", "state", "msa"))
 # Drop Double Observation from 15009
 data_merged <- unique(data_merged, by = c("fips", "year"))
 
-# 
-# checkmsa <- data_merged |>  
-#   filter(is.na(msabr))
-# 
-# unique_fips <- unique(checkmsa$fips)
-# 
-# data_msa <- data_merged[fips %in% unique_fips]
-# data_msa[, msabr := zoo::na.locf(msabr, na.rm = FALSE)]
-# View(data_msa)
-# 
-# data <- data_merged |> 
-#   filter(state == "09") |> 
-#   group_by(fips, year) |> 
-#   mutate(nr = n()) |> 
-#   filter(nr != 1)
-# data
-# 
-# 
-# data_sum <- data_merged |> 
-#   filter(fips %in% c("02105", "02195", "02198", "02230", "02270", "02275")) 
-#   group_by(fips) |> 
-#   reframe(
-#     mean_ur = mean(ur, na.rm = TRUE),
-#     mean_income = mean(median_household_income, na.rm = TRUE),
-#     mean_pov = mean(poverty_percent_all_ages, na.rm = TRUE)
-#   )
-# 
-# data_sum_imp <- data_merged |> 
-#   filter(fips %in% c("02105", "02195", "02198", "02230", "02270", "02275")) |> 
-#   group_by(fips) |> 
-#   mutate(
-#     ur = ifelse(is.na(ur), mean(ur, na.rm = T), ur),
-#     median_household_income = ifelse(is.na(median_household_income), mean(median_household_income, na.rm = T), median_household_income),
-#     poverty_percent_all_ages = ifelse(is.na(poverty_percent_all_ages), mean(poverty_percent_all_ages, na.rm = T), poverty_percent_all_ages)
-#   ) |> 
-#   reframe(
-#     mean_ur = mean(ur, na.rm = TRUE),
-#     mean_income = mean(median_household_income, na.rm = TRUE),
-#     mean_pov = mean(poverty_percent_all_ages, na.rm = TRUE)
-#   )
-# 
-# data_merged |> filter(fips %in% c("02105", "02195", "02198", "02230", "02270", "02275"))
-# data_merged |> filter(is.na(ur))
-# pov_cnty <- data_merged |> filter(is.na(poverty_percent_all_ages))
-# data_merged |> filter(is.na(median_household_income))
-# 
-# imputed_data <- kNN(data_merged, k = 5, variable = c("ur"))
 
-
-
-# aggr(data_merged, col = c("skyblue", "red"), numbers = TRUE)
-# marginplot(data_merged[, c("fips", "ur")])
-# marginplot(data_merged[, c("fips", "poverty_percent_all_ages")])
-# marginplot(data_merged[, c("fips", "median_household_income")])
-# marginplot(data_merged[, c("fips", "ur")])
-
-
-
-
-# test <- data_merged |> 
-#   filter(is.na(ur))
-# 
-# fips_in <- unique(test$fips)
-# 
-# bls_ur |> 
-#   filter(fips %in% fips_in) |> arrange( fips, year)
-# 
-# test_landarea <- data_merged |> filter(is.na(landarea_sqm)) |> filter(year > 2019)
-# unique_landare <- unique(test_landarea$fips)
-# 
-# test <- distinct(data_merged, fips, msabr)
-# test |> 
-#   filter(is.na(msabr)) |> 
-#   print()
-# 
-# data_merged |> 
-#   filter(is.na(landarea_sqm))
-# 
-# counties <- data_merged |> 
-#   filter(is.na(landarea_sqm))
-# 
-# cnty <- unique(counties$fips)
-# 
-# data_merged |> 
-#   filter(fips %in% cnty)
-# 
-# DEBUG <- F
-# # 4. Imputation of Missings ====================================================
-# if (DEBUG) {
-# # Basic Imputation of Data
-# df_imputation <- data_merged |> 
-#   select(-c("state")) |> 
-#   mutate(fips = as.numeric(fips)) |> 
-#   select(-c("cnty_main_office", "landarea_sqm", "landarea_sqkm", "fips", "year" ))
-# 
-# imp <- mice(df_imputation, seed = SEED, print = F)
-# 
-# test <- complete(imp)
-# 
-# 
-# test <- data_merged |> 
-#   mutate(
-#     ur_imputed = missForest(df_imputation)$ximp$ur
-#   )
-# 
-# 
-# missing <- data_merged |> 
-#   filter(is.na(ur)) |> 
-#   arrange(fips) |> 
-#   mutate(ones = 1) |> 
-#   group_by(state, fips) |> 
-#   mutate(na_by_state = sum(ones))
-# }
-# # 4. Saving ====================================================================
-# 
-# 
-# missing <- data_merged |> 
-#   filter(is.na(ur)) 
-# fips_na <- unique(missing$fips)
-# 
-# test <- data_merged |> 
-#   filter(fips %in% fips_na)
-
-
+# 4. SAVE ======================================================================
 
 # save dataset
 SAVE(dfx = data_merged)
+
 
 ########################## ENDE ###############################################+
