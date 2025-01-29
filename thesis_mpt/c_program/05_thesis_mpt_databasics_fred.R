@@ -35,10 +35,10 @@ inflation <- read_csv(
 df_inflation <- inflation |> 
   rename(
     year = DATE,
-    inflation_nat = FPCPITOTLZGUSA
+    inflation_us = FPCPITOTLZGUSA
   ) |> 
   mutate(
-    inflation_nat = as.numeric(inflation_nat),
+    inflation_us = as.numeric(inflation_us),
     year = as.numeric(str_sub(year, 1, 4))
   )
 
@@ -58,7 +58,7 @@ df_gdp_pc <- gdp_pc |>
   ) |> 
   mutate(
     gdp_growth_us = as.numeric(gdp_growth_us),
-    year = as.numeric(str_sub(year, 1, 2))
+    year = as.numeric(str_sub(year, 1, 4))
   )
   
   
