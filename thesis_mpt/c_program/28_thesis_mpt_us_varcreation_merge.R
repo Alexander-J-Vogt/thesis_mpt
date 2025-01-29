@@ -113,7 +113,7 @@ data_treatment <- data_treatment[fips != "15005"] # Drop Kalawao County, HI
 data_treatment <- data_treatment |> 
   left_join(df_crosswalk_ct, by = "fips", , relationship = "many-to-many") |>
   mutate(fips = if_else(!is.na(fips_old), fips_old, fips)) |>
-  select(-fips_old) |> 
+  dplyr::select(-fips_old) |> 
   group_by(fips, year) |> 
   mutate(
     hhi               = mean(hhi),
@@ -125,7 +125,7 @@ data_treatment <- data_treatment |>
     d_great_recession = round(mean(d_great_recession, na.rm = TRUE), 0),
   ) |> 
   ungroup() |> 
-  distinct(fips, year, hhi, ffr, d_ffr_mean_1perc, d_ffr_mean_2perc, d_ffr_last_1perc, d_ffr_last_2perc, d_great_recession)
+  distinct(fips, year, hhi, ffr, d_ffr_mean_1perc, d_ffr_mean_2perc, d_ffr_last_1perc, d_ffr_last_2perc, d_great_recession, GSS_target,  NS_target, J_target, I_treatment_GSS_1, I_treatment_GSS_2, I_treatment_NS_2, I_treatment_J_2)
 
 # Loading control data from the control scripts ---
 data_controls <- LOAD(dfinput = "27_thesis_mpt_us_varcreation_controls")
@@ -171,7 +171,7 @@ year_length <- length(unique(df_hp_depository$year))
 # Determine the Counties with missing observation
 df_hp_balanced <- df_hp_depository_full |> 
   mutate(id_available = 1) |> 
-  select(fips, year, id_available) |> 
+  dplyr::select(fips, year, id_available) |> 
   pivot_wider(
     id_cols = "fips",
     names_from = "year",
@@ -189,7 +189,7 @@ df_counties_missing <- df_hp_balanced |>
     values_to = "years_available",
     names_prefix = "year_"
   ) |> 
-  select(fips, year) |> 
+  dplyr::select(fips, year) |> 
   mutate(year = as.numeric(year))
 
 unique_fips <- unique(df_counties_missing$fips)
@@ -230,7 +230,8 @@ df_hp_depository_panel <- df_hp_depository_full |>
   filter(!fips %in% unique_fips) |> # Filter for counties which are either missing, not observed over all periods (because they have small population or there is a change in county code) or do not exist 
   mutate(state = str_sub(fips, 1, 2), .after = "year") |> 
   filter(state %in% STATE) |> 
-  arrange(fips, year)
+  arrange(fips, year) |> 
+  select(-ends_with("applicant"))
 
 # Check if panel is balanced
 is.pbalanced(df_hp_depository_panel)
@@ -248,7 +249,7 @@ year_length <- length(unique(df_ref_depository_full$year))
 # Determine the Counties with missing observation
 df_ref_balanced <- df_ref_depository_full |> 
   mutate(id_available = 1) |> 
-  select(fips, year, id_available) |> 
+  dplyr::select(fips, year, id_available) |> 
   pivot_wider(
     id_cols = "fips",
     names_from = "year",
@@ -266,7 +267,7 @@ df_ref_counties_missing <- df_ref_balanced |>
     values_to = "years_available",
     names_prefix = "year_"
   ) |> 
-  select(fips, year) |> 
+  dplyr::select(fips, year) |> 
   mutate(year = as.numeric(year))
 
 unique_ref_fips <- unique(df_ref_counties_missing$fips)
@@ -316,35 +317,44 @@ is.pbalanced(df_ref_depository_panel)
 
 
 
-
-
-marginplot(df_hp_depsitory_and_mbs_full[, c("fips", "log_loan_amount")])
-marginplot(dt_50000[, c("fips", "log_loan_amount")])
-
-# 3. Exclude non-relevant variables ============================================
-
-# Deselect variables
-data_merge <- data_merge[, c("date", "landarea_sqm", "ffr") := NULL]
-data_merge <- data_merge[state %in% c(
-  "01", "02", "04", "05", "06", "08", "09", "10", "12", "13",
-  "15", "16", "17", "18", "19", "20", "21", "22", "23", "24",
-  "25", "26", "27", "28", "29", "30", "31", "32", "33", "34",
-  "35", "36", "37", "38", "39", "40", "41", "42", "44", "45",
-  "46", "47", "48", "49", "50", "51", "53", "54", "55", "56", "11"
-)]
-data_merge <- data_merge[inrange(year, 2004, 2023)]
-
-
-library(VIM)
-marginplot(data_merge[, c("fips", "total_amount_loan")])
-marginplot(data_merge[, c("fips", "poverty_percent_all_ages")])
+# 
+# library(VIM)
+# marginplot(df_hp_depository_panel[, c("fips", "log_loan_amount")])
+# marginplot(dt_50000[, c("fips", "log_loan_amount")])
+# 
+# # 3. Exclude non-relevant variables ============================================
+# 
+# # Deselect variables
+# data_merge <- data_merge[, c("date", "landarea_sqm", "ffr") := NULL]
+# data_merge <- data_merge[state %in% c(
+#   "01", "02", "04", "05", "06", "08", "09", "10", "12", "13",
+#   "15", "16", "17", "18", "19", "20", "21", "22", "23", "24",
+#   "25", "26", "27", "28", "29", "30", "31", "32", "33", "34",
+#   "35", "36", "37", "38", "39", "40", "41", "42", "44", "45",
+#   "46", "47", "48", "49", "50", "51", "53", "54", "55", "56", "11"
+# )]
+# data_merge <- data_merge[inrange(year, 2004, 2023)]
+# 
+# 
+# library(VIM)
+# marginplot(data_merge[, c("fips", "total_amount_loan")])
+# marginplot(data_merge[, c("fips", "poverty_percent_all_ages")])
 
 
 
 # 4. Saving ====================================================================
 
-# Save
-SAVE(dfx = banks_data, namex = MAINNAME)
+# Save: House Purchase - 2004 bis 2023
+SAVE(dfx = df_hp_depository_panel, namex = paste0(MAINNAME, "_hp"))
+
+# Save: Refinancing - 2004 bis 2023
+SAVE(dfx = df_ref_depository_panel, namex = paste0(MAINNAME, "_ref"))
+# 
+# # Save: House Purchase - 2018 bis 2023
+# SAVE(dfx = df_hp_depositor0y_reform_panel, namex = paste0(MAINNAME, "_hp_small"))
+# 
+# # Save: Refinancing - 2018 bis 2023
+# SAVE(dfx = df_ref_depository_reform_panel, namex = paste0(MAINNAME, "_ref_small"))
 
 
 ########################## ENDE ###############################################+
