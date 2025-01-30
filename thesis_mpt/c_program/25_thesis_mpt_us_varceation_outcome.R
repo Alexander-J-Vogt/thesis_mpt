@@ -36,7 +36,7 @@ if (DEBUG) {
   hmda_clean <- hmda_clean[str_detect(hmda_clean, pattern = "sample")]
   hmda_clean <- hmda_clean[!str_detect(hmda_clean, pattern = "reform")]
   hmda_clean <- gsub(hmda_clean, pattern = ".rda", replacement = "")
-  # x <- 1
+  x <- 1
 }
 
 # Values for loan purpose 
@@ -47,7 +47,7 @@ hmda_list <- purrr::map(seq_along(hmda_clean), function(x) {
   
   #*******************************************************************
   # Basic Setup to run iteration
-  
+  # x <- 1
   # Determine file to collapse
   file <- hmda_clean[x]
  
@@ -66,7 +66,7 @@ hmda_list <- purrr::map(seq_along(hmda_clean), function(x) {
   
   # Dynamically create dataset for refinancing and home purchase
   dataset <- purrr::map(loan_purpose_id, function(i){
-    
+    # i <- 1
     # Determine loan purpose by name
     loan_purpose_name <- if(i == 1) "home_purchase" else "refinancing"
     
@@ -82,7 +82,7 @@ hmda_list <- purrr::map(seq_along(hmda_clean), function(x) {
     
     # Dynamiccal create extra 
     for (lender in names(lender_filters)) {
-      
+      # lender <- names(lender_filters)[1]
       # Update message
       message(paste0("Collapsing Data for loan purpose ", loan_purpose_name , " and ", lender, " ."))
       
@@ -135,8 +135,23 @@ hmda_list <- purrr::map(seq_along(hmda_clean), function(x) {
         log_income_weighted_mean = log(income_mean_wloan)
         )]
       
+      # Correct NaN
+      data[, `:=` (
+        log_income_mean = if_else(is.nan(log_income_mean), NA, log_income_mean),
+        log_income_weighted_mean = if_else(is.nan(log_income_weighted_mean), NA, log_income_weighted_mean)
+      )]
+      
       # Update Message
       message("End of collapse.\n")
+      
+      # Merge with population data
+      df_pop <- LOAD("12_thesis_mpt_databasics_us_pop")
+      setDT(df_pop)
+      data <- merge(data, df_pop, by = c("year", "fips"), all.x = TRUE)
+      
+      # Create loan amount per capita 
+      data[, loan_amount_pc := loan_amount / cnty_pop]
+      data[, log_loan_amount_pc := log(loan_amount_pc)]
       
       # Dataset to return
       datasets_by_lender[[lender]] <- data
@@ -184,7 +199,7 @@ if (DEBUG) {
     )
     return(combined_data)
   }
-  hmda_hp_dep <- bind_datasets(hmda_list, "home_purchase", "depository", paste0(MAINNAME, "_hp_depsitory"))
+  hmda_hp_dep <- bind_datasets(hmda_list, "home_purchase", "depository", paste0(MAINNAME, "_hp_depository"))
   hmda_hp_dep_mbs <- bind_datasets(hmda_list, "home_purchase", "depository_mbs", paste0(MAINNAME, "_hp_depository_mbs"))
   hmda_hp_dep_mbs_bhc <- bind_datasets(hmda_list, "home_purchase", "depository_mbs_bhc", paste0(MAINNAME, "_hp_depository_mbs_bhc"))
   hmda_ref_dep <- bind_datasets(hmda_list, "refinancing", "depository", paste0(MAINNAME, "_ref_depository"))
@@ -323,6 +338,15 @@ hmda_reform_list <- purrr::map(seq_along(hmda_reform), function(x) {
       # Update Message
       message("End of collapse.\n")
       
+      # Merge with population data
+      df_pop <- LOAD("12_thesis_mpt_databasics_us_pop")
+      setDT(df_pop)
+      data <- merge(data, df_pop, by = c("year", "fips"), all.x = TRUE)
+      
+      # Create loan amount per capita 
+      data[, loan_amount_pc := loan_amount / cnty_pop]
+      data[, log_loan_amount_pc := log(loan_amount_pc)]
+      
       # Dataset to return
       datasets_by_lender[[lender]] <- data
       
@@ -340,7 +364,7 @@ hmda_reform_list <- purrr::map(seq_along(hmda_reform), function(x) {
 }) # End of purrr:map #1
 
 # Save datasets
-hmda_reform_hp_dep <- save_combined_datasets(hmda_reform_list, "home_purchase", "depository", paste0(MAINNAME, "_reform_hp_depsitory_only"))
+hmda_reform_hp_dep <- save_combined_datasets(hmda_reform_list, "home_purchase", "depository", paste0(MAINNAME, "_reform_hp_depository"))
 hmda_reform_hp_deb_mbs <- save_combined_datasets(hmda_reform_list, "home_purchase", "depository_mbs", paste0(MAINNAME, "_reform_hp_depository_mbs"))
 hmda_reform_hp_deb_mbs_bhc <- save_combined_datasets(hmda_reform_list, "home_purchase", "depository_mbs_bhc", paste0(MAINNAME, "_reform_hp_depository_mbs_bhc"))
 hmda_reform_ref_dep <- save_combined_datasets(hmda_reform_list, "refinancing", "depository", paste0(MAINNAME, "_reform_ref_depository"))
