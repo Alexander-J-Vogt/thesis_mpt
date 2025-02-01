@@ -47,16 +47,16 @@ sod <-  sod[inrange(year, 2004 , 2023)]
 ## 1.2 Create HHI by county -----------------------------------------------------
 
 # Calculate the sum of deposit by year, financial institution and fips
-sod <- sod[, bank_cnty_dep := sum(depsumbr), by = .(rssdid, fips, year)]
+sod[, bank_cnty_dep := sum(depsumbr), by = .(rssdid, fips, year)]
 
 # Calculate the sum of deposits by year and fips-code
-sod <- sod[, cnty_tot_dep := sum(depsumbr), by = .(fips, year)]
+sod[, cnty_tot_dep := sum(depsumbr), by = .(fips, year)]
 
 # Calculate the market share and square the value of it. Additionally, substitute
 # all NaN with 0, which were produced when only one bank is active in the whole county.
-sod <- sod[, bank_market_share := bank_cnty_dep / cnty_tot_dep * 100]
-sod <- sod[, bank_market_share := ifelse(is.nan(bank_market_share), 0, bank_market_share)]
-sod <- sod[, bank_market_share_sq := bank_market_share^2]
+sod[, bank_market_share := bank_cnty_dep / cnty_tot_dep * 100]
+sod[, bank_market_share := ifelse(is.nan(bank_market_share), 0, bank_market_share)]
+sod[, bank_market_share_sq := bank_market_share^2]
 
 # Drop all duplicates in order to create a dataset on bank-cnty-year level:
 # One observation is equal to the deposits of one bank in one county in one year.
@@ -64,6 +64,20 @@ sod <- unique(sod, by = c("year", "fips", "rssdid"))
 
 # Calculate the HHI for each county based on the deposits of one banks in one county in one year.
 sod <- sod[, .(hhi = sum(bank_market_share_sq) / 10000) , by = .(fips, year)]
+
+
+# 1.3 Divide U.S. into High- and Low- Market Concentration Area ================
+
+# Divide the U.S. into high and low market concentration counties by median
+
+# Take mean of hhi by fips over time
+sod[, hhi_mean := mean(hhi), by = fips]
+
+# Calculate the median based on fips
+hhi_median <- median(sod$hhi_mean)
+
+# Determine high and low market concentration counties
+sod[, d_hhi_indicator := if_else(hhi_mean > hhi_median, 1, 0)]
 
 
 # 2. Federal Funds Rate ========================================================
@@ -97,12 +111,43 @@ ffr_data <- unique(ffr_data, by = c("year"))
 # Save dataset
 SAVE(dfx = ffr_data, namex = "ffr_annual")
 
+
+# 3. Monetary Shock ============================================================
+
+# Import Monetary Shocks
+monetary_shock <- LOAD("24_thesis_mpt_databasics_monetary_shock_us")
+
+# Select Conventional Monetary Policy Shocks
+df_monetary_shock <- monetary_shock |> 
+  dplyr::select(year, GSS_target, NS, bp_u1) |> 
+  rename(
+    GSS_target = GSS_target, # Guerkaynak, Sack, and Swanson
+    NS_target = NS, # Nakamura & Steinsson
+    J_target = bp_u1 # Jarocinski (2020)
+  )
+
+
 # 3. Combine Federal Funds Rate & SOD ==========================================
 
 # Combine SOD dataset and FFR dataset by year
 df_treatment <- sod |> 
   left_join(ffr_data, by = c("year")) |> 
-  select(-date)
+  left_join(df_monetary_shock, by = c("year")) |> 
+  dplyr::select(-date)
+
+
+# 4. Create Interaction Term between ZLB Dummy * Monetary Shock * HHI
+
+df_treatment <- df_treatment |> 
+  mutate(
+    I_treatment_GSS_1 = d_ffr_mean_1perc * GSS_target * d_hhi_indicator,
+    I_treatment_GSS_2 = d_ffr_mean_2perc * GSS_target * d_hhi_indicator,
+    I_treatment_NS_2 = d_ffr_mean_1perc * NS_target * d_hhi_indicator,
+    I_treatment_NS_2 = d_ffr_mean_2perc * NS_target * d_hhi_indicator,
+    I_treatment_J_2 = d_ffr_mean_1perc * J_target * d_hhi_indicator,
+    I_treatment_J_2 = d_ffr_mean_2perc * J_target * d_hhi_indicator,
+  ) 
+
 
 # 5. Saving the dataset ========================================================
 
