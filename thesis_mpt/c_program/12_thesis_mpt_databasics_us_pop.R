@@ -72,7 +72,7 @@ pop_data <- pop_data[, year := as.integer(year)]
 pop_data <- pop_data[, population := as.integer(population)]
 
 # Restrict to the necessary year
-pop_data <- pop_data[inrange(year, 2000, 2020)]
+pop_data <- pop_data[inrange(year, 2000, 2023)]
 
 # Extract all state observations
 pop_state_data <- pop_data[
