@@ -98,7 +98,9 @@ SAVE(dfx = df_us_shock, namex = paste0(MAINNAME, "_us"))
 
 # 2. Import Eurzone Measure for Monetary Policy Shoc ===========================
 
-devtools::install_github("https://github.com/martinbaumgaertner/hfdshocks.git")
+# 2.1 Altavilla et al. (2019) (with package from Martin Baumgärtner) -----------
+
+# devtools::install_github("https://github.com/martinbaumgaertner/hfdshocks.git")
 
 # Load Implementation of Altavilla et al. (2019) by Baumgärtner 
 library(hfdshocks)
@@ -130,30 +132,64 @@ df_eurozone <- df_eurozone_target |>
 # Get the measure for unconventional monetary shock
 df_eurozone_unconv_mp <- data.frame(df_eurozone_shock$factors$conference)
 
+# Data Manipulating
 df_eurozone <- df_eurozone_target |> 
+  # Format variables
   mutate(
     target = as.numeric(format(target, scientific = FALSE)),
-    month = paste0(str_sub(date, 1, 7), "-01")
+    month = as.Date(paste0(str_sub(date, 1, 7), "-01"))
   ) |> 
+  # Sum up by month
   group_by(month) |> 
   summarise(
     target = sum(target)
   )
 
+# Create monthly row 
+df_month <- tibble(month = seq(as.Date("2000-01-01"), as.Date("2023-12-01"), by = "month"))
+
+# Create monthly df with monetary shocks of 0 if there was no press release
+df_eurozone <- df_month |> 
+  left_join(df_eurozone, by = c("month")) |> 
+  mutate(Altavilla_target = if_else(is.na(target), 0, target)) |> 
+  dplyr::select(-target)
 
 
+# 2.2 Jarocinski & Karadi (2020) -----------------------------------------------
+
+# Reproduced in Matlab with the replication files available on:
+# https://github.com/marekjarocinski/jkshocks_update_ecb_202310
+
+# Import data
+jarocinski <- read_csv(
+  file = paste0(A, "t_policy_shocks_us/Jarocinski_eu/shocks_ecb_mpd_me_m.csv"),
+  col_types = cols(.default = "c")
+  )
+
+# Creat month variable & format variables
+df_jarocinski_eu <- jarocinski |> 
+  # Create month variable
+  mutate(month = if_else(nchar(month) == 1, str_pad(month, width = 2, side = "left", pad = "0"), month)) |> 
+  mutate(month = as.Date(paste0(year, "-", month, "-01"))) |> 
+  # Format shock variable
+  mutate(across(3:ncol(jarocinski), as.numeric)) |> 
+  dplyr::select(-year)
+
+# Add last two month to df
+df_jarocinski_eu <- df_month |> 
+  left_join(df_jarocinski_eu, by = "month") |> 
+  mutate(across(-1, ~ if_else(is.na(.), 0, .)))
 
 
+# 2.3 Merge Eurozone Monetary Shocks --------------------------------------------
 
+# Merge
+df_eurozone_shock <- df_jarocinski_eu |> 
+  left_join(df_eurozone, by = "month")
 
+# 3. Save ====================================================================== 
 
-
-
-
-
-
-
-
+SAVE(dfx = df_eurozone_shock, namex = paste0(MAINNAME, "_eurozone"))
 
 
 
