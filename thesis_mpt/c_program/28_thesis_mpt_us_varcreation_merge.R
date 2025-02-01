@@ -115,6 +115,9 @@ data_treatment <- data_treatment |>
   mutate(fips = if_else(!is.na(fips_old), fips_old, fips)) |>
   dplyr::select(-fips_old) |> 
   group_by(fips, year) |> 
+  # Adjust for many-to-many merge - some counties are observed double after
+  # the linking new with old counties - not the most cleanest approach but the 
+  # the best possible w/o excluding the whole state of Connecticut 
   mutate(
     hhi               = mean(hhi),
     ffr               = round(mean(ffr , na.rm = TRUE), 0),
@@ -125,7 +128,7 @@ data_treatment <- data_treatment |>
     d_great_recession = round(mean(d_great_recession, na.rm = TRUE), 0),
   ) |> 
   ungroup() |> 
-  distinct(fips, year, hhi, ffr, d_ffr_mean_1perc, d_ffr_mean_2perc, d_ffr_last_1perc, d_ffr_last_2perc, d_great_recession, GSS_target,  NS_target, J_target, I_treatment_GSS_1, I_treatment_GSS_2, I_treatment_NS_2, I_treatment_J_2)
+  distinct(fips, year, .keep_all = TRUE)
 
 # Loading control data from the control scripts ---
 data_controls <- LOAD(dfinput = "27_thesis_mpt_us_varcreation_controls")
@@ -305,7 +308,8 @@ df_ref_depository_panel <- df_ref_depository_full |>
   filter(!fips %in% unique_fips_combined) |> # Filter for partly missing observation of counties in outcome and treatment variables
   filter(!fips %in% unique_ref_fips) |> # Filter for counties which are either missing, not observed over all periods (because they have small population or there is a change in county code) or do not exist 
   mutate(state = str_sub(fips, 1, 2), .after = "year") |> 
-  filter(state %in% STATE)
+  filter(state %in% STATE) |> 
+  select(-ends_with("applicant"))
 
 # Check if panel is balanced
 is.pbalanced(df_ref_depository_panel)
