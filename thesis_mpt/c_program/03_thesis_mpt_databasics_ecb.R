@@ -188,7 +188,7 @@ df_bsi <- df_bsi_raw |>
 df_bsi_a22 <- df_bsi |> 
   filter(BS_ITEM == "A22") |> # Loan for house purchases 
   filter(MATURITY_ORIG == "A") |>  # Total Maturity
-  filter(COUNT_AREA == "U6") |> # Concentrate on Domestic Area and not EU Changing Composition (U2)
+  filter(COUNT_AREA == "U6") |>  # Concentrate on Domestic Area and not EU Changing Composition (U2)
   mutate(data_type = case_when(
     DATA_TYPE == "1" ~ "hp_outst_amount_EUR", # Outstanding Amount at the end of the period (stocks)
     DATA_TYPE == "4" ~ "hp_fin_transaction_EUR", # Financial Transactions
@@ -295,41 +295,6 @@ df_bsi_l60 <- df_bsi_l60 |>
   filter(!(country == "GR" & month < as.Date("2001-01-01"))) |> # Filter for years with GR being part of the Eurozone
   filter(!(country == "SI" & month < as.Date("2007-01-01"))) |> # Filter for year with SI being part of the Eurozone
   filter(!(country == "SK" & month < as.Date("2009-01-01"))) # Filter for years with SK being part of the Eurozone
-
-
-if (DEBUG) {
-View(df_bsi_t00)
-
-df_bsi_l60 |> 
-  filter(is.na(cr_fin_transaction_EUR))
-
-  filter(BS_ITEM %in% c("A22", "T00", "L60", "L20")) 
-
-df_bsi_m <- df_bsi |> 
-  filter(FREQ == "M") |> 
-  filter(BS_ITEM %in% c("L60", "T00"))
-
-df_bsi_q <- df_bsi |> 
-  filter(FREQ == "Q")
-
-names <- colnames(df_bsi_l60)[-c(1, 14, 15, 33, 34, 35)]
-lapply(names, function(x) {
-  cat(paste0("Variable: ", x))
-  print(table(df_bsi_l60[[x]]))
-  cat("\n")
-})
-
-table(df_bsi_m$BS_ITEM, df_bsi_m$MATURITY_ORIG)
-table(df_bsi_m$BS_ITEM, df_bsi_m$DATA_TYPE)
-
-table(df_bsi_m$TIME_PERIOD, df_bsi_m$BS_ITEM)
-table(df_bsi_m$TIME_PERIOD, df_bsi_m$DATA_TYPE)
-
-table(df_bsi_a22$REF_AREA, df_bsi_a22$CURRENCY_TRANS)
-
-table(df_bsi_a22$MATURITY_ORIG, df_bsi_a22$CURRENCY_TRANS)
-table(df_bsi_a22$TIME_PERIOD, df_bsi_a22$MATURITY_ORIG)
-}
 
 # 05. Monthly Dataset ==========================================================
 
