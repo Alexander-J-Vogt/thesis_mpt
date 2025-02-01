@@ -603,6 +603,14 @@ purrr::walk(seq_along(hmda_merged), function(x) {
   data[, share_male_applicant := nr_male_applicant / tot_origin]
   data[, share_female_applicant := nr_female_applicant / tot_origin]
 
+  # Fix Inf in LTI Ratio
+  data[, lti_ratio := if_else(lti_ratio == Inf, 0, lti_ratio)]
+  
+  # Fix extreme values of the rate spread: -1 to 15 for conservative range  
+  data[, rate_spread := if_else(rate_spread >= -1 & rate_spread <=15, rate_spread, NA)]
+  
+  # Change NaN in edit_status to NA
+  data[, edit_status := if_else(is.nan(edit_status), NA, edit_status)]
   
   # Delete nr_* variables
   data[, grep("^nr_", names(data), value = TRUE) := NULL]
