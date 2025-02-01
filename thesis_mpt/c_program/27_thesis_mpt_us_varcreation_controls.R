@@ -117,7 +117,7 @@ bls_ur$year <- as.numeric(bls_ur$year)
 sod_msa_main_office <- LOAD(dfinput = "sod_msa_main_office")
 sod_top5_banks <- LOAD(dfinput = "sod_top5_banks")
 
-# Combine control dataset
+# Combine sod control dataset
 sod_controls <- sod_msa_main_office |> 
   full_join(sod_top5_banks, by = c("fips", "year")) 
 
@@ -127,10 +127,19 @@ gazette <- LOAD(dfinput = "13_thesis_mpt_databasics_us_landarea")
 # Median Household Income and Poverty Rate
 saipe <- LOAD(dfinput = "16_thesis_mpt_databasics_saipe")
 
+# House Price Index 
+hpi <- LOAD("15_thesis_mpt_databasics_fhfa")
+hpi <- hpi |> dplyr::select(year, fips, hpi_annual_change_perc)
+
+# National CPI & GDP Growth
+fred <- LOAD("05_thesis_mpt_databasics_fred")
+
 # MSA/MD Crosswalk files
 df_crosswalk_msamd <- LOAD("23_thesis_mpt_databasics_msa_county_crosswalk_file")
 
-# Accounting for Changes in FIPS Codes ---
+
+
+## 2.2 Accounting for Changes in FIPS Codes ------------------------------------
 
 # Link New Fips Codes for CT to Old Ones for 2022+
 # AND adjust for many-to-many match by assuming that the new counties population,
@@ -177,10 +186,10 @@ sod_controls <- sod_controls |>
   distinct(fips, year, msabr, share_main_office_cnty, nr_main_office_cnty, d_msa, d_top_bank)
 
 
-# Manuel Fix of Chaning Fips-Codes ---
+## 2.3 Manuel Fix of Changing FIPS-Codes ---------------------------------------
 
 # Manually Change the FIPS code for Oglala Lakota for the Period before 2010 from
-# 46113 to 46102 (46102 is the uptodata code and was changed due to a county name change 
+# 46113 to 46102 (46102 is the up-to-data code and was changed due to a county name change 
 # from Shannon County to Oglala Lakota County)
 datasets_list <- c("pop_cnty", "bls_ur", "sod_msa_main_office", "sod_top5_banks", "gazette", "saipe")
 
@@ -205,6 +214,8 @@ data_merged <- left_join(pop_cnty, sod_controls, by = c("fips", "year"))
 data_merged <- left_join(data_merged, bls_ur, by = c("fips", "year"))
 data_merged <- left_join(data_merged, saipe, by = c("fips", "year"))
 data_merged <- left_join(data_merged, gazette, by = c("fips", "year"))
+data_merged <- left_join(data_merged, hpi, by = c("fips", "year"))
+data_merged <- left_join(data_merged, fred, by = c("year"))
 
 
 # 3. Variable Creation =========================================================
@@ -236,6 +247,8 @@ data_merged[, ur := ifelse(is.na(ur), mean(ur, na.rm = T), ur)]
 data_merged[, median_household_income := ifelse(is.na(median_household_income), mean(median_household_income, na.rm = T), median_household_income)]
 data_merged[, poverty_percent_all_ages := ifelse(is.na(poverty_percent_all_ages), mean(poverty_percent_all_ages, na.rm = T), poverty_percent_all_ages)]
 
+# Impute missings in HPI grrowthby state mean 
+data_merged[, hpi_annual_change_perc := fifelse(is.na(hpi_annual_change_perc), mean(hpi_annual_change_perc, na.rm = TRUE), hpi_annual_change_perc), by = .(state, year)]
 
 # Linking MSA/MD Codes with crosswalk files ---
 data_merged <- merge(data_merged, df_crosswalk_msamd, by = c("year", "fips"), all.x = TRUE)
@@ -246,7 +259,7 @@ setcolorder(data_merged, c("year", "fips", "state", "msa"))
 
 # Drop Double Observation from 15009
 data_merged <- unique(data_merged, by = c("fips", "year"))
-
+  
 
 # 4. SAVE ======================================================================
 
