@@ -106,9 +106,10 @@ purrr::walk(seq_along(lar_files), function(file){
 
 
 # Basic Filtering
-hmda_reform <- list.files(path = TEMP, pattern = "reform")
+hmda_reform <- list.files(path = TEMP, pattern = "hmda_reform")
 hmda_reform <- hmda_reform[!str_detect(hmda_reform, "sample")]
 hmda_reform <- hmda_reform[!str_detect(hmda_reform, "clean")]
+hmda_reform <- hmda_reform[!str_detect(hmda_reform, "thesis_mpt")]
 hmda_reform <- gsub(".rda", "", hmda_reform)
 
 # 
@@ -226,6 +227,12 @@ purrr::walk(seq_along(hmda_reform), function(x) {
   
   # Log Loan Amount
   data[, log_loan_amount := log(loan_amount)]
+  
+  # Fix extreme values of the rate spread: -1 to 15 for conservative range  
+  data[, rate_spread := if_else(rate_spread >= -1 & rate_spread <=15, rate_spread, NA)]
+  
+  # Fix extreme values of the interest rate: -1 to 15 for conservative range  
+  data[, interest_rate := if_else(interest_rate >= -1 & interest_rate <=15, interest_rate, NA)]
   
   ##
    
