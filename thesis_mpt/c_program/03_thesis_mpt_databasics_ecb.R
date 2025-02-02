@@ -296,7 +296,82 @@ df_bsi_l60 <- df_bsi_l60 |>
   filter(!(country == "SI" & month < as.Date("2007-01-01"))) |> # Filter for year with SI being part of the Eurozone
   filter(!(country == "SK" & month < as.Date("2009-01-01"))) # Filter for years with SK being part of the Eurozone
 
-# 05. Monthly Dataset ==========================================================
+
+# 05. ECB's Policy Rates =======================================================
+
+## 05.1 Main Refinancing Rate --------------------------------------------------
+
+# Import
+mpr <- read_csv(file = paste0(A, "b_ecb/", "ECB Data Portal - Main Refinancing Operator.csv"))
+
+# Create monthly vector from 1999 to 2024
+month <- tibble(month = seq(as.Date("1999-01-01"), as.Date("2024-12-01"), by = "month"))
+
+# Create monthly dataset
+df_mpr <- mpr |>
+  # Create month variable
+  mutate(
+    month = as.Date(paste0(str_sub(DATE, 1, 7), "-01"))
+  ) |> 
+  # Rename for readbility
+  rename(
+    mpr = `Main refinancing operations - fixed rate tenders (fixed rate) (date of changes) - Level (FM.B.U2.EUR.4F.KR.MRR_FR.LEV)`,
+    date = DATE
+  ) |> 
+  # Collapse by month
+  group_by(month) |> 
+  summarise(
+    mpr = mean(mpr)
+  ) |> 
+  ungroup()
+
+# Merge
+df_mpr <- month |> 
+  left_join(df_mpr, by = c("month")) |> 
+  mutate(mpr = nafill(mpr, type = "locf") / 100)
+
+## 05.2 Deposit Facility Rate --------------------------------------------------
+
+# Import 
+dfr <- read_csv(file = paste0(A, "b_ecb/", "ECB Data Portal - Deposit Facility Rate.csv"))
+
+# Create monthly vector from 1999 to 2024
+month <- tibble(month = seq(as.Date("1999-01-01"), as.Date("2024-12-01"), by = "month"))
+
+# Create monthly dataset
+df_dfr <- dfr |>
+  # Create month variable
+  mutate(
+    month = as.Date(paste0(str_sub(DATE, 1, 7), "-01"))
+  ) |> 
+  # Rename for readbility
+  rename(
+    dfr = `Deposit facility - date of changes (raw data) - Level (FM.B.U2.EUR.4F.KR.DFR.LEV)`,
+    date = DATE
+  ) |> 
+  # Collapse by month
+  group_by(month) |> 
+  summarise(
+    dfr = mean(dfr)
+  ) |> 
+  ungroup()
+
+# Merge
+df_dfr <- month |> 
+  left_join(df_dfr, by = c("month")) |> 
+  mutate(dfr = nafill(dfr, type = "locf") / 100)
+
+## 05.3  SAVE ------------------------------------------------------------------
+
+# Merge to final Policy Rate Dataset
+df_ecb_policy_rate <- df_mpr |> 
+  full_join(df_dfr, by = "month")
+
+# Save
+SAVE(dfx = df_ecb_policy_rate, namex = paste0(MAINNAME, "_policy_rates"))
+
+
+# 06. Monthly Dataset ==========================================================
 
 # Merge Monthly dataset
 df_ecb_monthly <- df_bsi_a22 |> 
@@ -308,7 +383,7 @@ df_ecb_monthly <- df_bsi_a22 |>
 # SAVE
 SAVE(dfx = df_ecb_monthly, namex = paste0(MAINNAME, "_m"))
 
-# 06. Annual ===================================================================
+# 07. Annual ===================================================================
 
 # Annual Dataset
 df_ecb_annual <- df_ssi
