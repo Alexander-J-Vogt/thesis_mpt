@@ -37,12 +37,12 @@ euro_cntry_relevant <- c("AT", "BE", "FI", "FR", "DE", "GR", "IE", "IT", "NL",
 # Read, filter and bring data into wide forma
 df_ssi <- df_ssi_raw |> 
   filter(REF_AREA %in% euro_cntry_relevant) |> 
-  filter(SSI_INDICATOR %in% c("H10", "H20", "S10")) |> # Include only H10 and H20
+  filter(SSI_INDICATOR %in% c("H10", "H20", "S10")) |> # Include only H10, H20 & S10
   select(REF_AREA, TIME_PERIOD, SSI_INDICATOR, OBS_VALUE) |> 
   pivot_wider(names_from = "SSI_INDICATOR", values_from = "OBS_VALUE") |> # Wide Format
-  rename(hhi_ci_total_assets = H10,
-         hhi_total_credit = H20,
-         share_top5_largest_ci_total_asset = S10,
+  rename(hhi_ci_total_assets = H10, # Herfindahl index for Credit institutions (CIs) total assets
+         hhi_total_credit = H20, # Herfindahl index for total credit
+         share_top5_largest_ci_total_asset = S10, # Share of the 5 largest CIs in total assets (CR5)
          country = REF_AREA,
          year = TIME_PERIOD
   ) |> 
