@@ -22,57 +22,78 @@ gc()
 ################################################################################################################+
 # MAIN PART ####
 
-# 01. Worldscope - Market Concentration - Quaterly =============================
 
-df_worldscope <- LOAD(dfinput = "05_thesis_mpt_databasics_worldscope")
+# 01. SSI - Market Concentration - Annual ======================================
 
-# Create measure for mark concentration by total asset and total liabilities 
-# for each country in each year
-df_worldscope <- df_worldscope |> 
-  group_by(country, quarter) |> 
+# Import
+ssi <- LOAD(dfinput = "03_thesis_mpt_databasics_ecb_a")
+
+# Select HHI for Total Assets (only variable with no missings)
+df_ssi <- ssi |>
+  select(-c("share_top5_largest_ci_total_asset", "hhi_total_credit"))
+
+# 02. Policy Rates - Monthly ===================================================
+
+# Import
+ecb_policy_rate <- LOAD("03_thesis_mpt_databasics_ecb_policy_rates")
+
+# ZLB measures
+df_ecb_policy_rate <- ecb_policy_rate |> 
+  # ZLB indicators
   mutate(
-    cntry_year_asset = sum(total_assets, na.rm = TRUE),
-    cntry_year_liabilities = sum(total_liabilities,  na.rm = TRUE)
-  ) |>  # Sum of Total Assets and Liabilities in a year for a country
-  ungroup() |> 
+    d_mpr_2 = if_else(mpr <= 2, 1, 0),
+    d_mpr_1 = if_else(mpr <= 1, 1, 0),
+    d_dfr_2 = if_else(dfr <= 2, 1, 0),
+    d_dfr_1 = if_else(dfr <= 1, 1, 0),
+    d_dfr_nirp = if_else(dfr <= 0, 1, 0)
+  ) 
+
+# 03. Monetary Shock ===========================================================
+
+# Load Eurozone Monetary Shock
+monetary_shock <- LOAD("24_thesis_mpt_databasics_monetary_shock_eurozone")
+
+# SD
+sd_altavilla <- sd(monetary_shock$Altavilla_target)
+sd_jarocinski <- sd(monetary_shock$MP_median)
+
+
+# Select Relevant Variables
+df_monetary_shock <- monetary_shock |> 
+  select(month, MP_median, Altavilla_target)|> 
+  # Cintractionary & Expansionary Monetary Shock
   mutate(
-    market_share_assets = total_assets / cntry_year_asset,
-    market_share_liabilities = total_liabilities / cntry_year_liabilities
-  ) |>  # Calculating the market share for each bank in a year for a country
-  mutate(
-    market_share_assets2 = market_share_assets^2,
-    market_share_liabilities2 = market_share_liabilities^2
-  ) |> 
-  group_by(country, quarter) |> 
-  mutate(
-    hhi_assets = sum(market_share_assets2),
-    hhi_liabilities = sum(market_share_liabilities2)
+    Altavilla_contractionary = -1 * Altavilla_target,
+    Altavilla_expansionary = Altavilla_target,
+    MP_median_contractionary = -1 * MP_median / sd_jarocinski, # Transform the shock from 1 bps to 1 sd
+    MP_median_expansionary = MP_median / sd_jarocinski # Transform the shock from 1 bps to 1 sd
   )
 
-# Create Qarter-level Dataset
-df_hhi <- df_worldscope |> 
-  distinct(country, quarter, hhi_assets, hhi_liabilities) |> 
-  filter(quarter > as.Date("2002-12-01")) |> 
-  mutate(year = year(quarter), .before = quarter)
+# 04. Merge Dataset ============================================================
+
+# Create monthly dataset
+df_month <- tibble(month = seq(as.Date("2000-01-01"), as.Date("2023-12-01"), by = "month"))
+
+# Merge + Restrict to relevant period
+df_merge <- df_month |>
+  mutate(year = year(month)) |> 
+  # Merge
+  full_join(df_ssi, by = "year", relationship = "many-to-many") |> 
+  left_join(df_ecb_policy_rate, by = "month") |> 
+  left_join(df_monetary_shock, by = "month") |> 
+  # Get the time right
+  filter(month >= as.Date("2000-01-01")) |> 
+  filter(!(country == "GR" & month < as.Date("2001-01-01"))) |> # Filter for years with GR being part of the Eurozone
+  filter(!(country == "SI" & month < as.Date("2007-01-01"))) |> # Filter for year with SI being part of the Eurozone
+  filter(!(country == "SK" & month < as.Date("2009-01-01"))) |> # Filter for years with SK being part of the Eurozone
+  # Arrange + Select relevant var
+  arrange(country, month) |> 
+  select(-year)
 
 
-# 02. SSI - Market Concentration - Annual ======================================
-
-df_ssi <- LOAD(dfinput = "03_thesis_mpt_databasics_ecb_a")
-
-df_ssi <- df_ssi |>
-  select(-share_top5_largest_ci_total_asset)
-  # mutate(share_top5_largest_ci_total_asset = share_top5_largest_ci_total_asset / 100)
-
-
-# 03. Create Dataset ===========================================================
-
-# df_main <- df_hhi |> 
-#   left_join(df_ssi, by = c("country", "year"))
-df_main <- df_ssi
 # 04. SAVE =====================================================================
 
-SAVE(dfx = df_main)
+SAVE(dfx = df_merge)
 
 ###############################################################################+
 ################################# ENDE ########################################+
