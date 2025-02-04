@@ -123,7 +123,7 @@ df_mfi <- df_mfi |>
   filter(!(country == "GR" & month < as.Date("2001-01-01"))) |> # Filter for years with GR being part of the Eurozone
   filter(!(country == "SI" & month < as.Date("2007-01-01"))) |> # Filter for year with SI being part of the Eurozone
   filter(!(country == "SK" & month < as.Date("2009-01-01"))) |> # Filter for years with SK being part of the Eurozone
-  filter(month > as.Date("2002-12-01") & month < as.Date("2024-01-01"))
+  filter(month > as.Date("2002-12-01") & month < as.Date("2024-01-01")) # Data only available from 2003 on
 
 # Create quarterly data 
 df_mfi_q <- df_mfi |> 
