@@ -136,14 +136,14 @@ ggplot(df_combined_total, aes(x = month, y = interest_rate_total, color = countr
 
 # 04. Format Variables =========================================================
 
-# Get into decimal format
-df_main <- df_outcome |> 
-  mutate(across(4:6, ~ { . / 100 } ))
+# # Get into decimal format
+# df_main <- df_outcome |> 
+#   mutate(across(4:6, ~ { . / 100 } ))
   
 
 # 05. Save =====================================================================
 
-SAVE(dfx = df_main)
+SAVE(dfx = df_outcome)
 
 
 ################################# ENDE ########################################+
