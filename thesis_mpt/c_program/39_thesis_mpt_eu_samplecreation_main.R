@@ -24,66 +24,86 @@ gc()
 
 # 01. Import dataset ===========================================================
 
-df_main_raw <- LOAD(dfinput = "38_thesis_mpt_eu_varcreation_merge")
+main <- LOAD(dfinput = "38_thesis_mpt_eu_varcreation_merge")
 
 # 02. Clean Data ===============================================================
 
-df_main <- df_main_raw |> 
+df_main <- main |> 
+  # Filter
   filter(!(country == "GR" & month < as.Date("2003-01-01"))) |> # Filter for years with GR being part of the Eurozone
   filter(!(country == "SI" & month < as.Date("2007-01-01"))) |> # Filter for year with SI being part of the Eurozone
   filter(!(country == "SK" & month < as.Date("2009-01-01"))) |> # Filter for years with SK being part of the Eurozone
-  filter(month > as.Date("2002-12-01") & month < as.Date("2024-01-01"))
-
-df_main <- df_main |> 
+  filter(month > as.Date("2002-12-01") & month < as.Date("2024-01-01")) |> # Filter for time period 2003 to 2023
+  # Time Variables
+  mutate(
+    year = year(month),
+    .after = month
+  ) |> 
   relocate(year, .after = country)
 
-# 03. Imputation of Missings ===================================================
+# 03. Scaling Variables ========================================================
 
-## Determine the NAs
-# Get data ready for imputation
-df_impute <- df_main |> 
-  select(-c("year", "quarter", "hhi_total_credit"))
+# Scaling variables
+df_main <- df_main |> 
+  rename(
+    lending_rate_total = lending_hp_total_outst_amount,
+    lending_rate_1year = lending_hp_over_1_year_outst_amount,
+    lending_rate_5year = lending_hp_over_5_years_outst_amount
+  ) |> 
+  mutate(
+    # Percent to Decimal
+    lending_rate_total_deci = lending_rate_total / 100,
+    lending_rate_1year_deci = lending_rate_1year / 100,
+    lending_rate_5year_deci = lending_rate_5year / 100, 
+    reer_deci = reer / 100,
+    ur_deci = ur / 100,
+    
+    # Log variables
+    log_cr = log(cr_outst_amount_EUR),
+    log_tl = log(tl_outst_amount_EUR),
+    log_dl = log(dl_outst_amount_EUR),
+    log_hp_total_amount =  log(hp_outst_amount_EUR)) 
 
-# Control for NAs
-vis_miss(df_impute)
-miss_var_summary(df_impute)
-gg_miss_var(df_impute)
+# 04. New Units for Variables ==================================================
 
-# GER: 2003 - 2006
-df_main |> filter(is.na(ur))
+# # Delta
+# df_main <- df_main |> 
+#   # Make sure that the dataset is order by county, year
+#   arrange(country, month) |> 
+#   group_by(country) |> 
+#   mutate(
+#     # Delta Lending Rates
+#     delta_lending_rate_total = lending_rate_total - lag(lending_rate_total),
+#     delta_lending_rate_1year = lending_rate_1year - lag(lending_rate_1year),
+#     delta_lending_rate_5year = lending_rate_5year - lag(lending_rate_5year),
+#     
+#     # Delta Total Amount
+#     delta_hp_total = hp_outst_amount_EUR - lag(hp_outst_amount_EUR),
+#     
+#     # Log delta Total Amount
+#     log_delta_hp_total_amount = log(hp_outst_amount_EUR) - lag(log(hp_outst_amount_EUR))
+#   ) |> 
+#   ungroup()
 
-# GR: from 2013 missing from time to time
-df_main |> filter(is.na(lending_hp_total_outst_amount))
 
-# BE: 2003 to 2006
-df_main |> filter(is.na(lending_hp_over_5_years_outst_amount))
+# 05. Monthly Dataset ==========================================================
 
-# Impute NAs with the help of non-parametric estimation via ML Algorithm (missForest-package)
-df_imputed_mf <- missForest(
-  df_impute[,-c(1,2)],
-  verbose = TRUE
-  )
+# Save as monthly dataset
+SAVE(df_main, paste0(MAINNAME, "_m"))
 
-# Copy of df_main
-df_main_imputed <- df_main
 
-# Impute missings
-df_main_imputed$ur <- df_imputed_mf$ximp$ur
-df_main_imputed$lending_hp_total_outst_amount <- df_imputed_mf$ximp$lending_hp_total_outst_amount
-df_main_imputed$lending_hp_over_5_years_outst_amount <- df_imputed_mf$ximp$lending_hp_over_5_years_outst_amount
-
-# 04. Annual dataset =========================================================== 
+# 06. Annual dataset =========================================================== 
 
 # Collapse data to annual data by taking the mean over a month
-df_main_a <- df_main_imputed |> 
-  select(-c("quarter", "month", "hhi_total_credit")) |> 
+df_main_a <- df_main |> 
+  dplyr::select(-c("month")) |> 
   group_by(country, year) |> 
   summarise(across(everything(), \(x) mean(x, na.rm = TRUE)), .groups = "drop")
 
 # 05. Save =====================================================================
 
 # Save annual dataset
-SAVE(dfx = df_main_a)
+SAVE(dfx = df_main_a, paste0(MAINNAME, "_a"))
 
 ###############################################################################+
 ################################# ENDE ########################################+
