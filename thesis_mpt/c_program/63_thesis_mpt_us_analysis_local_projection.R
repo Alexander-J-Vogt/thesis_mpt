@@ -67,6 +67,9 @@ df_hp_large <- df_hp_depository_large |>
     ) |> 
   # Interaction Terms
   mutate(
+    I_HHI_ZLB2_NS = d_ffr_mean_2perc * hhi * NS_target,
+    I_HHI_ZLB1_NS = d_ffr_mean_1perc * hhi * NS_target,
+    I_HHI_NS = hhi * NS_target,
     I_hhi_2perc = d_ffr_mean_2perc * hhi,
     I_hhi_NS = hhi * NS_target,
     I_2perc_NS = d_ffr_mean_2perc * NS_target
@@ -184,12 +187,13 @@ compute_acf <- function(series) {
 }
 }
 
-# Local Projection for Panel Data ===============================================
+# 3. Local Projection for Panel Data ===========================================
+
+## 3.1 FULL SAMPLE - Log Loan Amount -------------------------------------------
 df_hp_large_lp <- df_hp_large |> 
   # filter(d_hhi_indicator) |> 
-  dplyr::select("fips", "year", "log_loan_amount", "d_hhi_indicator", "NS_target", "I_hhi_2perc", 
-                "I_hhi_NS", "I_2perc_NS", "I_treatment_NS_2", "ur", "log_median_household_income", 
-                "hpi_annual_change_perc", "inflation_us", "gdp_growth_us")
+  dplyr::select("fips", "year", "log_loan_amount", "hhi", "I_HHI_ZLB2_NS", "ur", 
+                "log_median_household_income", "hpi_annual_change_perc", "inflation_us", "gdp_growth_us")
 
 df_hp_large_lp <- pdata.frame(df_hp_large_lp, index = c("fips", "year"))
 
@@ -198,27 +202,92 @@ results <- lpirfs::lp_lin_panel(
   data_sample = "Full",
   endog_data = "log_loan_amount",
   cumul_mult = TRUE,
-  shock = "I_treatment_NS_2",
-  diff_shock = FALSE,
+  shock = "I_HHI_ZLB2_NS",
+  diff_shock = TRUE,
   panel_model = "within",
   panel_effect = "twoways",
-  robust_cov = "vcovNW",
-  c_exog_data = colnames(df_hp_large_lp)[c(10:14)],
-  l_exog_data = colnames(df_hp_large_lp)[c(10:12)],
-  lags_exog_data = 2,
+  robust_cov = "vcovSCC",
+  c_fd_exog_data = colnames(df_hp_large_lp)[c(4, 6:10)],
+  l_fd_exog_data = colnames(df_hp_large_lp)[c(4:10)],
+  lags_fd_exog_data = 1,
   confint = 1.67,
-  hor = 10
-  
+  hor = 6
 )
 
 plot(results)
 
+## 3.2 ZLB Sample - Log Loan Amount --------------------------------------------
+
+# Get ZLB Sample
+df_zlb_sample <- df_hp_large |> 
+  distinct(year, d_ffr_mean_1perc) |> 
+  filter(d_ffr_mean_1perc == "1")
 
 
+# Select ZLB years and Relevant Variables
+df_hp_large_lp <- df_hp_large |> 
+  # filter(year %in% df_zlb_sample$year) |>
+  dplyr::select("fips", "year", "log_loan_amount", "hhi", "I_HHI_NS", "ur", 
+                "log_median_household_income", "hpi_annual_change_perc", "inflation_us", "gdp_growth_us")
+
+df_hp_large_lp <- pdata.frame(df_hp_large_lp, index = c("fips", "year"))
 
 
+results <- lpirfs::lp_lin_panel(
+  data_set = df_hp_large_lp,
+  data_sample = df_zlb_sample$year,
+  endog_data = "log_loan_amount",
+  cumul_mult = TRUE,
+  shock = "I_HHI_NS",
+  diff_shock = TRUE,
+  panel_model = "within",
+  panel_effect = "twoways",
+  robust_cov = "vcovSCC",
+  c_fd_exog_data = colnames(df_hp_large_lp)[c(4, 6:10)],
+  l_fd_exog_data = colnames(df_hp_large_lp)[c(4:10)],
+  lags_fd_exog_data = 1,
+  confint = 1.67,
+  hor = 6
+)
 
+plot(results)
 
+## 3.3 Non-ZLB Sample - Log Loan Amount ----------------------------------------
+
+# Get Non-ZLB Sample
+df_zlb_sample <- df_hp_large |> 
+  distinct(year, d_ffr_mean_1perc) |> 
+  filter(d_ffr_mean_1perc == "0")
+
+# Select ZLB years and Relevant Variables
+df_hp_large_lp <- df_hp_large |> 
+  # filter(year %in% df_zlb_sample$year) |>
+  dplyr::select("fips", "year", "log_loan_amount", "hhi", "I_HHI_NS", "ur", 
+                "log_median_household_income", "hpi_annual_change_perc", "inflation_us", "gdp_growth_us")
+
+df_hp_large_lp <- pdata.frame(df_hp_large_lp, index = c("fips", "year"))
+
+# LP
+results <- lpirfs::lp_lin_panel(
+  data_set = df_hp_large_lp,
+  data_sample = df_zlb_sample$year,
+  endog_data = "log_loan_amount",
+  cumul_mult = TRUE,
+  shock = "I_HHI_NS",
+  diff_shock = TRUE,
+  panel_model = "within",
+  panel_effect = "twoways",
+  robust_cov = "vcovSCC",
+  c_exog_data = colnames(df_hp_large_lp)[c(4, 6:10)],
+  l_exog_data = colnames(df_hp_large_lp)[c(4:10)],
+  lags_exog_data = 1,
+  confint = 1.67,
+  hor = 6
+)
+
+plot(results)
+
+## DEVELOPMENT SECTION ### -----------------------------------------------------
 
 
 

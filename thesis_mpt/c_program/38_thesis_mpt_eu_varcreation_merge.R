@@ -1,4 +1,4 @@
-# TARGET: 
+# TARGET: Merge Outcome, Treatment and Control Variables
 # INDATA: 
 # OUTDATA/ OUTPUT:  
 
@@ -33,11 +33,14 @@ df_treatment <- LOAD(dfinput = "35_thesis_mpt_eu_varcreation_treatment")
 # Import control dataset
 df_controls <- LOAD(dfinput = "37_thesis_mpt_eu_varcreation_controls")
 
+
 # 02. Merge Datasets ===========================================================
 
 df_merged <- df_outcome |> 
-  full_join(df_treatment, by = c("country", "year")) |> 
-  full_join(df_controls, by = c("country", "month"))
+  full_join(df_treatment, by = c("country", "month")) |> 
+  full_join(df_controls, by = c("country", "month")) |> 
+  filter(month > as.Date("2002-12-01") & month < as.Date("2024-01-01"))
+
 
 # 03. Save =====================================================================
 
