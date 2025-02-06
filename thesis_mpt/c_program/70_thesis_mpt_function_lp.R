@@ -495,5 +495,40 @@ results_lpirf <- lpirfs::lp_lin_panel(
 plot(results)
 
 
+
+library(ggplot2)
+library(dplyr)
+
+# Convert both datasets into a long format with a 'group' variable
+df_irf <- bind_rows(
+  data.frame(
+    time = seq_along(test$irf_panel_mean),
+    lp = t(unlist(test$irf_panel_mean)),
+    lower = t(unlist(test$irf_panel_low)),
+    upper = t(unlist(test$irf_panel_up)),
+    group = "Wild Cluster Boots"
+  ),
+  data.frame(
+    time = seq_along(results_lpirf$irf_panel_mean),
+    lp = t(unlist(results_lpirf$irf_panel_mean)),
+    lower = t(unlist(results_lpirf$irf_panel_low)),
+    upper = t(unlist(results_lpirf$irf_panel_up)),
+    group = "DK98"
+  )
+)
+
+# Plot with ggplot
+ggplot(df_irf, aes(x = time, y = lp, color = group)) +
+  geom_line(size = 1) +  # Mean response for both groups
+  geom_ribbon(aes(ymin = lower, ymax = upper, fill = group), alpha = 0.2, color = NA) +  # Confidence interval
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +  # Zero line
+  labs(title = "Local Projection Impulse Response Comparison",
+       x = "Time Horizon",
+       y = "Impulse Response",
+       color = "Model", 
+       fill = "Model") +
+  theme_minimal()
+
+
 ################################### END #######################################+
 
