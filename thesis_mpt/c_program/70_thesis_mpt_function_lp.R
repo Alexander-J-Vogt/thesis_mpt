@@ -76,13 +76,13 @@ df_hp_large <- df_hp_depository_large |>
 
 df_hp_large_lp <- df_hp_large |> 
   # filter(d_hhi_indicator) |> 
-  dplyr::select("fips", "year", "log_loan_amount", "hhi", "I_HHI_NS", "ur", 
+  dplyr::select("fips", "year", "log_loan_amount", "hhi", "I_HHI_ZLB2_NS", "ur", 
                 "log_median_household_income", "hpi_annual_change_perc", "inflation_us", "gdp_growth_us")
 
 # LP_LIN_PANEL Function -----
 
 # DEBUGGING ?
-DEBUG <- TRUE
+DEBUG <- FALSE
 
 LP_LIN_PANEL <- function(
     data_set          = NULL,  # Panel dataset
@@ -92,8 +92,9 @@ LP_LIN_PANEL <- function(
     shock             = NULL,  # Shock variable
     diff_shock        = TRUE,  # First difference of shock variable
     panel_model       = "within",  # Panel model type
-    panel_effect      = "individual",  # Panel effect type
+    panel_effect      = "twoway",  # Panel effect type
     robust_cov        = NULL,  # Robust covariance estimation method
+    robust_cluster    = NULL,
     c_exog_data       = NULL,  # Contemporaneous exogenous variables
     l_exog_data       = NULL,  # Lagged exogenous variables
     lags_exog_data    = NaN,  # Lag length for exogenous variables
@@ -105,12 +106,13 @@ LP_LIN_PANEL <- function(
     biter             = NULL
     ){  # Number of horizons
   
+  DEBUG <- FALSE
   if (DEBUG) {
   data_set <- df_hp_large_lp
   data_sample <- "Full"
   endog_data <- "log_loan_amount"
   cumul_mult <-  TRUE
-  shock <-  "I_HHI_NS"
+  shock <-  "I_HHI_ZLB2_NS"
   diff_shock <-  TRUE
   panel_model <-  "within"
   panel_effect <-  "twoways"
@@ -118,13 +120,12 @@ LP_LIN_PANEL <- function(
   robust_method <- NULL
   robust_type <- NULL
   robust_cluster <- "group"
-  
-  c_exog_data <-  colnames(df_hp_large_lp)[c(4, 6:10)]
-  c_fd_exog_data <- NULL
-  l_exog_data <-  colnames(df_hp_large_lp)[c(4:10)] 
-  l_fd_exog_data <- NULL
-  lags_exog_data <-  1
-  lags_fd_exog_data <- NULL
+  c_exog_data <-  NULL #colnames(df_hp_large_lp)[c(4, 6:10)]
+  l_exog_data <-  NULL #colnames(df_hp_large_lp)[c(4:10)] 
+  c_fd_exog_data <- colnames(df_hp_large_lp)[c(4, 6:10)]
+  l_fd_exog_data <- colnames(df_hp_large_lp)[c(4:10)]
+  lags_exog_data <-  NULL
+  lags_fd_exog_data <- 1
   confint <- 1.65
   hor <- 6
   biter <- 10
@@ -134,39 +135,50 @@ LP_LIN_PANEL <- function(
   ## Check Data on compatability ---
   
   # Check if dataset is provided
-  if(is.null(data_set)){
+  if (is.null(data_set)) {
     stop("You have to provide the panel data set.")
   }
   
   # Check if endogenous variable is provided
-  if(is.null(endog_data)){
+  if (is.null(endog_data)) {
     stop("You have to provide the name of the endogenous variable.")
   }
   
   # Check if shock variable is provided
-  if(is.null(shock)){
+  if (is.null(shock)) {
     stop("You have to provide the name of the variable to shock with.")
   }
   
   # Check if panel model type is valid
-  if(!panel_model %in% c("within", "random", "ht", "between", "pooling", "fd")){
+  if (!panel_model %in% c("within", "random", "ht", "between", "pooling", "fd")) {
     stop("Invalid panel model type.")
   }
   
   # Check if panel effect specification is valid
-  if(!panel_effect %in% c("individual", "time", "twoways", "nested")){
+  if (!panel_effect %in% c("individual", "time", "twoways", "nested")) {
     stop("Invalid panel effect specification.")
   }
   
   # Check if confidence interval width is valid
-  if(is.null(confint) || !(confint >= 0)){
+  if (is.null(confint) || !(confint >= 0)) {
     stop("Specify a valid width for the confidence bands (>=0).")
   }
   
   # Check if the number of horizons is a positive integer
-  if(!(hor > 0) | is.nan(hor) | !(hor %% 1 == 0)){
+  if (!(hor > 0) | is.nan(hor) | !(hor %% 1 == 0)) {
     stop("Number of horizons must be a positive integer.")
   }
+  
+  # Check if Wild.Cluster.Boost has a number of iteration
+  if (robust_cov == "wild.cluster.boost" & is.null(biter)) {
+    stop("Specify the number of iterations.")
+  }
+  
+  # Check if Wild.Cluster.Boost has a defined cluster
+  if (robust_cov == "wild.cluster.boost" & (is.null(robust_cluster) | !robust_cluster %in% c("group", "time"))) {
+    stop("Specify the right cluster.")
+  }
+  
   
   # Rename first two columns to standard identifiers
   colnames(data_set)[1] <- "cross_id"
@@ -177,26 +189,36 @@ LP_LIN_PANEL <- function(
   
   # Store specifications in a list
   specs <- list(
+    
+    # Basics
     data_sample = data_sample,
     endog_data = endog_data,
     cumul_mult = cumul_mult,
     shock = shock,
     diff_shock = diff_shock,
+    
+    # Panel Model
     panel_model = panel_model,
     panel_effect = panel_effect,
+    
+    # Robust
     robust_cov = robust_cov,
     robust_cluster = robust_cluster,
+    confint = confint,
+    biter = biter,
+    model_type = 2,
+    
+    # Exogenous Vars
     c_exog_data = c_exog_data,
     l_exog_data = l_exog_data,
     lags_exog_data = lags_exog_data,
     c_fd_exog_data = c_fd_exog_data,
     l_fd_exog_data = l_fd_exog_data,
     lags_fd_exog_data = lags_fd_exog_data,
-    confint = confint,
     hor = hor,
-    biter = biter,
     exog_data = colnames(data_set)[which(!colnames(data_set) %in% c("cross_id", "date_id"))],
-    model_type = 2,
+    
+    # Not relevant argument
     is_nl = FALSE
   )
   
@@ -220,10 +242,10 @@ LP_LIN_PANEL <- function(
   ols_formula <- paste(y_reg_name, "~", paste(x_reg_names[!(x_reg_names %in% c("cross_id", "date_id"))], collapse = " + "))
   plm_formula <- stats::as.formula(ols_formula)
   
-  # Repare lfe regression formula 
-  fe <- "cross_id"
-  fe_formula <- paste(ols_formula, " | ", fe, " | ")
-  felm_formula <- stats::as.formula(fe_formula)
+  # # Repare lfe regression formula 
+  # fe <- "cross_id"
+  # fe_formula <- paste(ols_formula, " | ", fe, " | ")
+  # felm_formula <- stats::as.formula(fe_formula)
   
   # Loop over horizons to estimate impulse responses
   for(ii in 1:specs$hor){
@@ -241,9 +263,9 @@ LP_LIN_PANEL <- function(
     
     ## Estimate Regression ---
     
-    # Estimate Panel Regression with lfe-package
-    panel_results_felm <- lfe::felm(formula = felm_formula, data = yx_data)    
-    reg_output_tmp <- panel_results_felm
+    # # Estimate Panel Regression with lfe-package
+    # panel_results_felm <- lfe::felm(formula = felm_formula, data = yx_data)    
+    # reg_output_tmp <- panel_results_felm
     
     # Depreciated - Estimate panel regression
     panel_results <- plm::plm(formula = plm_formula, data = yx_data, index = c("cross_id", "date_id"), model = specs$panel_model, effect = specs$panel_effect)
@@ -333,7 +355,7 @@ LP_LIN_PANEL <- function(
 
 
 
-# Extension for the original "get_robust_cov_panel" function by 
+# Extension for the original "get_robust_cov_panel" function by  ---------------
 # Wild Clustered Bootstrap
 GET_ROBUST_COV_PANEL <- function(panel_results, specs){
   
@@ -388,7 +410,8 @@ GET_ROBUST_COV_PANEL <- function(panel_results, specs){
                                dat = yx_data,
                                cluster = specs$robust_cluster,
                                boot.reps = specs$biter,
-                               ci.level = confint_level
+                               ci.level = confint_level,
+                               report = FALSE
                                )
     
     # Get Coefficient of Shock
@@ -407,4 +430,70 @@ GET_ROBUST_COV_PANEL <- function(panel_results, specs){
   
 }
 
+##
+
+
+
+### TEST GROUND ####
+
+df_hp_large_lp <- df_hp_large |> 
+  # filter(d_hhi_indicator) |> 
+  dplyr::select("fips", "year", "log_loan_amount", "hhi", "I_HHI_ZLB2_NS", "ur", 
+                "log_median_household_income", "hpi_annual_change_perc", "inflation_us", "gdp_growth_us")
+
+
+test <- LP_LIN_PANEL(
+  data_set          = df_hp_large_lp,  # Panel dataset
+  data_sample       = "Full",  # Use full sample or subset
+  endog_data        = "log_loan_amount",  # Endogenous variable
+  cumul_mult        = TRUE,  # Estimate cumulative multipliers?
+  shock             = "I_HHI_ZLB2_NS",  # Shock variable
+  diff_shock        = TRUE,  # First difference of shock variable
+  panel_model       = "within",  # Panel model type
+  panel_effect      = "twoways",  # Panel effect type
+  robust_cov        = "wild.cluster.boot",  # Robust covariance estimation method
+  robust_cluster    = "time",
+  c_exog_data       = NULL,  # Contemporaneous exogenous variables
+  l_exog_data       = NULL,  # Lagged exogenous variables
+  lags_exog_data    = NULL,  # Lag length for exogenous variables
+  c_fd_exog_data    = colnames(df_hp_large_lp)[c(4, 6:10)],  # First-difference contemporaneous exogenous variables
+  l_fd_exog_data    = colnames(df_hp_large_lp)[c(4:10)],  # First-difference lagged exogenous variables
+  lags_fd_exog_data = 1,  # Lag length for first-difference exogenous variables
+  confint           = 1.65,  # Confidence interval width
+  hor               = 6,
+  biter             = 50
+)
+
+
+
+plot(test)
+
+
+#### COMPARISON ####
+
+## 3.1 FULL SAMPLE - Log Loan Amount -------------------------------------------
+
+df_hp_large_lp <- pdata.frame(df_hp_large_lp, index = c("fips", "year"))
+
+results_lpirf <- lpirfs::lp_lin_panel(
+  data_set = df_hp_large_lp,
+  data_sample = "Full",
+  endog_data = "log_loan_amount",
+  cumul_mult = TRUE,
+  shock = "I_HHI_ZLB2_NS",
+  diff_shock = TRUE,
+  panel_model = "within",
+  panel_effect = "twoways",
+  robust_cov = "vcovSCC",
+  c_fd_exog_data = colnames(df_hp_large_lp)[c(4, 6:10)],
+  l_fd_exog_data = colnames(df_hp_large_lp)[c(4:10)],
+  lags_fd_exog_data = 1,
+  confint = 1.65,
+  hor = 6
+)
+
+plot(results)
+
+
+################################### END #######################################+
 
