@@ -101,7 +101,9 @@ LP_LIN_PANEL <- function(
     l_fd_exog_data    = NULL,  # First-difference lagged exogenous variables
     lags_fd_exog_data = NaN,  # Lag length for first-difference exogenous variables
     confint           = NULL,  # Confidence interval width
-    hor               = NULL){  # Number of horizons
+    hor               = NULL,
+    biter             = NULL
+    ){  # Number of horizons
   
   if (DEBUG) {
   data_set <- df_hp_large_lp
@@ -112,16 +114,25 @@ LP_LIN_PANEL <- function(
   diff_shock <-  TRUE
   panel_model <-  "within"
   panel_effect <-  "twoways"
-  robust_cov <-  "vcovSCC"
+  robust_cov <-  "wild.cluster.boot"
+  robust_method <- NULL
+  robust_type <- NULL
+  robust_cluster <- "group"
+  
   c_exog_data <-  colnames(df_hp_large_lp)[c(4, 6:10)]
   c_fd_exog_data <- NULL
   l_exog_data <-  colnames(df_hp_large_lp)[c(4:10)] 
   l_fd_exog_data <- NULL
   lags_exog_data <-  1
   lags_fd_exog_data <- NULL
-  confint <- 1.67
+  confint <- 1.65
   hor <- 6
+  biter <- 10
   }
+  
+  
+  ## Check Data on compatability ---
+  
   # Check if dataset is provided
   if(is.null(data_set)){
     stop("You have to provide the panel data set.")
@@ -174,6 +185,7 @@ LP_LIN_PANEL <- function(
     panel_model = panel_model,
     panel_effect = panel_effect,
     robust_cov = robust_cov,
+    robust_cluster = robust_cluster,
     c_exog_data = c_exog_data,
     l_exog_data = l_exog_data,
     lags_exog_data = lags_exog_data,
@@ -182,6 +194,7 @@ LP_LIN_PANEL <- function(
     lags_fd_exog_data = lags_fd_exog_data,
     confint = confint,
     hor = hor,
+    biter = biter,
     exog_data = colnames(data_set)[which(!colnames(data_set) %in% c("cross_id", "date_id"))],
     model_type = 2,
     is_nl = FALSE
@@ -207,8 +220,15 @@ LP_LIN_PANEL <- function(
   ols_formula <- paste(y_reg_name, "~", paste(x_reg_names[!(x_reg_names %in% c("cross_id", "date_id"))], collapse = " + "))
   plm_formula <- stats::as.formula(ols_formula)
   
+  # Repare lfe regression formula 
+  fe <- "cross_id"
+  fe_formula <- paste(ols_formula, " | ", fe, " | ")
+  felm_formula <- stats::as.formula(fe_formula)
+  
   # Loop over horizons to estimate impulse responses
   for(ii in 1:specs$hor){
+    
+    ## Create Panel Dataset for this Period ---
     
     if (DEBUG) ii <- 1
     # Merge dependent and independent variables
@@ -219,21 +239,73 @@ LP_LIN_PANEL <- function(
       yx_data <- dplyr::filter(yx_data, date_id %in% specs$data_sample)
     }
     
-    # Estimate panel regression
-    panel_results <- plm::plm(formula = plm_formula, data = yx_data, index = c("cross_id", "date_id"), model = specs$panel_model, effect = specs$panel_effect)
-    reg_output_tmp <- panel_results
-    reg_summary_tmp <- summary(panel_results)
+    ## Estimate Regression ---
     
-    # Extract shock coefficient
-    shock_position <- which(stats::variable.names(t(reg_summary_tmp$coef)) == specs$shock)
-    if(is.integer(shock_position) && length(shock_position) == 0){
-      stop("Shock variable dropped during estimation. IRFs cannot be estimated.")
+    # Estimate Panel Regression with lfe-package
+    panel_results_felm <- lfe::felm(formula = felm_formula, data = yx_data)    
+    reg_output_tmp <- panel_results_felm
+    
+    # Depreciated - Estimate panel regression
+    panel_results <- plm::plm(formula = plm_formula, data = yx_data, index = c("cross_id", "date_id"), model = specs$panel_model, effect = specs$panel_effect)
+    # reg_output_tmp <- panel_results
+    # reg_summary_tmp <- summary(panel_results)
+    
+    
+    ## Calculate Standard Errors ---
+    
+    # Estimate confidence bands with robust standard errors?
+    if(is.character(specs$robust_cov)){
+      
+      # Estimate robust covariance matrices
+      if(specs$robust_cov %in% c("vcovBK", "vcovDC", "vcovHC", "vcovNW", "vcovSCC", "wild.cluster.boot")){
+        
+        reg_output_tmp  <- panel_results
+        reg_summary_tmp <- GET_ROBUST_COV_PANEL(panel_results, specs)
+        
+      } else {
+        
+        reg_output_tmp  <- panel_results
+        reg_summary_tmp <-  lmtest::coeftest(panel_results,  vcov = get_robust_vcxt_panel(specs$robust_cov))
+        
+      }
+      
+      # Extract the position of the parameters of the shock variable
+      shock_position <- which(stats::variable.names(t(reg_summary_tmp)) == specs$shock)
+      
+      # If shock variable could not be found, stop estimation and give message
+      if(is.integer(shock_position) && length(shock_position) == 0){
+        stop("The shock variable has been dropped during the estimation. The
+                 impulse responses can not be estimated.")
+      }
+      
+      
+      
+      # Estimate irfs and confidence bands
+      irf_panel_mean[[1, ii]]   <- reg_summary_tmp[shock_position, 1]
+      irf_panel_up[[1,   ii]]   <- reg_summary_tmp[shock_position, 1] + specs$confint*reg_summary_tmp[shock_position, 2]
+      irf_panel_low[[1,  ii]]   <- reg_summary_tmp[shock_position, 1] - specs$confint*reg_summary_tmp[shock_position, 2]
+      
+    }      else      { 
+      
+      reg_output_tmp  <- panel_results
+      reg_summary_tmp <- summary(panel_results)
+      
+      # Extract the position of the parameters of the shock variable
+      shock_position <- which(stats::variable.names(t(reg_summary_tmp$coef)) == specs$shock)
+      
+      # If shock variable could not be found, stop estimation and give message
+      if(is.integer(shock_position) && length(shock_position) == 0){
+        stop("The shock variable was dropped during the estimation, perhaps because of co-linearity or identification issues.
+               As a consequence, the  impulse responses can not be estimated.")
+      }
+      
+      # Estimate irfs and confidence bands
+      irf_panel_mean[[1, ii]]   <- reg_summary_tmp$coefficients[shock_position, 1]
+      irf_panel_up[[1,   ii]]   <- reg_summary_tmp$coefficients[shock_position, 1] + specs$confint*reg_summary_tmp$coefficients[shock_position, 2]
+      irf_panel_low[[1,  ii]]   <- reg_summary_tmp$coefficients[shock_position, 1] - specs$confint*reg_summary_tmp$coefficients[shock_position, 2]
+      
     }
     
-    # Compute impulse responses and confidence bands
-    irf_panel_mean[[1, ii]] <- reg_summary_tmp$coefficients[shock_position, 1]
-    irf_panel_up[[1, ii]] <- reg_summary_tmp$coefficients[shock_position, 1] + specs$confint * reg_summary_tmp$coefficients[shock_position, 2]
-    irf_panel_low[[1, ii]] <- reg_summary_tmp$coefficients[shock_position, 1] - specs$confint * reg_summary_tmp$coefficients[shock_position, 2]
     
     # Store results
     reg_outputs[[ii]] <- reg_output_tmp
@@ -257,3 +329,82 @@ LP_LIN_PANEL <- function(
   class(result) <- "lpirfs_lin_panel_obj"
   return(result)
 }
+
+
+
+
+# Extension for the original "get_robust_cov_panel" function by 
+# Wild Clustered Bootstrap
+GET_ROBUST_COV_PANEL <- function(panel_results, specs){
+  
+  if(specs$robust_cov         == "vcovBK"){
+    
+    # Panel Corrected Standard Errors after Beck and Katz (1995)
+    reg_results <- lmtest::coeftest(panel_results, vcov. = plm::vcovBK(panel_results,
+                                                                       type    = specs$robust_type,
+                                                                       cluster = specs$robust_cluster))
+    
+  } else if (specs$robust_cov == "vcovDC"){
+    
+    # High-level convenience wrapper for double-clustering robust covariance matrix estimators after Thompson (2011)
+    reg_results <- lmtest::coeftest(panel_results, vcov. = plm::vcovDC(panel_results,
+                                                                       type    = specs$robust_type))
+    
+    
+  } else if (specs$robust_cov == "vcovHC"){
+    
+    # Clustered-Robust Heteroskedastic Standard Errors
+    reg_results <- lmtest::coeftest(panel_results, vcov. = plm::vcovHC(panel_results,
+                                                                       method   = specs$robust_method,
+                                                                       type     = specs$robust_type,
+                                                                       cluster  = specs$robust_cluster))
+    
+  } else if (specs$robust_cov == "vcovNW"){
+    
+    # Newey-White Robust Standard Errors
+    reg_results <- lmtest::coeftest(panel_results, vcov. = plm::vcovNW(panel_results,
+                                                                       type    = specs$robust_type,
+                                                                       maxlag  = specs$robust_maxlag))
+  } else if (specs$robust_cov == "vcovSCC"){
+    
+    # Driscroll-Kraay SE (1998) - Accounts for cross-sectional and time dependence
+    reg_results <- lmtest::coeftest(panel_results, vcov. = plm::vcovSCC(panel_results,
+                                                                        type    = specs$robust_type,
+                                                                        maxlag  = specs$robust_maxlag))
+    
+  } else if (specs$robust_cov == "wild.cluster.boot") {
+    
+    # Determine confidence level
+    confint_list <- list("1.96" = 0.95, "1.65" = 0.9, "1" = 0.68)  
+    target_confint <- as.character(specs$confint)
+    confint_level <- confint_list[[target_confint]]
+    
+    
+    # Apply Wild Cluster Bootstrap to account for the case when N converges to infinity with fixed T
+    # Problem: Asymptotic Distribution will be dominated by the cross-sectional dimension, which
+    # causes concerns about distortions generated when there are roots near unity.
+    # Wild Cluster Bootstrap corrects the heteroskedasticity by using a cluster-robust approach.
+    wild_b <- cluster.wild.plm(panel_results,
+                               dat = yx_data,
+                               cluster = specs$robust_cluster,
+                               boot.reps = specs$biter,
+                               ci.level = confint_level
+                               )
+    
+    # Get Coefficient of Shock
+    index_shock <- which(stats::variable.names(t(wild_b$ci)) == specs$shock)
+    estimate <- coef(panel_results)[which(stats::variable.names(t(panel_results$coefficients)) == specs$shock)]
+    
+    # Calculate SE
+    wild_se <- (wild_b$ci[2, 2] - estimate) / 1.96
+    
+    # Save in line with coeftest class
+    reg_results <- data.frame(estimate = estimate, se = wild_se)
+    
+  }
+  
+  return(reg_results)
+  
+}
+
+
