@@ -469,6 +469,7 @@ create_panel_data <- function(specs, data_set){
     specs$biter <- 10
     specs$exog_data           <- colnames(data_set)[which(!colnames(data_set) %in%
                                                             c("cross_id", "date_id"))]
+    specs$tLAHR <- TRUE
   }
   
   
@@ -488,7 +489,7 @@ create_panel_data <- function(specs, data_set){
   
   }
   
-  # Cumulative Multiplier ---
+  # Endogenous Variable ---
   
   # Prepare list for endogenous variables
   y_data <- vector("list", specs$hor)
@@ -501,7 +502,7 @@ create_panel_data <- function(specs, data_set){
     for(ii in 0:(specs$hor-1)){
       
       # Create cumulative endogenous vector
-      y_data[[ii + 1]]     <-  data_set %>%
+      y_data[[ii + 1]]     <-  data_set                    |> 
         dplyr::select(cross_id, date_id, specs$endog_data) |> 
         dplyr::group_by(cross_id)                          |> 
         dplyr::mutate_at(vars(specs$endog_data),
@@ -526,6 +527,45 @@ create_panel_data <- function(specs, data_set){
     
   }
   
+  # Implement t-LAHR
+  # time-clustered heteroskedastic-robust Inference
+  if (!is.NULL(l_endog_data) | robust_cov == "t_LAHR") {
+    
+      # Use simple p-selection rule for determining the number of lags p
+      periods <- length(unique(y_data[[ii]]$date_id))
+      p <- min(specs$hor, floor((periods - specs$hor)^(1/3)))
+      
+      # Make lag sequence
+      lags_endog      <- seq(p)
+      
+      # Lag function
+      lag_functions  <- lapply(lags_exog, function(x) function(col) dplyr::lag(col, x))
+      
+      # Make labels for lagged variables
+      end_lag_labels <- paste(unlist(lapply(specs$endog_data, rep, max(lags_endog))), "_lag_", lags_endog, sep = "")
+      
+      # Lag Levels of Endogenous variable
+      l_y_data <- data_set |> 
+        dplyr::select(cross_id, date_id, specs$endog_data)      |> 
+        dplyr::group_by(cross_id)                               |> 
+        dplyr::mutate_at(vars(specs$endog_data), lag_functions) |> 
+        ungroup()                                               |> 
+        dplyr::select(-specs$endog_data)
+      
+      # Rename columns
+      colnames(l_y_data)[3:dim(l_y_data)[2]] <- end_lag_labels
+      
+      # Loop to add level Lags to each element in list
+      for(ii in 0:(specs$hor-1)) {
+        
+        # Merge to y_data by list
+        y_data[[ii + 1]] <- y_data[[ii + 1]] |> 
+          left_join(l_y_data, by = c("cross_id", "date_id"))
+        
+      }
+    
+  }
+  
   # Shock Variable ---
   
   # Prepare shock variable
@@ -547,6 +587,8 @@ create_panel_data <- function(specs, data_set){
     specs$shock   <- colnames(x_reg_data)[which(!(colnames(x_reg_data) %in% c("cross_id", "date_id")))]
     
   }
+  
+  
   
   # Exogenous Data ---
   
