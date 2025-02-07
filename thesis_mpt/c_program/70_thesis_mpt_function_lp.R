@@ -82,7 +82,7 @@ df_hp_large_lp <- df_hp_large |>
 # LP_LIN_PANEL Function -----
 
 # DEBUGGING ?
-DEBUG <- FALSE
+DEBUG <- F
 
 LP_LIN_PANEL <- function(
     data_set          = NULL,  # Panel dataset
@@ -108,7 +108,7 @@ LP_LIN_PANEL <- function(
     biter             = NULL
     ){  # Number of horizons
   
-  DEBUG <- FALSE
+
   if (DEBUG) {
   data_set <- df_hp_large_lp
   data_sample <- "Full"
@@ -131,6 +131,8 @@ LP_LIN_PANEL <- function(
   confint <- 1.65
   hor <- 6
   biter <- 10
+  lags_shock <- NULL
+  lags_endog_data <- NULL
   }
   
   
@@ -258,7 +260,9 @@ LP_LIN_PANEL <- function(
     
     ## Create Panel Dataset for this Period ---
     
-    if (DEBUG) ii <- 1
+    # Count Iteration
+    specs$iteration <- ii
+
     # Merge dependent and independent variables
     yx_data <- dplyr::left_join(y_data[[ii]], x_reg_data, by = c("cross_id", "date_id")) %>% stats::na.omit()
     
@@ -408,11 +412,12 @@ GET_ROBUST_COV_PANEL <- function(panel_results, specs){
     confint_level <- confint_list[[target_confint]]
     
     
+    
     # Apply Wild Cluster Bootstrap to account for the case when N converges to infinity with fixed T
     # Problem: Asymptotic Distribution will be dominated by the cross-sectional dimension, which
     # causes concerns about distortions generated when there are roots near unity.
     # Wild Cluster Bootstrap corrects the heteroskedasticity by using a cluster-robust approach.
-    wild_b <- cluster.wild.plm(panel_results,
+    wild_b <- clusterSEs::cluster.wild.plm(panel_results,
                                dat = yx_data,
                                cluster = specs$robust_cluster,
                                boot.reps = specs$biter,
@@ -432,6 +437,9 @@ GET_ROBUST_COV_PANEL <- function(panel_results, specs){
     
   } else if (specs$robust_cov == "tLAHR") {
     
+    # Update Message
+    message(paste0("tLAHR ", specs$iteration))
+    
     # Clustered-Robust Heteroskedastic Standard Errors: Clustered for time
     reg_results <- lmtest::coeftest(panel_results, vcov. = plm::vcovHC(panel_results,
                                                                        type     = "HC0",
@@ -447,7 +455,6 @@ GET_ROBUST_COV_PANEL <- function(panel_results, specs){
 
 CREATE_PANEL_DATA <- function(specs, data_set){
   
-  DEBUG <- TRUE
   
   if (DEBUG) {
     specs <- list()
@@ -538,9 +545,9 @@ CREATE_PANEL_DATA <- function(specs, data_set){
   }
   
   # Implement t-LAHR | time-clustered heteroskedastic-robust Inference
-  if (!is.NULL(specs$lags_endog_data) | robust_cov == "tLAHR") {
+  if (!is.null(specs$lags_endog_data) | specs$robust_cov == "tLAHR") {
     
-      if (robust_cov =="tLAHR") {  
+      if (specs$robust_cov =="tLAHR") {  
         # Use simple p-selection rule for determining the number of lags p
         periods <- length(unique(y_data[[ii]]$date_id))
         p <- min(specs$hor, floor((periods - specs$hor)^(1/3)))
@@ -589,9 +596,9 @@ CREATE_PANEL_DATA <- function(specs, data_set){
   x_reg_data <- data_set  |>  
     dplyr::select(cross_id, date_id, specs$shock)
   
-  specs$l_shock <- 1
-  specs$robust_cov <- "vcov"
-  specs$diff_shock <- TRUE
+  # specs$l_shock <- 1
+  # specs$robust_cov <- "vcov"
+  # specs$diff_shock <- TRUE
   
   # Lag level Shock - tLAHR ### 
   
@@ -827,7 +834,7 @@ df_hp_large_lp <- df_hp_large |>
                 "log_median_household_income", "hpi_annual_change_perc", "inflation_us", "gdp_growth_us")
 
 
-test <- LP_LIN_PANEL(
+WCD <- LP_LIN_PANEL(
   data_set          = df_hp_large_lp,  # Panel dataset
   data_sample       = "Full",  # Use full sample or subset
   endog_data        = "log_loan_amount",  # Endogenous variable
@@ -881,6 +888,33 @@ plot(results)
 
 
 
+
+# TRY tLAHR --------------------------------------------------------------------
+
+tlahr <- LP_LIN_PANEL(
+  data_set          = df_hp_large_lp,  # Panel dataset
+  data_sample       = "Full",  # Use full sample or subset
+  endog_data        = "log_loan_amount",  # Endogenous variable
+  cumul_mult        = TRUE,  # Estimate cumulative multipliers?
+  shock             = "I_HHI_ZLB2_NS",  # Shock variable
+  diff_shock        = TRUE,  # First difference of shock variable
+  panel_model       = "within",  # Panel model type
+  panel_effect      = "twoways",  # Panel effect type
+  robust_cov        = "tLAHR",  # Robust covariance estimation method
+  robust_cluster    = "time",
+  c_exog_data       = NULL,  # Contemporaneous exogenous variables
+  l_exog_data       = NULL,  # Lagged exogenous variables
+  lags_exog_data    = NULL,  # Lag length for exogenous variables
+  c_fd_exog_data    = colnames(df_hp_large_lp)[c(4, 6:10)],  # First-difference contemporaneous exogenous variables
+  l_fd_exog_data    = colnames(df_hp_large_lp)[c(4, 6:10)],  # First-difference lagged exogenous variables
+  lags_fd_exog_data = 2,  # Lag length for first-difference exogenous variables
+  confint           = 1.65,  # Confidence interval width
+  hor               = 6,
+  biter             = 50
+)
+
+# PLOT -------------------------------------------------------------------------
+
 library(ggplot2)
 library(dplyr)
 
@@ -899,6 +933,13 @@ df_irf <- bind_rows(
     lower = t(unlist(results_lpirf$irf_panel_low)),
     upper = t(unlist(results_lpirf$irf_panel_up)),
     group = "DK98"
+  ), 
+  data.frame(
+    time = seq_along(tlahr$irf_panel_mean),
+    lp = t(unlist(tlahr$irf_panel_mean)),
+    lower = t(unlist(tlahr$irf_panel_low)),
+    upper = t(unlist(tlahr$irf_panel_up)),
+    group = "tLAHR"
   )
 )
 
@@ -914,6 +955,6 @@ ggplot(df_irf, aes(x = time, y = lp, color = group)) +
        fill = "Model") +
   theme_minimal()
 
-
 ################################### END #######################################+
+
 
