@@ -439,7 +439,7 @@ GET_ROBUST_COV_PANEL <- function(panel_results, specs){
 
 ## EXTENSION OF CREATE LIN PANEL #### ------------------------------------------
 
-create_panel_data <- function(specs, data_set){
+CREATE_PANEL_DATA <- function(specs, data_set){
   
   DEBUG <- TRUE
   
@@ -532,15 +532,19 @@ create_panel_data <- function(specs, data_set){
   }
   
   # Implement t-LAHR | time-clustered heteroskedastic-robust Inference
-  if (!is.NULL(l_endog_data) | robust_cov == "tLAHR") {
+  if (!is.NULL(specs$lags_endog_data) | robust_cov == "tLAHR") {
     
-      # Use simple p-selection rule for determining the number of lags p
-      periods <- length(unique(y_data[[ii]]$date_id))
-      p <- min(specs$hor, floor((periods - specs$hor)^(1/3)))
-      
-      # Make lag sequence
-      lags_endog      <- seq(p)
-      
+      if (robust_cov =="tLAHR") {  
+        # Use simple p-selection rule for determining the number of lags p
+        periods <- length(unique(y_data[[ii]]$date_id))
+        p <- min(specs$hor, floor((periods - specs$hor)^(1/3)))
+        
+        # Make lag sequence
+        lags_endog      <- seq(p)
+      } else {
+        lags_endog <- specs$lags_endog_data
+      }
+    
       # Lag function
       lag_functions  <- lapply(lags_endog, function(x) function(col) dplyr::lag(col, x))
       
@@ -640,7 +644,7 @@ create_panel_data <- function(specs, data_set){
   }
   
   # Lag level FD Shock ###
-  if ((!is.null(specs$l_shock) | specs$robust_cov == "tLAHR") & isTRUE(specs$diff_shock)) {
+  if ((!is.null(specs$lags_shock) | specs$robust_cov == "tLAHR") & isTRUE(specs$diff_shock)) {
     
     # Implement t-LAHR as proposed by Almuzara & Sancibrian (2024)
     if (specs$robust_cov == "tLAHR") {
@@ -655,7 +659,7 @@ create_panel_data <- function(specs, data_set){
     } else {
       
       # Choose your own number of lags
-      lags_shock <- specs$l_shock
+      lags_shock <- specs$lags_shock
       
     }
     
