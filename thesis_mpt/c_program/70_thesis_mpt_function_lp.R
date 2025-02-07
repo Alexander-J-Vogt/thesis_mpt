@@ -279,7 +279,7 @@ LP_LIN_PANEL <- function(
     if(is.character(specs$robust_cov)){
       
       # Estimate robust covariance matrices
-      if(specs$robust_cov %in% c("vcovBK", "vcovDC", "vcovHC", "vcovNW", "vcovSCC", "wild.cluster.boot")){
+      if(specs$robust_cov %in% c("vcovBK", "vcovDC", "vcovHC", "vcovNW", "vcovSCC", "wild.cluster.boot", "tLAHR")){
         
         reg_output_tmp  <- panel_results
         reg_summary_tmp <- GET_ROBUST_COV_PANEL(panel_results, specs)
@@ -424,13 +424,20 @@ GET_ROBUST_COV_PANEL <- function(panel_results, specs){
     # Save in line with coeftest class
     reg_results <- data.frame(estimate = estimate, se = wild_se)
     
+  } else if (specs$robust_cov == "tLAHR") {
+    
+    # Clustered-Robust Heteroskedastic Standard Errors: Clustered for time
+    reg_results <- lmtest::coeftest(panel_results, vcov. = plm::vcovHC(panel_results,
+                                                                       type     = "HC0",
+                                                                       cluster  = "time")) 
+    
   }
   
   return(reg_results)
   
 }
 
-##
+## EXTENSION OF CREATE LIN PANEL #### ------------------------------------------
 
 
 
