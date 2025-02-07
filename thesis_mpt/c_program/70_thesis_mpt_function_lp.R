@@ -82,19 +82,21 @@ df_hp_large_lp <- df_hp_large |>
 # LP_LIN_PANEL Function -----
 
 # DEBUGGING ?
-DEBUG <- FALSE
+DEBUG <- F
 
 LP_LIN_PANEL <- function(
     data_set          = NULL,  # Panel dataset
     data_sample       = "Full",  # Use full sample or subset
     endog_data        = NULL,  # Endogenous variable
+    lags_endog_data   = NULL,  # NEW: Determine lags for endogenous Variable
     cumul_mult        = TRUE,  # Estimate cumulative multipliers?
     shock             = NULL,  # Shock variable
+    lags_shock        = NULL,  # NEW: Determine lags for shock variable (for level & FD)
     diff_shock        = TRUE,  # First difference of shock variable
     panel_model       = "within",  # Panel model type
     panel_effect      = "twoway",  # Panel effect type
-    robust_cov        = NULL,  # Robust covariance estimation method
-    robust_cluster    = NULL,
+    robust_cov        = NULL,  # Robust covariance estimation method: NEW: tLAHR
+    robust_cluster    = NULL,  # time vs group
     c_exog_data       = NULL,  # Contemporaneous exogenous variables
     l_exog_data       = NULL,  # Lagged exogenous variables
     lags_exog_data    = NaN,  # Lag length for exogenous variables
@@ -106,7 +108,7 @@ LP_LIN_PANEL <- function(
     biter             = NULL
     ){  # Number of horizons
   
-  DEBUG <- FALSE
+
   if (DEBUG) {
   data_set <- df_hp_large_lp
   data_sample <- "Full"
@@ -129,6 +131,8 @@ LP_LIN_PANEL <- function(
   confint <- 1.65
   hor <- 6
   biter <- 10
+  lags_shock <- NULL
+  lags_endog_data <- NULL
   }
   
   
@@ -208,6 +212,10 @@ LP_LIN_PANEL <- function(
     biter = biter,
     model_type = 2,
     
+    # lags for endogenous & shock
+    lags_shock = lags_shock,
+    lags_endog_data =lags_exog_data,
+    
     # Exogenous Vars
     c_exog_data = c_exog_data,
     l_exog_data = l_exog_data,
@@ -223,7 +231,7 @@ LP_LIN_PANEL <- function(
   )
   
   # Create panel data structure
-  lin_panel_data <- create_panel_data(specs, data_set)
+  lin_panel_data <- CREATE_PANEL_DATA(specs, data_set)
   specs <- lin_panel_data$specs
   x_reg_data <- lin_panel_data$x_reg_data
   y_data <- lin_panel_data$y_data
@@ -252,7 +260,9 @@ LP_LIN_PANEL <- function(
     
     ## Create Panel Dataset for this Period ---
     
-    if (DEBUG) ii <- 1
+    # Count Iteration
+    specs$iteration <- ii
+
     # Merge dependent and independent variables
     yx_data <- dplyr::left_join(y_data[[ii]], x_reg_data, by = c("cross_id", "date_id")) %>% stats::na.omit()
     
@@ -402,11 +412,12 @@ GET_ROBUST_COV_PANEL <- function(panel_results, specs){
     confint_level <- confint_list[[target_confint]]
     
     
+    
     # Apply Wild Cluster Bootstrap to account for the case when N converges to infinity with fixed T
     # Problem: Asymptotic Distribution will be dominated by the cross-sectional dimension, which
     # causes concerns about distortions generated when there are roots near unity.
     # Wild Cluster Bootstrap corrects the heteroskedasticity by using a cluster-robust approach.
-    wild_b <- cluster.wild.plm(panel_results,
+    wild_b <- clusterSEs::cluster.wild.plm(panel_results,
                                dat = yx_data,
                                cluster = specs$robust_cluster,
                                boot.reps = specs$biter,
@@ -426,6 +437,9 @@ GET_ROBUST_COV_PANEL <- function(panel_results, specs){
     
   } else if (specs$robust_cov == "tLAHR") {
     
+    # Update Message
+    message(paste0("tLAHR ", specs$iteration))
+    
     # Clustered-Robust Heteroskedastic Standard Errors: Clustered for time
     reg_results <- lmtest::coeftest(panel_results, vcov. = plm::vcovHC(panel_results,
                                                                        type     = "HC0",
@@ -439,9 +453,10 @@ GET_ROBUST_COV_PANEL <- function(panel_results, specs){
 
 ## EXTENSION OF CREATE LIN PANEL #### ------------------------------------------
 
-create_panel_data <- function(specs, data_set){
+
+CREATE_PANEL_DATA <- function(specs, data_set){
+
   
-  DEBUG <- TRUE
   
   if (DEBUG) {
     specs <- list()
@@ -469,10 +484,13 @@ create_panel_data <- function(specs, data_set){
     specs$biter <- 10
     specs$exog_data           <- colnames(data_set)[which(!colnames(data_set) %in%
                                                             c("cross_id", "date_id"))]
+    specs$tLAHR <- TRUE
+    specs$l_endog_data <- 1
   }
   
-  
+  #############################################################################+
   # Function ---
+  #############################################################################+
   
   # Function to compute first differences
   diff_function <- function(data) {
@@ -488,8 +506,11 @@ create_panel_data <- function(specs, data_set){
   
   }
   
-  # Cumulative Multiplier ---
-  
+
+  #############################################################################+
+  # Endogenous Variable ---
+  #############################################################################+
+
   # Prepare list for endogenous variables
   y_data <- vector("list", specs$hor)
   
@@ -501,7 +522,7 @@ create_panel_data <- function(specs, data_set){
     for(ii in 0:(specs$hor-1)){
       
       # Create cumulative endogenous vector
-      y_data[[ii + 1]]     <-  data_set %>%
+      y_data[[ii + 1]]     <-  data_set                    |> 
         dplyr::select(cross_id, date_id, specs$endog_data) |> 
         dplyr::group_by(cross_id)                          |> 
         dplyr::mutate_at(vars(specs$endog_data),
@@ -526,15 +547,107 @@ create_panel_data <- function(specs, data_set){
     
   }
   
-  # Shock Variable ---
+  # Implement t-LAHR | time-clustered heteroskedastic-robust Inference
+  if (!is.null(specs$lags_endog_data) | specs$robust_cov == "tLAHR") {
+    
+      if (specs$robust_cov =="tLAHR") {  
+        # Use simple p-selection rule for determining the number of lags p
+        periods <- length(unique(y_data[[ii]]$date_id))
+        p <- min(specs$hor, floor((periods - specs$hor)^(1/3)))
+        
+        # Make lag sequence
+        lags_endog      <- seq(p)
+      } else {
+        lags_endog <- specs$lags_endog_data
+      }
+    
+      # Lag function
+      lag_functions  <- lapply(lags_endog, function(x) function(col) dplyr::lag(col, x))
+      
+      # Make labels for lagged variables
+      end_lag_labels <- paste(unlist(lapply(specs$endog_data, rep, max(lags_endog))), "_lag_", lags_endog, sep = "")
+      
+      # Lag Levels of Endogenous variable
+      l_y_data <- data_set |> 
+        dplyr::select(cross_id, date_id, specs$endog_data)      |> 
+        dplyr::group_by(cross_id)                               |> 
+        dplyr::mutate_at(vars(specs$endog_data), lag_functions) |> 
+        ungroup()                                               |> 
+        dplyr::select(-specs$endog_data)
+      
+      # Rename columns
+      colnames(l_y_data)[3:dim(l_y_data)[2]] <- end_lag_labels
+      
+      # Loop to add level Lags to each element in list
+      for(ii in 0:(specs$hor-1)) {
+        
+        # Merge to y_data by list
+        y_data[[ii + 1]] <- y_data[[ii + 1]] |> 
+          left_join(l_y_data, by = c("cross_id", "date_id"))
+        
+      }
+    
+  }
+  
+  #############################################################################+
+  # Shock Variable 
+  #############################################################################+
+  
+  # Prepare shock variable ----------------------------------------------------+
   
   # Prepare shock variable
   x_reg_data <- data_set  |>  
     dplyr::select(cross_id, date_id, specs$shock)
   
+  # specs$l_shock <- 1
+  # specs$robust_cov <- "vcov"
+  # specs$diff_shock <- TRUE
   
-  # Take first differences of shock variable?
-  # Overwrite x_reg_data in case of FD.
+
+  # Lag level Shock - tLAHR ### 
+  
+  if ((!is.null(specs$l_shock) | specs$robust_cov == "tLAHR") & isFALSE(specs$diff_shock)) {
+     
+    # Implement t-LAHR as proposed by Almuzara & Sancibrian (2024)
+    if (specs$robust_cov == "tLAHR") {
+    
+      # Use simple p-selection rule for determining the number of lags p
+      periods <- length(unique(x_reg_data$date_id))
+      p <- min(specs$hor, floor((periods - specs$hor)^(1/3)))
+    
+      # Make lag sequence
+      lags_shock <- seq(p)
+    
+    } else {
+      
+      # Choose your own number of lags
+      lags_shock <- specs$l_shock
+    
+    }
+    
+    # Lag function
+    lag_functions  <- lapply(lags_shock, function(x) function(col) dplyr::lag(col, x))
+    
+    # Make labels for lagged variables
+    end_lag_labels <- paste(unlist(lapply(specs$shock, rep, max(lags_shock))), "_lag_", lags_shock, sep = "")
+    
+    # Lag Levels of Endogenous variable
+    x_reg_data <- x_reg_data |> 
+      dplyr::select(cross_id, date_id, specs$shock)      |> 
+      dplyr::group_by(cross_id)                          |> 
+      dplyr::mutate_at(vars(specs$shock), lag_functions) |> 
+      ungroup()
+    
+    # Rename columns
+    colnames(x_reg_data)[4:dim(x_reg_data)[2]] <- end_lag_labels
+  
+  }
+  
+  
+  # Take first differences of shock variable? ---------------------------------+
+  
+  # Overwrite x_reg_data in case of FD ###
+
   if(isTRUE(specs$diff_shock)){
     
     x_reg_data    <- x_reg_data                                 |> 
@@ -548,10 +661,53 @@ create_panel_data <- function(specs, data_set){
     
   }
   
-  # Exogenous Data ---
+  # Lag level FD Shock ###
+  if ((!is.null(specs$lags_shock) | specs$robust_cov == "tLAHR") & isTRUE(specs$diff_shock)) {
+    
+    # Implement t-LAHR as proposed by Almuzara & Sancibrian (2024)
+    if (specs$robust_cov == "tLAHR") {
+      
+      # Use simple p-selection rule for determining the number of lags p
+      periods <- length(unique(x_reg_data$date_id))
+      p <- min(specs$hor, floor((periods - specs$hor)^(1/3)))
+      
+      # Make lag sequence
+      lags_shock      <- seq(p)
+      
+    } else {
+      
+      # Choose your own number of lags
+      lags_shock <- specs$lags_shock
+      
+    }
+    
+    # Lag function
+    lag_functions  <- lapply(lags_shock, function(x) function(col) dplyr::lag(col, x))
+    
+    # Make labels for lagged variables
+    end_lag_labels <- paste(unlist(lapply(specs$shock, rep, max(lags_shock))), "_lag_", lags_shock, sep = "")
+    
+    # Lag Levels of Endogenous variable
+    x_reg_data <- x_reg_data |> 
+      dplyr::select(cross_id, date_id, specs$shock)      |> 
+      dplyr::group_by(cross_id)                               |> 
+      dplyr::mutate_at(vars(specs$shock), lag_functions) |> 
+      ungroup()
+    
+    # Rename columns
+    colnames(x_reg_data)[4:dim(x_reg_data)[2]] <- end_lag_labels
+    
+  }
   
-  # Prepare exogenous data (Select first all var but later select exogenous vars
-  # depending on the defined vars in specs.)
+
+  #############################################################################+
+  # Exogenous Data ---
+  #############################################################################+
+  
+  # Prepare exogenous data ----------------------------------------------------+
+  
+  # Select first all var but later select exogenous vars
+  # depending on the defined vars in specs.
   x_data <- data_set |> 
     dplyr::select(cross_id, date_id, specs$exog_data)
   
@@ -567,7 +723,9 @@ create_panel_data <- function(specs, data_set){
     
   }
   
-  # Create lagged exogenous data
+  
+  # Create lagged exogenous data ----------------------------------------------+ 
+  
   if(!is.null(specs$l_exog_data)){
     
     # Make lag sequence
@@ -596,7 +754,9 @@ create_panel_data <- function(specs, data_set){
     
   }
   
-  # Calculate first differences of exogenous data?
+  
+  # Calculate first differences of exogenous data? ----------------------------+
+  
   if(!is.null(specs$c_fd_exog_data) | !is.null(specs$l_fd_exog_data)){
     
     d_x_data       <- x_data                                             |> 
@@ -607,7 +767,8 @@ create_panel_data <- function(specs, data_set){
     
   }
   
-  # Create data with contemporanous impact of first differences
+  # Create data with contemporanous impact of first differences ---------------+
+  
   if(!is.null(specs$c_fd_exog_data)){
     
     # Specify column names to choose
@@ -626,7 +787,8 @@ create_panel_data <- function(specs, data_set){
   }
   
   
-  # Create lagged exogenous data of first differences
+  # Create lagged exogenous data of first differences -------------------------+
+  
   if(!is.null(specs$l_fd_exog_data)){
     
     # Specify column names to choose
@@ -676,7 +838,7 @@ df_hp_large_lp <- df_hp_large |>
                 "log_median_household_income", "hpi_annual_change_perc", "inflation_us", "gdp_growth_us")
 
 
-test <- LP_LIN_PANEL(
+WCD <- LP_LIN_PANEL(
   data_set          = df_hp_large_lp,  # Panel dataset
   data_sample       = "Full",  # Use full sample or subset
   endog_data        = "log_loan_amount",  # Endogenous variable
@@ -730,6 +892,33 @@ plot(results)
 
 
 
+
+# TRY tLAHR --------------------------------------------------------------------
+
+tlahr <- LP_LIN_PANEL(
+  data_set          = df_hp_large_lp,  # Panel dataset
+  data_sample       = "Full",  # Use full sample or subset
+  endog_data        = "log_loan_amount",  # Endogenous variable
+  cumul_mult        = TRUE,  # Estimate cumulative multipliers?
+  shock             = "I_HHI_ZLB2_NS",  # Shock variable
+  diff_shock        = TRUE,  # First difference of shock variable
+  panel_model       = "within",  # Panel model type
+  panel_effect      = "twoways",  # Panel effect type
+  robust_cov        = "tLAHR",  # Robust covariance estimation method
+  robust_cluster    = "time",
+  c_exog_data       = NULL,  # Contemporaneous exogenous variables
+  l_exog_data       = NULL,  # Lagged exogenous variables
+  lags_exog_data    = NULL,  # Lag length for exogenous variables
+  c_fd_exog_data    = colnames(df_hp_large_lp)[c(4, 6:10)],  # First-difference contemporaneous exogenous variables
+  l_fd_exog_data    = colnames(df_hp_large_lp)[c(4, 6:10)],  # First-difference lagged exogenous variables
+  lags_fd_exog_data = 2,  # Lag length for first-difference exogenous variables
+  confint           = 1.65,  # Confidence interval width
+  hor               = 6,
+  biter             = 50
+)
+
+# PLOT -------------------------------------------------------------------------
+
 library(ggplot2)
 library(dplyr)
 
@@ -748,6 +937,13 @@ df_irf <- bind_rows(
     lower = t(unlist(results_lpirf$irf_panel_low)),
     upper = t(unlist(results_lpirf$irf_panel_up)),
     group = "DK98"
+  ), 
+  data.frame(
+    time = seq_along(tlahr$irf_panel_mean),
+    lp = t(unlist(tlahr$irf_panel_mean)),
+    lower = t(unlist(tlahr$irf_panel_low)),
+    upper = t(unlist(tlahr$irf_panel_up)),
+    group = "tLAHR"
   )
 )
 
@@ -763,6 +959,6 @@ ggplot(df_irf, aes(x = time, y = lp, color = group)) +
        fill = "Model") +
   theme_minimal()
 
-
 ################################### END #######################################+
+
 
