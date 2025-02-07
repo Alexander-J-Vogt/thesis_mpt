@@ -470,10 +470,12 @@ create_panel_data <- function(specs, data_set){
     specs$exog_data           <- colnames(data_set)[which(!colnames(data_set) %in%
                                                             c("cross_id", "date_id"))]
     specs$tLAHR <- TRUE
+    specs$l_endog_data <- 1
   }
   
-  
+  #############################################################################+
   # Function ---
+  #############################################################################+
   
   # Function to compute first differences
   diff_function <- function(data) {
@@ -489,7 +491,9 @@ create_panel_data <- function(specs, data_set){
   
   }
   
+  #############################################################################+
   # Endogenous Variable ---
+  #############################################################################+
   
   # Prepare list for endogenous variables
   y_data <- vector("list", specs$hor)
@@ -527,9 +531,8 @@ create_panel_data <- function(specs, data_set){
     
   }
   
-  # Implement t-LAHR
-  # time-clustered heteroskedastic-robust Inference
-  if (!is.NULL(l_endog_data) | robust_cov == "t_LAHR") {
+  # Implement t-LAHR | time-clustered heteroskedastic-robust Inference
+  if (!is.NULL(l_endog_data) | robust_cov == "tLAHR") {
     
       # Use simple p-selection rule for determining the number of lags p
       periods <- length(unique(y_data[[ii]]$date_id))
@@ -539,7 +542,7 @@ create_panel_data <- function(specs, data_set){
       lags_endog      <- seq(p)
       
       # Lag function
-      lag_functions  <- lapply(lags_exog, function(x) function(col) dplyr::lag(col, x))
+      lag_functions  <- lapply(lags_endog, function(x) function(col) dplyr::lag(col, x))
       
       # Make labels for lagged variables
       end_lag_labels <- paste(unlist(lapply(specs$endog_data, rep, max(lags_endog))), "_lag_", lags_endog, sep = "")
@@ -566,15 +569,63 @@ create_panel_data <- function(specs, data_set){
     
   }
   
-  # Shock Variable ---
+  #############################################################################+
+  # Shock Variable 
+  #############################################################################+
+  
+  # Prepare shock variable ----------------------------------------------------+
   
   # Prepare shock variable
   x_reg_data <- data_set  |>  
     dplyr::select(cross_id, date_id, specs$shock)
   
+  specs$l_shock <- 1
+  specs$robust_cov <- "vcov"
+  specs$diff_shock <- TRUE
   
-  # Take first differences of shock variable?
-  # Overwrite x_reg_data in case of FD.
+  # Lag level Shock - tLAHR ### 
+  
+  if ((!is.null(specs$l_shock) | specs$robust_cov == "tLAHR") & isFALSE(specs$diff_shock)) {
+     
+    # Implement t-LAHR as proposed by Almuzara & Sancibrian (2024)
+    if (specs$robust_cov == "tLAHR") {
+    
+      # Use simple p-selection rule for determining the number of lags p
+      periods <- length(unique(x_reg_data$date_id))
+      p <- min(specs$hor, floor((periods - specs$hor)^(1/3)))
+    
+      # Make lag sequence
+      lags_shock <- seq(p)
+    
+    } else {
+      
+      # Choose your own number of lags
+      lags_shock <- specs$l_shock
+    
+    }
+    
+    # Lag function
+    lag_functions  <- lapply(lags_shock, function(x) function(col) dplyr::lag(col, x))
+    
+    # Make labels for lagged variables
+    end_lag_labels <- paste(unlist(lapply(specs$shock, rep, max(lags_shock))), "_lag_", lags_shock, sep = "")
+    
+    # Lag Levels of Endogenous variable
+    x_reg_data <- x_reg_data |> 
+      dplyr::select(cross_id, date_id, specs$shock)      |> 
+      dplyr::group_by(cross_id)                          |> 
+      dplyr::mutate_at(vars(specs$shock), lag_functions) |> 
+      ungroup()
+    
+    # Rename columns
+    colnames(x_reg_data)[4:dim(x_reg_data)[2]] <- end_lag_labels
+  
+  }
+  
+  
+  # Take first differences of shock variable? ---------------------------------+
+  
+  # Overwrite x_reg_data in case of FD ###
   if(isTRUE(specs$diff_shock)){
     
     x_reg_data    <- x_reg_data                                 |> 
@@ -588,12 +639,54 @@ create_panel_data <- function(specs, data_set){
     
   }
   
+  # Lag level FD Shock ###
+  if ((!is.null(specs$l_shock) | specs$robust_cov == "tLAHR") & isTRUE(specs$diff_shock)) {
+    
+    # Implement t-LAHR as proposed by Almuzara & Sancibrian (2024)
+    if (specs$robust_cov == "tLAHR") {
+      
+      # Use simple p-selection rule for determining the number of lags p
+      periods <- length(unique(x_reg_data$date_id))
+      p <- min(specs$hor, floor((periods - specs$hor)^(1/3)))
+      
+      # Make lag sequence
+      lags_shock      <- seq(p)
+      
+    } else {
+      
+      # Choose your own number of lags
+      lags_shock <- specs$l_shock
+      
+    }
+    
+    # Lag function
+    lag_functions  <- lapply(lags_shock, function(x) function(col) dplyr::lag(col, x))
+    
+    # Make labels for lagged variables
+    end_lag_labels <- paste(unlist(lapply(specs$shock, rep, max(lags_shock))), "_lag_", lags_shock, sep = "")
+    
+    # Lag Levels of Endogenous variable
+    x_reg_data <- x_reg_data |> 
+      dplyr::select(cross_id, date_id, specs$shock)      |> 
+      dplyr::group_by(cross_id)                               |> 
+      dplyr::mutate_at(vars(specs$shock), lag_functions) |> 
+      ungroup()
+    
+    # Rename columns
+    colnames(x_reg_data)[4:dim(x_reg_data)[2]] <- end_lag_labels
+    
+  }
   
   
+  
+  #############################################################################+
   # Exogenous Data ---
+  #############################################################################+
   
-  # Prepare exogenous data (Select first all var but later select exogenous vars
-  # depending on the defined vars in specs.)
+  # Prepare exogenous data ----------------------------------------------------+
+  
+  # Select first all var but later select exogenous vars
+  # depending on the defined vars in specs.
   x_data <- data_set |> 
     dplyr::select(cross_id, date_id, specs$exog_data)
   
@@ -609,7 +702,9 @@ create_panel_data <- function(specs, data_set){
     
   }
   
-  # Create lagged exogenous data
+  
+  # Create lagged exogenous data ----------------------------------------------+ 
+  
   if(!is.null(specs$l_exog_data)){
     
     # Make lag sequence
@@ -638,7 +733,9 @@ create_panel_data <- function(specs, data_set){
     
   }
   
-  # Calculate first differences of exogenous data?
+  
+  # Calculate first differences of exogenous data? ----------------------------+
+  
   if(!is.null(specs$c_fd_exog_data) | !is.null(specs$l_fd_exog_data)){
     
     d_x_data       <- x_data                                             |> 
@@ -649,7 +746,8 @@ create_panel_data <- function(specs, data_set){
     
   }
   
-  # Create data with contemporanous impact of first differences
+  # Create data with contemporanous impact of first differences ---------------+
+  
   if(!is.null(specs$c_fd_exog_data)){
     
     # Specify column names to choose
@@ -668,7 +766,8 @@ create_panel_data <- function(specs, data_set){
   }
   
   
-  # Create lagged exogenous data of first differences
+  # Create lagged exogenous data of first differences -------------------------+
+  
   if(!is.null(specs$l_fd_exog_data)){
     
     # Specify column names to choose
