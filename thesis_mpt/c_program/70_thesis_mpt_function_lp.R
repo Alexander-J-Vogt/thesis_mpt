@@ -88,13 +88,15 @@ LP_LIN_PANEL <- function(
     data_set          = NULL,  # Panel dataset
     data_sample       = "Full",  # Use full sample or subset
     endog_data        = NULL,  # Endogenous variable
+    lags_endog_data   = NULL,  # NEW: Determine lags for endogenous Variable
     cumul_mult        = TRUE,  # Estimate cumulative multipliers?
     shock             = NULL,  # Shock variable
+    lags_shock        = NULL,  # NEW: Determine lags for shock variable (for level & FD)
     diff_shock        = TRUE,  # First difference of shock variable
     panel_model       = "within",  # Panel model type
     panel_effect      = "twoway",  # Panel effect type
-    robust_cov        = NULL,  # Robust covariance estimation method
-    robust_cluster    = NULL,
+    robust_cov        = NULL,  # Robust covariance estimation method: NEW: tLAHR
+    robust_cluster    = NULL,  # time vs group
     c_exog_data       = NULL,  # Contemporaneous exogenous variables
     l_exog_data       = NULL,  # Lagged exogenous variables
     lags_exog_data    = NaN,  # Lag length for exogenous variables
@@ -208,6 +210,10 @@ LP_LIN_PANEL <- function(
     biter = biter,
     model_type = 2,
     
+    # lags for endogenous & shock
+    lags_shock = lags_shock,
+    lags_endog_data =lags_exog_data,
+    
     # Exogenous Vars
     c_exog_data = c_exog_data,
     l_exog_data = l_exog_data,
@@ -223,7 +229,7 @@ LP_LIN_PANEL <- function(
   )
   
   # Create panel data structure
-  lin_panel_data <- create_panel_data(specs, data_set)
+  lin_panel_data <- CREATE_PANEL_DATA(specs, data_set)
   specs <- lin_panel_data$specs
   x_reg_data <- lin_panel_data$x_reg_data
   y_data <- lin_panel_data$y_data
