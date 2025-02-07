@@ -441,7 +441,35 @@ GET_ROBUST_COV_PANEL <- function(panel_results, specs){
 
 create_panel_data <- function(specs, data_set){
   
-  if (DEBUG)
+  DEBUG <- TRUE
+  
+  if (DEBUG) {
+    specs <- list()
+    data_set <- df_hp_large_lp
+    data_set <- data_set |> rename(cross_id = fips, date_id = year)
+    specs$data_sample <- "Full"
+    specs$endog_data <- "log_loan_amount"
+    specs$cumul_mult <-  TRUE
+    specs$shock <-  "I_HHI_ZLB2_NS"
+    specs$diff_shock <-  TRUE
+    specs$panel_model <-  "within"
+    specs$panel_effect <-  "twoways"
+    specs$robust_cov <-  "wild.cluster.boot"
+    specs$robust_method <- NULL
+    specs$robust_type <- NULL
+    specs$robust_cluster <- "group"
+    specs$c_exog_data <-  NULL #colnames(df_hp_large_lp)[c(4, 6:10)]
+    specs$l_exog_data <-  NULL #colnames(df_hp_large_lp)[c(4:10)] 
+    specs$c_fd_exog_data <- colnames(df_hp_large_lp)[c(4, 6:10)]
+    specs$l_fd_exog_data <- colnames(df_hp_large_lp)[c(4:10)]
+    specs$lags_exog_data <-  NULL
+    specs$lags_fd_exog_data <- 1
+    specs$confint <- 1.65
+    specs$hor <- 6
+    specs$biter <- 10
+    specs$exog_data           <- colnames(data_set)[which(!colnames(data_set) %in%
+                                                            c("cross_id", "date_id"))]
+  }
   
   
   # Function ---
@@ -460,10 +488,11 @@ create_panel_data <- function(specs, data_set){
   
   }
   
+  # Cumulative Multiplier ---
+  
   # Prepare list for endogenous variables
   y_data <- vector("list", specs$hor)
   
-  # Cumulative Multiplier ---
   
   # Create horizons of dependent variables based on whether to use cumulative multipliers
   if(isTRUE(specs$cumul_mult)){
@@ -505,6 +534,7 @@ create_panel_data <- function(specs, data_set){
   
   
   # Take first differences of shock variable?
+  # Overwrite x_reg_data in case of FD.
   if(isTRUE(specs$diff_shock)){
     
     x_reg_data    <- x_reg_data                                 |> 
@@ -520,7 +550,8 @@ create_panel_data <- function(specs, data_set){
   
   # Exogenous Data ---
   
-  # Prepare exogenous data
+  # Prepare exogenous data (Select first all var but later select exogenous vars
+  # depending on the defined vars in specs.)
   x_data <- data_set |> 
     dplyr::select(cross_id, date_id, specs$exog_data)
   
