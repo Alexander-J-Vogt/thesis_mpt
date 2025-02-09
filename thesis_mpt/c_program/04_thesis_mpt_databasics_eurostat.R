@@ -24,58 +24,95 @@ gc()
 
 # 01. HICP - Monthly ===========================================================
 
-# Import data (Index = 2010)
-df_hicp_raw <- read_excel(
-  path = paste0(A, "c_eurostat/prc_hicp_midx__custom_14042520_page_spreadsheet.xlsx"),
-  sheet = "Sheet 1",
-  range = cell_rows(9:40),
-  col_types = "text"
-  )
+# # Import data (Index = 2010)
+# df_hicp_raw <- read_excel(
+#   path = paste0(A, "c_eurostat/prc_hicp_midx__custom_14042520_page_spreadsheet.xlsx"),
+#   sheet = "Sheet 1",
+#   range = cell_rows(9:40),
+#   col_types = "text"
+#   )
+# 
+# # Filter empty columns
+# df_hicp <- df_hicp_raw |> 
+#   select(-c(starts_with("..."))) |>
+#   rename_with(~ paste0("month_", .), -1) |> 
+#   filter(TIME %in% c("Austria",
+#                      "Belgium",
+#                      "Finland",
+#                      "France",
+#                      "Germany",
+#                      "Greece",
+#                      "Ireland",
+#                      "Italy",
+#                      "Netherlands",
+#                      "Portugal",
+#                      "Spain",
+#                      "Slovenia",
+#                      "Slovakia", 
+#                      "Euro area (EA11-1999, EA12-2001, EA13-2007, EA15-2008, EA16-2009, EA17-2011, EA18-2014, EA19-2015, EA20-2023)")) |> 
+#   # Reshape into long format
+#   pivot_longer(
+#     cols = starts_with("month_"),
+#     names_to = "month",
+#     values_to = "hicp"
+#   ) |> 
+#   # Format variables + Standardize country variable
+#   mutate(
+#     month = as.Date(paste0(str_sub(month, start = 7), "-01")),
+#     hicp = as.numeric(hicp),
+#     country = case_when(
+#       TIME == "Austria" ~ "AT",
+#       TIME == "Belgium" ~ "BE",
+#       TIME == "Finland" ~ "FI",
+#       TIME == "France" ~ "FR",
+#       TIME == "Germany" ~ "DE",
+#       TIME == "Greece" ~ "GR",
+#       TIME == "Ireland" ~ "IE",
+#       TIME == "Italy" ~ "IT",
+#       TIME == "Netherlands" ~ "NL",
+#       TIME == "Portugal" ~ "PT",
+#       TIME == "Spain" ~ "ES",
+#       TIME == "Slovenia" ~ "SI",
+#       TIME == "Slovakia" ~ "SK"
+#     )
+#   ) |> 
+#   select(country, month, hicp)
 
-# Filter empty columns
-df_hicp <- df_hicp_raw |> 
-  select(-c(starts_with("..."))) |>
-  rename_with(~ paste0("month_", .), -1) |> 
-  filter(TIME %in% c("Austria",
-                     "Belgium",
-                     "Finland",
-                     "France",
-                     "Germany",
-                     "Greece",
-                     "Ireland",
-                     "Italy",
-                     "Netherlands",
-                     "Portugal",
-                     "Spain",
-                     "Slovenia",
-                     "Slovakia")) |> 
-  # Reshape into long format
-  pivot_longer(
-    cols = starts_with("month_"),
-    names_to = "month",
-    values_to = "hicp"
+# Import Quarterly GDP
+hicp <- fread(
+  file = paste0(A, "c_eurostat/HICP/estat_prc_hicp_midx_en.csv"),
+  colClasses = "character"
+)
+
+# Data Wrangling
+df_hicp <- hicp |> 
+  filter(coicop == "CP00") |> # Total Inflation Index
+  filter(unit == "I15") |> # Indexed to 2015
+  # Filter countries
+  filter(geo %in% c("AT", "BE", "FI", "FR", "DE", "IE", "IT", 
+                        "NL", "PT", "ES", "SI", "SK", "EA" )) |> 
+  # Select & Rename
+  select(geo, TIME_PERIOD, OBS_VALUE) |> 
+  rename(
+    country = geo,
+    month = TIME_PERIOD,
+    hicp = OBS_VALUE
   ) |> 
-  # Format variables + Standardize country variable
+  # Format
   mutate(
-    month = as.Date(paste0(str_sub(month, start = 7), "-01")),
-    hicp = as.numeric(hicp),
-    country = case_when(
-      TIME == "Austria" ~ "AT",
-      TIME == "Belgium" ~ "BE",
-      TIME == "Finland" ~ "FI",
-      TIME == "France" ~ "FR",
-      TIME == "Germany" ~ "DE",
-      TIME == "Greece" ~ "GR",
-      TIME == "Ireland" ~ "IE",
-      TIME == "Italy" ~ "IT",
-      TIME == "Netherlands" ~ "NL",
-      TIME == "Portugal" ~ "PT",
-      TIME == "Spain" ~ "ES",
-      TIME == "Slovenia" ~ "SI",
-      TIME == "Slovakia" ~ "SK"
-    )
+    month = as.Date(paste0(month, "-01")),
+    hicp = as.double(hicp)
   ) |> 
-  select(country, month, hicp)
+  # Filter for relevant time period
+  filter(!(country == "GR" & month < as.Date("2001-01-01"))) |> # Filter for years with GR being part of the Eurozone
+  filter(!(country == "SI" & month < as.Date("2007-01-01"))) |> # Filter for year with SI being part of the Eurozone
+  filter(!(country == "SK" & month < as.Date("2009-01-01"))) |> # Filter for years with SK being part of the Eurozone
+  filter(month > as.Date("2002-12-01") & month < as.Date("2024-01-01")) # Data only available from 2003 on
+  
+  
+
+
+
 
 # 02. Effective Exchange Rate Index - Monthly ==================================
 
@@ -131,6 +168,7 @@ df_reer <- df_reer_raw |>
     )
   ) |> 
   select(country, month, reer)
+
 
 
 # 03. GDP - Quarterly ==========================================================
@@ -348,7 +386,30 @@ df_ip <- ip |>
   select(country, month, ip)
 
 
+# 06. USD/EUR Exchange Rate ====================================================
 
+# Import 
+exr <- fread(
+  file = paste0(A, "c_eurostat/EU_US_exchange_rate/estat_ert_bil_eur_m_en.csv"),
+  colClasses = "character"
+)
+
+# Data Wrangling
+df_exr <- exr |> 
+  filter(currency == "USD") |> # EUR/US Exchange Rate
+  filter(statinfo == "AVG") |> # AVERAGE
+  # Select and Rename
+  select(TIME_PERIOD, OBS_VALUE) |>  
+  rename(
+    month = TIME_PERIOD,
+    exr = OBS_VALUE
+  ) |> 
+  # Format
+  mutate(
+    month = as.Date(paste0(month, "-01")),
+    exr = as.double(exr)
+  )
+ 
 # 05. Monthly - Dataset ========================================================
 
 # Merge monthly data
