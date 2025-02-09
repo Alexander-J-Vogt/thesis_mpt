@@ -214,12 +214,13 @@ df_reer <- df_reer_raw |>
 #   ) |> 
 #   select(country, quarter, gdp_2010, gdp_2015)
 # 
-# # Import Quarterly GDP
-# gdp <- fread(
-#   file = paste0(A, "c_eurostat/GDP/estat_namq_10_gdp_en.csv"),
-#   colClasses = "character"
-#   )
+# Import Quarterly GDP
+gdp <- fread(
+  file = paste0(A, "c_eurostat/GDP/estat_namq_10_gdp_en.csv"),
+  colClasses = "character"
+  )
 
+# Data Wrangling
 df_gdp <- gdp |> 
   filter(unit %in% c("CLV_I15", # Chain Linked Volumes, Index 2015 # real GDP 
                    "CP_MEUR", # Current Price in EUR
@@ -233,7 +234,10 @@ df_gdp <- gdp |>
     obs_value = OBS_VALUE
   ) |> 
   # Create time variable 
-  mutate(quarter = yq(quarter)) |> 
+  mutate(
+    quarter = yq(quarter),
+    ovs_value = as.double(obs_value)
+    ) |> 
   # Filter countries
   filter(country %in% c("AT", "BE", "FI", "FR", "DE", "IE", "IT", 
                         "NL", "PT", "ES", "SI", "SK", "EA" )) |> 
@@ -247,7 +251,7 @@ df_gdp <- gdp |>
 df_real_gdp <- df_gdp |>
   filter(unit == "CLV_I15") |> 
   rename(real_gdp = obs_value) |> 
-  select(country, quarter, real_gdp)
+  select(country, quarter, real_gdp) 
   
 
 
@@ -313,13 +317,50 @@ df_ur <- df_ur_raw |>
 #   filter(month > as.Date("1999-12-01") & month < as.Date("2024-01-01"))
 
 
+# 05. Industrial Production ====================================================
+
+# Import 
+ip <- fread(
+  file = paste0(A, "c_eurostat/industrial_production/estat_sts_inpr_m_en.csv"),
+  colClasses = "character"
+)
+
+# Data Wrangling
+df_ip <- ip |> 
+  filter(s_adj == "SCA") |> # Seasonally and calendar adjusted
+  filter(nace_r2 == "B-D") |> # Mining and quarrying; manufacturing; electricity, gas, steam and air conditioning supply
+  filter(unit == "I15") |> # Index to 2015
+  # select relebant variables
+  dplyr::select(geo, TIME_PERIOD, OBS_VALUE) |>
+  mutate(
+    month = as.Date(paste0(TIME_PERIOD, "-01")),
+    ip = as.double(OBS_VALUE)
+  ) |> 
+  rename(country = geo) |> 
+  # Filter countries
+  filter(country %in% c("AT", "BE", "FI", "FR", "DE", "IE", "IT", 
+                        "NL", "PT", "ES", "SI", "SK", "EA" )) |> 
+  # Filter for relevant time period
+  filter(!(country == "GR" & month < as.Date("2001-01-01"))) |> # Filter for years with GR being part of the Eurozone
+  filter(!(country == "SI" & month < as.Date("2007-01-01"))) |> # Filter for year with SI being part of the Eurozone
+  filter(!(country == "SK" & month < as.Date("2009-01-01"))) |> # Filter for years with SK being part of the Eurozone
+  filter(month > as.Date("2002-12-01") & month < as.Date("2024-01-01"))  |> # Data only available from 2003 on
+  select(country, month, ip)
+
+
+
 # 05. Monthly - Dataset ========================================================
 
 # Merge monthly data
 df_eurostat_m <- df_hicp |> 
   full_join(df_reer, by = c("country", "month")) |> 
-  full_join(df_ur, by = c("country", "month")) |> 
-  filter(month > as.Date("1999-01-01") & month < as.Date("2024-01-01"))
+  full_join(df_ur, by = c("country", "month")) |>  
+  full_join(df_ip, by = c("country", "month")) |> 
+  # Filter for relevant time period
+  filter(!(country == "GR" & month < as.Date("2001-01-01"))) |> # Filter for years with GR being part of the Eurozone
+  filter(!(country == "SI" & month < as.Date("2007-01-01"))) |> # Filter for year with SI being part of the Eurozone
+  filter(!(country == "SK" & month < as.Date("2009-01-01"))) |> # Filter for years with SK being part of the Eurozone
+  filter(month > as.Date("2002-12-01") & month < as.Date("2024-01-01")) # Data only available from 2003 on
 
 # Save monthly data
 SAVE(dfx = df_eurostat_m, namex = paste0(MAINNAME, "_m"))
