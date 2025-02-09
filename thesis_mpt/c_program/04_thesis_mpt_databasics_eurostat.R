@@ -135,84 +135,123 @@ df_reer <- df_reer_raw |>
 
 # 03. GDP - Quarterly ==========================================================
 
-# Import data (Index = 2015)
-df_gdp_raw <- read_excel(
-  path = paste0(A, "c_eurostat/namq_10_gdp__custom_14043017_spreadsheet.xlsx"),
-  sheet = "Sheet 1",
-  range = cell_rows(10:54),
-  col_types = "text"
-)
+# # Import data (Index = 2015)
+# df_gdp_raw <- read_excel(
+#   path = paste0(A, "c_eurostat/namq_10_gdp__custom_14043017_spreadsheet.xlsx"),
+#   sheet = "Sheet 1",
+#   range = cell_rows(10:54),
+#   col_types = "text"
+# )
+# 
+# # Basic Cleaning of the data
+# df_gdp <- df_gdp_raw |>
+#   # Select the right time and country
+#   select(-c(starts_with("..."))) |>
+#   rename_with(~ paste0("quarter_", .), -1) |> 
+#   filter(TIME %in% c("Austria",
+#                      "Belgium",
+#                      "Finland",
+#                      "France",
+#                      "Germany",
+#                      "Greece",
+#                      "Ireland",
+#                      "Italy",
+#                      "Netherlands",
+#                      "Portugal",
+#                      "Spain",
+#                      "Slovenia",
+#                      "Slovakia")) |> 
+#   # Reshape into long format
+#   pivot_longer(
+#     cols = starts_with("quarter_"),
+#     names_to = "quarter",
+#     values_to = "gdp_index"
+#   ) |> 
+#   mutate(gdp_index = ifelse(gdp_index == ":", NA, gdp_index)) |> 
+#   # Format variables + Standardize country variable
+#   mutate(
+#     quarter = yq(str_sub(quarter, start = 9)),
+#     gdp_index = as.numeric(gdp_index),
+#     country = case_when(
+#       TIME == "Austria" ~ "AT",
+#       TIME == "Belgium" ~ "BE",
+#       TIME == "Finland" ~ "FI",
+#       TIME == "France" ~ "FR",
+#       TIME == "Germany" ~ "DE",
+#       TIME == "Greece" ~ "GR",
+#       TIME == "Ireland" ~ "IE",
+#       TIME == "Italy" ~ "IT",
+#       TIME == "Netherlands" ~ "NL",
+#       TIME == "Portugal" ~ "PT",
+#       TIME == "Spain" ~ "ES",
+#       TIME == "Slovenia" ~ "SI",
+#       TIME == "Slovakia" ~ "SK"
+#     )
+#   ) |> 
+#   select(country, quarter, gdp_index) #|> 
+#   # Filter for period between 2000 and 2023
+#   # filter(quarter > as.Date("1999-12-01") & quarter < as.Date("2024-01-01"))
+#   
+# # Calculate the average index for year 2015 (based on the data indexed to the year 2010)
+# df_gdp_index <- df_gdp |>
+#   mutate(year = year(quarter), .after = "quarter") |> 
+#   group_by(country, year) |> 
+#   mutate(
+#     gdp_index_mean = mean(gdp_index)
+#   ) |> 
+#   filter(year == 2015) |>
+#   select(country, year, gdp_index_mean) |> 
+#   distinct(country, year, gdp_index_mean) 
+# 
+# # Index the data to the year 2015
+# df_gdp <- df_gdp |> 
+#   left_join(df_gdp_index, by = c("country")) |> 
+#   mutate(
+#     gdp_2015 = gdp_index / gdp_index_mean * 100
+#   ) |> 
+#   rename(
+#     gdp_2010 = gdp_index
+#   ) |> 
+#   select(country, quarter, gdp_2010, gdp_2015)
+# 
+# # Import Quarterly GDP
+# gdp <- fread(
+#   file = paste0(A, "c_eurostat/GDP/estat_namq_10_gdp_en.csv"),
+#   colClasses = "character"
+#   )
 
-# Basic Cleaning of the data
-df_gdp <- df_gdp_raw |>
-  # Select the right time and country
-  select(-c(starts_with("..."))) |>
-  rename_with(~ paste0("quarter_", .), -1) |> 
-  filter(TIME %in% c("Austria",
-                     "Belgium",
-                     "Finland",
-                     "France",
-                     "Germany",
-                     "Greece",
-                     "Ireland",
-                     "Italy",
-                     "Netherlands",
-                     "Portugal",
-                     "Spain",
-                     "Slovenia",
-                     "Slovakia")) |> 
-  # Reshape into long format
-  pivot_longer(
-    cols = starts_with("quarter_"),
-    names_to = "quarter",
-    values_to = "gdp_index"
-  ) |> 
-  mutate(gdp_index = ifelse(gdp_index == ":", NA, gdp_index)) |> 
-  # Format variables + Standardize country variable
-  mutate(
-    quarter = yq(str_sub(quarter, start = 9)),
-    gdp_index = as.numeric(gdp_index),
-    country = case_when(
-      TIME == "Austria" ~ "AT",
-      TIME == "Belgium" ~ "BE",
-      TIME == "Finland" ~ "FI",
-      TIME == "France" ~ "FR",
-      TIME == "Germany" ~ "DE",
-      TIME == "Greece" ~ "GR",
-      TIME == "Ireland" ~ "IE",
-      TIME == "Italy" ~ "IT",
-      TIME == "Netherlands" ~ "NL",
-      TIME == "Portugal" ~ "PT",
-      TIME == "Spain" ~ "ES",
-      TIME == "Slovenia" ~ "SI",
-      TIME == "Slovakia" ~ "SK"
-    )
-  ) |> 
-  select(country, quarter, gdp_index) #|> 
-  # Filter for period between 2000 and 2023
-  # filter(quarter > as.Date("1999-12-01") & quarter < as.Date("2024-01-01"))
-  
-# Calculate the average index for year 2015 (based on the data indexed to the year 2010)
-df_gdp_index <- df_gdp |>
-  mutate(year = year(quarter), .after = "quarter") |> 
-  group_by(country, year) |> 
-  mutate(
-    gdp_index_mean = mean(gdp_index)
-  ) |> 
-  filter(year == 2015) |>
-  select(country, year, gdp_index_mean) |> 
-  distinct(country, year, gdp_index_mean) 
-
-# Index the data to the year 2015
-df_gdp <- df_gdp |> 
-  left_join(df_gdp_index, by = c("country")) |> 
-  mutate(
-    gdp_2015 = gdp_index / gdp_index_mean * 100
-  ) |> 
+df_gdp <- gdp |> 
+  filter(unit %in% c("CLV_I15", # Chain Linked Volumes, Index 2015 # real GDP 
+                   "CP_MEUR", # Current Price in EUR
+                   "PD15_EUR")) |> # Implicit GDP Deflator
+  filter(s_adj == "SCA") |> 
+  filter(na_item == "B1GQ") |> 
+  select(unit, geo, TIME_PERIOD, OBS_VALUE) |> 
   rename(
-    gdp_2010 = gdp_index
+    country = geo,
+    quarter = TIME_PERIOD,
+    obs_value = OBS_VALUE
   ) |> 
-  select(country, quarter, gdp_2010, gdp_2015)
+  # Create time variable 
+  mutate(quarter = yq(quarter)) |> 
+  # Filter countries
+  filter(country %in% c("AT", "BE", "FI", "FR", "DE", "IE", "IT", 
+                        "NL", "PT", "ES", "SI", "SK", "EA" )) |> 
+  # Filter for relevant time period
+  filter(!(country == "GR" & quarter < as.Date("2001-01-01"))) |> # Filter for years with GR being part of the Eurozone
+  filter(!(country == "SI" & quarter < as.Date("2007-01-01"))) |> # Filter for year with SI being part of the Eurozone
+  filter(!(country == "SK" & quarter < as.Date("2009-01-01"))) |> # Filter for years with SK being part of the Eurozone
+  filter(quarter > as.Date("2002-12-01") & quarter < as.Date("2024-01-01")) # Data only available from 2003 on
+
+# Get Real GDP
+df_real_gdp <- df_gdp |>
+  filter(unit == "CLV_I15") |> 
+  rename(real_gdp = obs_value) |> 
+  select(country, quarter, real_gdp)
+  
+
+
+  
 
 # 04. Unemployment Rate - Monthly - Total ======================================
 
@@ -288,7 +327,7 @@ SAVE(dfx = df_eurostat_m, namex = paste0(MAINNAME, "_m"))
 # 06. Quarterly - Dataset ======================================================
 
 # Quaterly data
-df_eurostat_q <- df_gdp
+df_eurostat_q <- df_real_gdp
 
 # Save quaterly data
 SAVE(dfx = df_eurostat_1, namex = paste0(MAINNAME, "_q"))
