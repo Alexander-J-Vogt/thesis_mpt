@@ -109,10 +109,6 @@ df_hicp <- hicp |>
   filter(!(country == "SK" & month < as.Date("2009-01-01"))) |> # Filter for years with SK being part of the Eurozone
   filter(month > as.Date("2002-12-01") & month < as.Date("2024-01-01")) # Data only available from 2003 on
   
-  
-
-
-
 
 # 02. Effective Exchange Rate Index - Monthly ==================================
 
@@ -289,10 +285,8 @@ df_gdp <- gdp |>
 df_real_gdp <- df_gdp |>
   filter(unit == "CLV_I15") |> 
   rename(real_gdp = obs_value) |> 
-  select(country, quarter, real_gdp) 
-  
-
-
+  select(country, quarter, real_gdp) |> 
+  rename(month = quarter)
   
 
 # 04. Unemployment Rate - Monthly - Total ======================================
@@ -409,14 +403,15 @@ df_exr <- exr |>
     month = as.Date(paste0(month, "-01")),
     exr = as.double(exr)
   )
- 
-# 05. Monthly - Dataset ========================================================
+
+# 07. Monthly - Dataset ========================================================
 
 # Merge monthly data
 df_eurostat_m <- df_hicp |> 
   full_join(df_reer, by = c("country", "month")) |> 
   full_join(df_ur, by = c("country", "month")) |>  
   full_join(df_ip, by = c("country", "month")) |> 
+  full_join(df_exr, by = "month") |> 
   # Filter for relevant time period
   filter(!(country == "GR" & month < as.Date("2001-01-01"))) |> # Filter for years with GR being part of the Eurozone
   filter(!(country == "SI" & month < as.Date("2007-01-01"))) |> # Filter for year with SI being part of the Eurozone
@@ -426,13 +421,11 @@ df_eurostat_m <- df_hicp |>
 # Save monthly data
 SAVE(dfx = df_eurostat_m, namex = paste0(MAINNAME, "_m"))
 
-# 06. Quarterly - Dataset ======================================================
+# 08. Quarterly - Dataset ======================================================
 
-# Quaterly data
-df_eurostat_q <- df_real_gdp
 
 # Save quaterly data
-SAVE(dfx = df_eurostat_1, namex = paste0(MAINNAME, "_q"))
+SAVE(dfx = df_real_gdp, namex = paste0(MAINNAME, "_q"))
 
 
 ###############################################################################+
