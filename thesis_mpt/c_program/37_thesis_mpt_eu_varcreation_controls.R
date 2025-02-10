@@ -48,11 +48,7 @@ df_ecb <- df_ecb |>
 
 # 03. Real GDP =================================================================
 
-# df_real_gdp <- df_eurostat |>
-#   select(country, month, ip) |> 
-#   full_join(df_eurostat_q, by = c("country", "month")) |> 
-#   mutate(real_gdp = as.double(real_gdp)) |> 
-#   mutate(real_gdp = nafill(real_gdp, type = "locf"))
+## 03.1 Real GDP by Country ----------------------------------------------------
 
 # install.packages("tsbox")
 library(tsbox)
@@ -77,7 +73,7 @@ list_gdp <- purrr::map(EA, function (x) {
   ts_ip <- ts(data = ip$ip, start = 2003, frequency = 12)
   
   # Use Chow-Lin Interpolation to get monthly real GDP
-  real_gdp <- tempdisagg::td(ts_gdp ~ ts_ip, to = 12, method = "chow-lin-maxlog" )
+  real_gdp <- tempdisagg::td(ts_gdp ~ ts_ip, to = 12, method = "chow-lin-maxlog", conversion = "last")
   real_gdp_predict <- predict(real_gdp)
   
   # Transform back to data frame
@@ -95,7 +91,7 @@ list_gdp <- purrr::map(EA, function (x) {
   df_long <- data.frame(
     country = x,
     month = time,
-    real_gdp = as.vector(real_gdp_predict)
+    gdp = as.vector(real_gdp_predict)
   )
   
   # Return Value
@@ -105,18 +101,63 @@ list_gdp <- purrr::map(EA, function (x) {
 
 df_gdp <- bind_rows(list_gdp)
 
+## 03.2 EA Real GDP ------------------------------------------------------------
+
+# Import 
+# Get data to ts-object
+df_gdp_ea <- df_eurostat_q |> 
+  filter(country == "EA") |> 
+  mutate(real_gdp = as.double(real_gdp)) |> 
+  select(real_gdp)
+
+ts_gdp_ea <- ts(data = df_gdp_ea$real_gdp, start = 2003, frequency = 4)
+
+# Use denton-cholette Interpolation to get monthly real GDP
+real_gdp_ea <- tempdisagg::td(ts_gdp_ea ~ 1, to = 12, method = "denton-cholette", conversion = "last")
+real_gdp_ea_predict <- predict(real_gdp_ea)
+
+# DF
+df_real_gdp_ea <- data.frame(
+  month = seq(as.Date("2003-01-01"), as.Date("2023-12-01"), by = "month"),
+  gdp_ea = as.vector(real_gdp_ea_predict)
+)
+
+
+# 04. HICP =====================================================================
+
+## 04.1 HICP by Country --------------------------------------------------------
+
+# All countries excl IP
+df_eurostat_country <- df_eurostat |> 
+  filter(country != "EA") |> 
+  select(-ip)
+
+
+## 04.2 HICP for EA ------------------------------------------------------------
+
+# HICP for EA
+df_hicp_ea <- df_eurostat |> 
+  select(country, month, hicp) |> 
+  filter(country == "EA") |> 
+  select(-country) |> 
+  rename(hicp_ea = hicp)
+
 
 # 03. Merge to Dataset =========================================================
 
 # Merge datasets
 df_controls <- df_ecb |> 
-  full_join(df_eurostat, by = c("country", "month")) |> 
-  full_join(df_imf, by = c("country", "month")) |> 
-  full_join(df_gdp, by = c("country", "month")) |> 
+  full_join(df_eurostat_country, by = c("country", "month")) |> # REER, HICP, UR by Country + EUR/USD Exchange Rate
+  full_join(df_imf, by = c("country", "month")) |> # Commodity Index by country
+  full_join(df_gdp, by = c("country", "month")) |> # GDP by country
+  full_join(df_hicp_ea, by = c("month")) |> # EA HICP
+  full_join(df_real_gdp_ea, by = c("month")) |>  # EA GDP
   filter(month > as.Date("2002-12-01") & month < as.Date("2024-01-01")) |> 
   filter(!(country == "GR" & month < as.Date("2003-01-01"))) |> # Filter for years with GR being part of the Eurozone
   filter(!(country == "SI" & month < as.Date("2007-01-01"))) |> # Filter for year with SI being part of the Eurozone
   filter(!(country == "SK" & month < as.Date("2009-01-01"))) # Filter for years with SK being part of the Eurozone
+
+
 
 # 04. Impute Missings ==========================================================
 
