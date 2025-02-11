@@ -1025,19 +1025,209 @@ ggplot(df_irf, aes(x = time, y = lp, color = group)) +
        fill = "Model") +
   theme_minimal()
 
+# GGPLOT for One Estimate
+GG_IRF_ONE <- function(data, hhi_coef = FALSE, y_lower = -1, y_upper = 1, name = "Impulse Response Function") {
+  
+  # Initiate df
+  df <- data.frame(
+    time = integer(0),
+    lp = integer(0),
+    lp_lower = integer(0),
+    lp_upper = integer(0)
+  )
+  
+  # Add HHI Coefficient
+  if (isTRUE(hhi_coef)) {
+    
+    for (i in 1:tlahr$specs$hor) {
+      # Identify hhi coefficient
+      coef_names <- names(coef(data$reg_summaries[[i]]))
+      coef_hhi <- coef_names[ grepl("hhi", coef_names) & !grepl("lag", coef_names) ]
+      estimate_hhi <- coef(data$reg_summaries[[i]])[coef_hhi]
+      
+      # Add HHI coef to shock
+      df[i, "time"] <- i
+      df[i, "lp"] <- unname(data$irf_panel_mean[[i]] + estimate_hhi)
+      df[i, "lp_upper"] <- unname(data$irf_panel_up[[i]] + estimate_hhi)
+      df[i, "lp_lower"] <- unname(data$irf_panel_low[[i]] + estimate_hhi)
+    }
+    
+  } else {
+    
+    # Only Shock Coefficient
+    df[i, "time"] <- i
+    df[i, "lp"] <- data$irf_panel_mean[[i]] 
+    df[i, "lp_upper"] <- data$irf_panel_up[[i]] 
+    df[i, "lp_lower"] <- data$irf_panel_low[[i]]
+  }
+    
+  # Plot with CI Bands
+  ggplot(df, aes(x = time, y = lp)) +
+    # LP
+    geom_line(size = 1, color = "red") +  # Plot the mean response lines
+    # CI Band
+    geom_ribbon(aes(ymin = lp_lower, ymax = lp_upper), 
+                alpha = 0.1,
+                fill = "red",
+                color = "red",
+                linetype = "dashed") +  # Add shaded confidence intervals
+    # x-axis 
+    geom_hline(yintercept = 0, linetype = "dashed", color = "black") +  # Add a horizontal zero line
+    # Scale y- and x-axos
+    scale_x_continuous(
+      breaks = seq(1:tlahr$specs$hor)
+    ) +
+    scale_y_continuous(
+      breaks = seq(y_lower, y_upper, by = .2),
+      limits = c(y_lower, y_upper)
+    ) +
+    #title
+    labs(title = name,
+         x = "Time Horizon",
+         y = expression(Y[ t+h ] - Y[t]),
+         color = "Model", 
+         fill = "Model") +
+    theme_minimal()
+  
+ }
 
 
+GG_IRF_ONE(data = tlahr, hhi_coef = TRUE, y_lower = -1, y_upper = 1, name = "IRF: tLAHR")
 
-coef_hhi <- tlahr$reg_outputs[]
+# GGPLOT for TWO Estimate aka Comparison ---------------------------------------
+GG_IRF_TWO <- function(data1, # DF1
+                       data2, # DF2
+                       data_name, # Name in vector; Order in Data1, Data2
+                       hhi_coef = FALSE, # Add hhi coef to IRF: Yes Or No 
+                       y_lower = -1, # Lower Bound of y-axis
+                       y_upper = 1, # Upper Boind of y_axis
+                       name = "Impulse Response Function" # Name of Graph
+                       ) {
+  
+  # Add HHI Coefficient
+  if (isTRUE(hhi_coef)) {
+    # Loop over datasets
+    list_map <- purrr::map2(name, data_name, function(x,label) {
+      
+      # Retrieve object from global environment
+      data <- get(x)
+      
+      # Pre-allocate the output data frame
+      df <- data.frame(
+        time = 1:data$specs$hor,
+        lp = NA_real_,
+        lp_upper = NA_real_,
+        lp_lower = NA_real_,
+        cat = rep(label, data$specs$hor),
+        stringsAsFactors = FALSE
+      )
+      
+      # Add HHI Coefficient to Shock Coefficient
+      for (i in 1:data$specs$hor) {
+        # Identify hhi coefficient
+        coef_names <- names(coef(data$reg_summaries[[i]]))
+        coef_hhi <- coef_names[ grepl("hhi", coef_names) & !grepl("lag", coef_names) ]
+        estimate_hhi <- coef(data$reg_summaries[[i]])[coef_hhi]
+          
+        # Add HHI coef to shock
+        df[i, "lp"] <- unname(data$irf_panel_mean[[i]] + estimate_hhi)
+        df[i, "lp_upper"] <- unname(data$irf_panel_up[[i]] + estimate_hhi)
+        df[i, "lp_lower"] <- unname(data$irf_panel_low[[i]] + estimate_hhi)
+          
+      }
+      
+      # Assign to list
+      assign(x, df)
+      return(get(x))
+    
+     })
+      
+    df_main <- bind_rows(list_map)
+    
+  } else {
+    
+    # Add Two Datasets with 
+    list_map <- purrr::map2(name, data_name, function(x,label) {
+      
+      # Retrieve object from global environment
+      data <- get(x)
+      
+      # Pre-allocate the output data frame
+      df <- data.frame(
+        time = 1:data$specs$hor,
+        lp = NA_real_,
+        lp_upper = NA_real_,
+        lp_lower = NA_real_,
+        cat = rep(label, data$specs$hor),
+        stringsAsFactors = FALSE
+      )
+      
+      # Fill DF with Shock Coef
+      for (i in 1:data$specs$hor) {
+        
+        # Identify hhi coefficient
+        coef_names <- names(coef(data$reg_summaries[[i]]))
+        coef_hhi <- coef_names[ grepl("hhi", coef_names) & !grepl("lag", coef_names) ]
+        estimate_hhi <- coef(data$reg_summaries[[i]])[coef_hhi]
+        
+        # Add HHI Coef to Shock Coef
+        df[i, "lp"] <- data$irf_panel_mean[[i]]
+        df[i, "lp_upper"] <- data$irf_panel_up[[i]] 
+        df[i, "lp_lower"] <- data$irf_panel_low[[i]] 
+        
+      }
+      
+      # Assign to list
+      assign(x, df)
+      return(get(x))
+      
+    })
+    
+    df_main <- bind_rows(list_map)
+    
+  } # END OF LOOP TO CREATE ONE DATASET
+  
+  # Plot with CI Bands
+  plot <- ggplot(df_main, aes(x = time, y = lp, color = cat )) +
+    # LP
+    geom_line(size = 1) +  # Plot the mean response lines
+    # CI Band
+    geom_ribbon(aes(ymin = lp_lower, ymax = lp_upper, fill = group), 
+                alpha = 0.1,
+                linetype = "dashed") +  # Add shaded confidence intervals
+    # x-axis 
+    geom_hline(yintercept = 0, linetype = "dashed", color = "black") +  # Add a horizontal zero line
+    # Scale y- and x-axos
+    scale_x_continuous(
+      breaks = seq(1:tlahr$specs$hor)
+    ) +
+    scale_y_continuous(
+      breaks = seq(y_lower, y_upper, by = .2),
+      limits = c(y_lower, y_upper)
+    ) +
+    #title
+    labs(title = name,
+         x = "Time Horizon",
+         y = expression(Y[ t+h ] - Y[t]),
+         color = "Model", 
+         fill = "Model") +
+    # Manually define the colors for each group
+    scale_color_manual(values = c(data_name[1] = "blue", data_name[2] = "red")) +
+    scale_fill_manual(values = c(data_name[1] = "blue", data_name[2] = "red")) +
+    theme_minimal()
+  
+  result <- list()
+  result$plot <- plot
+  result$df <- df_main
+  
+} # End of Function: GG_IRF_TWO
 
 
-
+# Plot with ggplot
 ggplot(df_irf, aes(x = time, y = lp, color = group)) +
-  geom_line(size = 1) +  # Plot the mean response lines
-  geom_ribbon(aes(ymin = lower, ymax = upper, fill = group), 
-              alpha = 0.2, 
-              color = NA) +  # Add shaded confidence intervals
-  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +  # Add a horizontal zero line
+  geom_line(size = 1) +  # Mean response for both groups
+  geom_ribbon(aes(ymin = lower, ymax = upper, fill = group), alpha = 0.2, color = NA) +  # Confidence interval
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +  # Zero line
   labs(title = "Local Projection Impulse Response Comparison",
        x = "Time Horizon",
        y = "Impulse Response",
