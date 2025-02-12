@@ -297,6 +297,30 @@ df_bsi_l60 <- df_bsi_l60 |>
   filter(!(country == "SK" & month < as.Date("2009-01-01"))) # Filter for years with SK being part of the Eurozone
 
 
+## 04.5 Loan Volumes -----------------------------------------------------------
+
+# df_bsi_a20 <- df_bsi |> 
+#   filter(BS_ITEM == "A20") |> # Loan for house purchases 
+#   filter(MATURITY_ORIG == "A") |>  # Total Maturity
+#   filter(COUNT_AREA == "U2") |>  # Concentrate on Domestic Area and not EU Changing Composition (U2)
+#   filter(FREQ == "M") |> 
+#   filter(DATA_TYPE == "1") |>  # Outstanding Amount
+#   filter(BS_COUNT_SECTOR == "0000") # Deposit-taking corporations except the central bank (S.122) (19)
+#   
+#   mutate(data_type = case_when(
+#     DATA_TYPE == "1" ~ "hp_outst_amount_EUR", # Outstanding Amount at the end of the period (stocks)
+#     DATA_TYPE == "4" ~ "hp_fin_transaction_EUR", # Financial Transactions
+#     DATA_TYPE == "I" ~ "hp_index_notional_stocks_PPCH" # Index of Notional Stocks
+#   ), .after = DATA_TYPE) |> 
+#   select(c("REF_AREA", "TIME_PERIOD", "data_type", "OBS_VALUE", "OBS_STATUS")) |> 
+#   pivot_wider(names_from = "data_type", 
+#               values_from = "OBS_VALUE") |>
+#   mutate(across(-c(1:3), as.numeric)) |> 
+#   arrange(REF_AREA, TIME_PERIOD) |> 
+#   mutate(month = as.Date(paste0(TIME_PERIOD, "-01" )), .after = TIME_PERIOD) |> # Format Data Variable
+#   rename(country = REF_AREA) |> 
+#   select(-c("TIME_PERIOD", "OBS_STATUS"))
+
 # 05. ECB's Policy Rates =======================================================
 
 ## 05.1 Main Refinancing Rate --------------------------------------------------
