@@ -211,7 +211,9 @@ HOR <- 6
 #' all counties and not separating the the sample into high- vs low- market concentration
 #' counties.
 
+###############################################################################+
 ### 3.1.1 Full Sample ----------------------------------------------------------
+###############################################################################+
 
 #' In the Full Sample Approach, the sample is not split up between ZLB period vs 
 #' no ZLB period. The LP is run for three specification:
@@ -475,7 +477,7 @@ plot_general_full_ns_neg_ref <- GG_IRF_ONE(data = results_general_full_ns_neg_re
 
 
 ###############################################################################+ 
-# Graphs - Full Sample - Comparison between Interaction term with & w/o Indicator 
+### 3.1.2 Graphs - Full Sample - Comparison between Interaction term with & w/o Indicator ---- 
 ###############################################################################+
 
 # Full Sample Graph for Interaction Term with ZLB Indicator 
@@ -504,8 +506,9 @@ ggsave(filename = paste0(FIGURE, "graph_full_final.pdf"), final_plot, width = 8,
 
 
 
-
-### 3.1.2 ZLB vs No-ZLB period -------------------------------------------------
+###############################################################################+
+### 3.1.3 ZLB vs No-ZLB period #################################################
+###############################################################################+
 
 #' In this section, the sample period is split up into two parts. The period ZLB
 #' period defined if the Federal Funds Rate is below 1 Percent, and vice versa 
@@ -772,16 +775,39 @@ plot_general_full_ns_neg_no_zlb <- GG_IRF_ONE(data = results_general_full_ns_neg
 )
 
 
-### 3.1.3 Final Graph ----------------------------------------------------------
 
-library(patchwork)
+###############################################################################+
+# 3.1.4 Graph - Comparison between ZLB and No-ZLB Period #######################
+###############################################################################+
+
+# Easier notation
+p1 <- plot_general_full_ns_total_zlb$plot
+p2 <- plot_general_full_ns_total_no_zlb$plot
+p3 <- plot_general_full_ns_pos_zlb$plot
+p4 <- plot_general_full_ns_pos_no_zlb$plot
+p5 <- plot_general_full_ns_neg_zlb$plot
+p6 <- plot_general_full_ns_neg_no_zlb$plot
+
+# Create column header elements using wrap_elements()
+header1 <- wrap_elements(full = textGrob("Period: ZLB", gp = gpar(fontsize = 16, fontface = "bold")))
+header2 <- wrap_elements(full = textGrob("Period: No ZLB", gp = gpar(fontsize = 16, fontface = "bold")))
+
+# Combine headers and plots into one layout
+zlb_vs_nozlb_layout <- (header1 + header2) /  # Header row
+  (p1 + p2) /          # First row of plots
+  (p3 + p4) /          # Second row of plots
+  (p4 + p6) +
+  plot_layout(heights = c(0.2, 1, 1))  # Adjust relative heights
+
+# Save
+ggsave(filename = paste0(FIGURE, "zlb_vs_nozlb_layout.pdf"), zlb_vs_nozlb_layout, width = 8, height = 12, dpi = 300)
 
 
-# Full Sample Graph by ZLB vs No-ZLB
 
+###############################################################################+
+# 3.2 Low- vs High Market Concentration ########################################
+###############################################################################+
 
-
-## 3.2 Low- vs High Market Concentration --------------------------------------+
 
 
 
