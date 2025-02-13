@@ -33,16 +33,20 @@ df_us_hf <- read_excel(
 )
 
 # Create a yearly monetary shock measure by taking the mean by year
-df_us_hf_year <- df_us_hf |> 
+  df_us_hf_year <- df_us_hf |> 
   mutate(
     date = date(date),
     year = year(date)
   ) |> 
   group_by(year) |> 
   summarise(
-    GSS_target = sum(GSS_target),
+    GSS_target_total = sum(GSS_target, na.rm = TRUE),
+    GSS_target_negativ = sum(GSS_target[GSS_target  < 0], na.rm = TRUE),
+    GSS_target_positiv = sum(GSS_target[GSS_target  > 0], na.rm = TRUE),
     GSS_path = sum(GSS_path),
-    NS = sum(NS)
+    NS_total = sum(NS),
+    NS_negativ = sum(NS[NS  < 0], na.rm = TRUE),
+    NS_positiv = sum(NS[NS  > 0], na.rm = TRUE),
   )
   
 
@@ -57,6 +61,13 @@ df_jarocinski_sd <- read_csv(
   file = paste0(A, "t_policy_shocks_us/Jarocinski_monetary_shock/U1s.csv")
 )
 
+#' Explanation:
+#' Standard Monetary Policy: u1
+#' Odyssean forward guidance: u2
+#' Long term rate shock: u3
+#' Delphic forward guidance: u4
+
+
 # BPS: Create a yearly monetary shock measure by taking the mean by year
 df_jarocinski_bp <- df_jarocinski_bp |> 
   mutate(
@@ -66,7 +77,9 @@ df_jarocinski_bp <- df_jarocinski_bp |>
   rename_with(~ paste0("bp_", .), .cols = 2:5) |> 
   group_by(year) |> 
   summarise(
-    bp_u1 = sum(bp_u1),
+    bp_u1_total = sum(bp_u1), #
+    bp_u1_positiv = sum(bp_u1[bp_u1 > 0], na.rm = TRUE),
+    bp_u1_negativ = sum(bp_u1[bp_u1 < 0], na.rm = TRUE),
     bp_u2 = sum(bp_u2),
     bp_u3 = sum(bp_u3),
     bp_u4 = sum(bp_u4)
@@ -81,7 +94,9 @@ df_jarocinski_sd <- df_jarocinski_sd |>
   rename_with(~ paste0("sd_", .), .cols = 2:5) |> 
   group_by(year) |> 
   summarise(
-    sd_u1 = sum(sd_u1),
+    sd_u1_total = sum(sd_u1), #
+    sd_u1_positiv = sum(sd_u1[sd_u1 > 0], na.rm = TRUE),
+    sd_u1_negativ = sum(sd_u1[sd_u1 < 0], na.rm = TRUE),
     sd_u2 = sum(sd_u2),
     sd_u3 = sum(sd_u3),
     sd_u4 = sum(sd_u4)
@@ -90,7 +105,8 @@ df_jarocinski_sd <- df_jarocinski_sd |>
 # Save U.S. monetary shocks
 df_us_shock <- df_us_hf_year |> 
   left_join(df_jarocinski_bp, by = c("year")) |> 
-  left_join(df_jarocinski_sd, by = c("year"))
+  left_join(df_jarocinski_sd, by = c("year")) |> 
+  select(-c("sd_u2", "sd_u3", "sd_u4", "bp_u2", "bp_u3", "bp_u4", "GSS_path"))
 
 # Save
 SAVE(dfx = df_us_shock, namex = paste0(MAINNAME, "_us"))
@@ -109,7 +125,7 @@ library(hfdshocks)
 df_eurozone_shock <- ecb_shocks(
   "https://www.ecb.europa.eu/pub/pdf/annex/Dataset_EA-MPD.xlsx",
   path = paste0(A, "t_policy_shocks_us/Altavilla_monetary_shock/"),
-  exclude_dates=c("2001-09-17","2008-10-08","2008-11-06"),
+  exclude_dates= c("2001-09-17","2008-10-08","2008-11-06"),
   date_range=c("2000-01-01","2023-12-12"),
   crisis_date="2008-09-04",
   reproduce = TRUE,
@@ -119,18 +135,18 @@ df_eurozone_shock <- ecb_shocks(
 # Get the measure for the coventional monetary shock
 df_eurozone_target <- data.frame(df_eurozone_shock$factors$release)
 
-df_eurozone <- df_eurozone_target |> 
-  mutate(
-    target = as.numeric(format(target, scientific = FALSE)),
-    year = as.numeric(year(date))
-    ) |> 
-  group_by(year) |> 
-  summarise(
-    target = sum(target)
-  )
-
-# Get the measure for unconventional monetary shock
-df_eurozone_unconv_mp <- data.frame(df_eurozone_shock$factors$conference)
+# df_eurozone <- df_eurozone_target |> 
+#   mutate(
+#     target = as.numeric(format(target, scientific = FALSE)),
+#     year = as.numeric(year(date))
+#     ) |> 
+#   group_by(year) |> 
+#   summarise(
+#     target = sum(target)
+#   )
+# 
+# # Get the measure for unconventional monetary shock
+# df_eurozone_unconv_mp <- data.frame(df_eurozone_shock$factors$conference)
 
 # Data Manipulating
 df_eurozone <- df_eurozone_target |> 
@@ -142,8 +158,10 @@ df_eurozone <- df_eurozone_target |>
   # Sum up by month
   group_by(month) |> 
   summarise(
-    target = sum(target)
-  )
+    altavilla_total = sum(target, na.rm = TRUE),
+    altavilla_positiv = sum(target[target > 0], na.rm = TRUE),
+    altavilla_negativ = sum(target[target < 0], na.rm = TRUE)
+    )
 
 # Create monthly row 
 df_month <- tibble(month = seq(as.Date("2000-01-01"), as.Date("2023-12-01"), by = "month"))
@@ -151,8 +169,11 @@ df_month <- tibble(month = seq(as.Date("2000-01-01"), as.Date("2023-12-01"), by 
 # Create monthly df with monetary shocks of 0 if there was no press release
 df_eurozone <- df_month |> 
   left_join(df_eurozone, by = c("month")) |> 
-  mutate(Altavilla_target = if_else(is.na(target), 0, target)) |> 
-  dplyr::select(-target)
+  mutate(
+    altavilla_total = if_else(is.na(altavilla_total), 0, altavilla_total),
+    altavilla_positiv = if_else(is.na(altavilla_positiv), 0, altavilla_positiv),
+    altavilla_negativ = if_else(is.na(altavilla_negativ), 0, altavilla_negativ)
+    )
 
 
 # 2.2 Jarocinski & Karadi (2020) -----------------------------------------------
@@ -173,7 +194,14 @@ df_jarocinski_eu <- jarocinski |>
   mutate(month = as.Date(paste0(year, "-", month, "-01"))) |> 
   # Format shock variable
   mutate(across(3:ncol(jarocinski), as.numeric)) |> 
-  dplyr::select(-year)
+  dplyr::select(-year) |> 
+  group_by(month) |> 
+  mutate(
+    MP_median_total = MP_median,
+    MP_median_positiv = sum(MP_median[MP_median > 0], na.rm = TRUE),
+    MP_median_negativ = sum(MP_median[MP_median < 0], na.rm = TRUE),
+  ) |> 
+  dplyr::select(month, starts_with("MP_median"))
 
 # Add last two month to df
 df_jarocinski_eu <- df_month |> 
