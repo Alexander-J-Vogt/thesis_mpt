@@ -498,21 +498,21 @@ LP_LIN_PANEL <- function(
 CREATE_PANEL_DATA <- function(specs, data_set){
 
   
-  DEBUG <- T
+  DEBUG <- F
   if (DEBUG) {
     specs <- list()
     data_set <- df_hp_large_lp
     data_set <- data_set |> rename(cross_id = fips, date_id = year)
     specs$data_sample <- "Full"
     specs$endog_data <- "log_loan_amount"
-    specs$lags_endog_data <- 2
+    specs$lags_endog_data <- NULL
     specs$cumul_mult <-  TRUE
     specs$shock <-  "I_HHI_ZLB2_NS"
     specs$diff_shock <-  TRUE
-    specs$lags_shock <- 2
+    specs$lags_shock <- NULL
     specs$panel_model <-  "within"
     specs$panel_effect <-  "twoways"
-    specs$robust_cov <-  "wild.cluster.boot"
+    specs$robust_cov <-  "tLAHR"
     specs$robust_method <- NULL
     specs$robust_type <- NULL
     specs$robust_cluster <- "time"
@@ -621,7 +621,7 @@ CREATE_PANEL_DATA <- function(specs, data_set){
         # BUG FIX -----------
         # |> 
         # dplyr::select(-specs$endog_data)
-         
+        # -------------------- 
       
       # Rename columns - BUG FIX 
       # If more than 1 lag, than the lags a created under fn*
@@ -670,7 +670,7 @@ CREATE_PANEL_DATA <- function(specs, data_set){
     if (!is.null(specs$lags_shock)) {
     
       # Choose your own number of lags
-      lags_shock <- specs$lags_shock
+      lags_shock <- seq(specs$lags_shock)
     
     } else if (specs$robust_cov == "tLAHR") {
       
@@ -690,15 +690,28 @@ CREATE_PANEL_DATA <- function(specs, data_set){
     end_lag_labels <- paste(unlist(lapply(specs$shock, rep, max(lags_shock))), "_lag_", lags_shock, sep = "")
     
     # Lag Levels of Endogenous variable
-    x_reg_data <- x_reg_data |> 
+    lag_x_reg_data <- x_reg_data |> 
       dplyr::select(cross_id, date_id, specs$shock)      |> 
       dplyr::group_by(cross_id)                          |> 
       dplyr::mutate_at(vars(specs$shock), lag_functions) |> 
       ungroup()
     
-    # Rename columns
-    colnames(x_reg_data)[4:dim(x_reg_data)[2]] <- end_lag_labels
+    # Rename columns - BUG FIX 
+    if (max(lags_shock) > 1) {
+      
+      # If more than 1 lag, than the lags a created under fn*
+      lag_x_reg_data <- lag_x_reg_data |> dplyr::select(-specs$endog_data)
+      colnames(lag_x_reg_data)[3:dim(lag_x_reg_data)[2]] <- end_lag_labels
+      
+    } else {
+      # If only one lag, than lag is under original name of endogenouse variable
+      colnames(lag_x_reg_data)[3:dim(lag_x_reg_data)[2]] <- end_lag_labels
+    }
   
+    # Merge Shock with lag shocks
+    x_reg_data <- x_reg_data |> 
+      left_join(lag_x_reg_data, by = c("cross_id", "date_id"))
+    
   }
   
   
@@ -726,7 +739,7 @@ CREATE_PANEL_DATA <- function(specs, data_set){
     if (!is.null(specs$lags_shock)) {
       
       # Choose your own number of lags
-      lags_shock <- specs$lags_shock
+      lags_shock <- seq(specs$lags_shock)
       
     } else if (specs$robust_cov == "tLAHR") {
       
@@ -746,15 +759,32 @@ CREATE_PANEL_DATA <- function(specs, data_set){
     end_lag_labels <- paste(unlist(lapply(specs$shock, rep, max(lags_shock))), "_lag_", lags_shock, sep = "")
     
     # Lag Levels of Endogenous variable
-    x_reg_data <- x_reg_data |> 
+    lag_x_reg_data <- x_reg_data |> 
       dplyr::select(cross_id, date_id, specs$shock)      |> 
       dplyr::group_by(cross_id)                               |> 
       dplyr::mutate_at(vars(specs$shock), lag_functions) |> 
       ungroup()
     
-    # Rename columns
-    colnames(x_reg_data)[4:dim(x_reg_data)[2]] <- end_lag_labels
+    # Rename columns - BUG FIX 
+    if (max(lags_shock) > 1) {
+      
+      # If more than 1 lag, than the lags a created under fn*
+      lag_x_reg_data <- lag_x_reg_data |> dplyr::select(-specs$shock)
+      colnames(lag_x_reg_data)[3:dim(lag_x_reg_data)[2]] <- end_lag_labels
+      
+    } else {
+      
+      # If only one lag, than lag is under original name of endogenouse variable
+      colnames(lag_x_reg_data)[3:dim(lag_x_reg_data)[2]] <- end_lag_labels
+      
+    }
     
+    # # Rename columns
+    # colnames(x_reg_data)[4:dim(x_reg_data)[2]] <- end_lag_labels
+    
+    # Merge Shock with lag shocks
+    x_reg_data <- x_reg_data |> 
+      left_join(lag_x_reg_data, by = c("cross_id", "date_id"))
   }
   
 
