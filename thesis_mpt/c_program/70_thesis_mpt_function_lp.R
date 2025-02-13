@@ -498,16 +498,18 @@ LP_LIN_PANEL <- function(
 CREATE_PANEL_DATA <- function(specs, data_set){
 
   
-  DEBUG <- F
+  DEBUG <- T
   if (DEBUG) {
     specs <- list()
     data_set <- df_hp_large_lp
     data_set <- data_set |> rename(cross_id = fips, date_id = year)
     specs$data_sample <- "Full"
     specs$endog_data <- "log_loan_amount"
+    specs$lags_endog_data <- 2
     specs$cumul_mult <-  TRUE
     specs$shock <-  "I_HHI_ZLB2_NS"
     specs$diff_shock <-  TRUE
+    specs$lags_shock <- 2
     specs$panel_model <-  "within"
     specs$panel_effect <-  "twoways"
     specs$robust_cov <-  "wild.cluster.boot"
@@ -592,7 +594,8 @@ CREATE_PANEL_DATA <- function(specs, data_set){
   if (!is.null(specs$lags_endog_data) | specs$robust_cov == "tLAHR") {
     
       if (!is.null(specs$lags_endog_data)) {  
-        lags_endog <- specs$lags_endog_data
+        lags_endog <- seq(specs$lags_endog_data)
+      
       } else if (specs$robust_cov =="tLAHR") {
         # Use simple p-selection rule for determining the number of lags p
         periods <- length(unique(y_data[[ii]]$date_id))
@@ -613,11 +616,25 @@ CREATE_PANEL_DATA <- function(specs, data_set){
         dplyr::select(cross_id, date_id, specs$endog_data)      |> 
         dplyr::group_by(cross_id)                               |> 
         dplyr::mutate_at(vars(specs$endog_data), lag_functions) |> 
-        ungroup()                                               |> 
-        dplyr::select(-specs$endog_data)
+        ungroup()                                               
       
-      # Rename columns
-      colnames(l_y_data)[3:dim(l_y_data)[2]] <- end_lag_labels
+        # BUG FIX -----------
+        # |> 
+        # dplyr::select(-specs$endog_data)
+         
+      
+      # Rename columns - BUG FIX 
+      # If more than 1 lag, than the lags a created under fn*
+      if (max(lags_endog) > 1) {
+        
+        l_y_data <- l_y_data |> dplyr::select(-specs$endog_data)
+        colnames(l_y_data)[3:dim(l_y_data)[2]] <- end_lag_labels
+      
+        # If only one lag, than lag is under original name of endogenouse variable
+      } else {
+        colnames(l_y_data)[3:dim(l_y_data)[2]] <- end_lag_labels
+      }
+      
       
       # Loop to add level Lags to each element in list
       for(ii in 0:(specs$hor-1)) {
@@ -884,11 +901,11 @@ df_hp_large_lp <- df_hp_large |>
 WCD <- LP_LIN_PANEL(
   data_set          = df_hp_large_lp,  # Panel dataset
   data_sample       = "Full",  # Use full sample or subset
-  lags_endog_data   = NULL,
+  lags_endog_data   = 2,
   endog_data        = "log_loan_amount",  # Endogenous variable
   cumul_mult        = TRUE,  # Estimate cumulative multipliers?
   shock             = "I_HHI_ZLB2_NS",  # Shock variable
-  lags_shock        = NULL,
+  lags_shock        = 2,
   diff_shock        = TRUE,  # First difference of shock variable
   panel_model       = "within",  # Panel model type
   panel_effect      = "twoways",  # Panel effect type
@@ -901,7 +918,7 @@ WCD <- LP_LIN_PANEL(
   l_fd_exog_data    = colnames(df_hp_large_lp)[c(6:10)],  # First-difference lagged exogenous variables
   lags_fd_exog_data = 2,  # Lag length for first-difference exogenous variables
   confint           = 1.96,  # Confidence interval width
-  hor               = 6,
+  hor               = 1,
   biter             = 10
 )
 
