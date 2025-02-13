@@ -74,7 +74,8 @@ sod <- sod[, .(hhi = sum(bank_market_share_sq) / 10000) , by = .(fips, year)]
 sod[, hhi_mean := mean(hhi), by = fips]
 
 # Calculate the median based on fips
-hhi_median <- median(sod$hhi_mean)
+sod_median <- distinct(sod, fips, hhi_mean)
+hhi_median <- median(sod_median$hhi_mean)
 
 # Determine high and low market concentration counties
 sod[, d_hhi_indicator := if_else(hhi_mean > hhi_median, 1, 0)]
