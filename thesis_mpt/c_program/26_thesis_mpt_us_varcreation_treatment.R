@@ -119,12 +119,12 @@ monetary_shock <- LOAD("24_thesis_mpt_databasics_monetary_shock_us")
 
 # Select Conventional Monetary Policy Shocks
 df_monetary_shock <- monetary_shock |> 
-  dplyr::select(year, GSS_target, NS, bp_u1) |> 
-  rename(
-    GSS_target = GSS_target, # Guerkaynak, Sack, and Swanson
-    NS_target = NS, # Nakamura & Steinsson
-    J_target = bp_u1 # Jarocinski (2020)
-  )
+  dplyr::select(year, starts_with("NS"), starts_with("bp"))
+  # rename(
+  #   GSS_target = GSS_target, # Guerkaynak, Sack, and Swanson
+  #   NS_target = NS, # Nakamura & Steinsson
+  #   J_target = bp_u1 # Jarocinski (2020)
+  # )
 
 
 # 3. Combine Federal Funds Rate & SOD ==========================================
@@ -136,18 +136,37 @@ df_treatment <- sod |>
   dplyr::select(-date)
 
 
-# 4. Create Interaction Term between ZLB Dummy * Monetary Shock * HHI
+# 4. Create Interaction Term between ZLB Dummy * Monetary Shock * HHI ==========
 
 df_treatment <- df_treatment |> 
   mutate(
-    I_treatment_GSS_1 = d_ffr_mean_1perc * GSS_target * d_hhi_indicator,
-    I_treatment_GSS_2 = d_ffr_mean_2perc * GSS_target * d_hhi_indicator,
-    I_treatment_NS_2 = d_ffr_mean_1perc * NS_target * d_hhi_indicator,
-    I_treatment_NS_2 = d_ffr_mean_2perc * NS_target * d_hhi_indicator,
-    I_treatment_J_2 = d_ffr_mean_1perc * J_target * d_hhi_indicator,
-    I_treatment_J_2 = d_ffr_mean_2perc * J_target * d_hhi_indicator,
-  ) 
-
+    # I_HHI_GSS_1_total = d_ffr_mean_1perc * GSS_target * hhi,
+    # I_HHI_GSS_2_total = d_ffr_mean_2perc * GSS_target * hhi,
+    # I_HHI_GSS_1 = d_ffr_mean_1perc * GSS_target * hhi,
+    # I_HHI_GSS_2 = d_ffr_mean_2perc * GSS_target * hhi,
+    # I_HHI_GSS_1 = d_ffr_mean_1perc * GSS_target * hhi,
+    # I_HHI_GSS_2 = d_ffr_mean_2perc * GSS_target * hhi,
+    # Nakamura & Steinsson (2018)
+    I_HHI_NS_TOTAL_1 = d_ffr_mean_1perc * NS_total * hhi,
+    I_HHI_NS_TOTAL_2 = d_ffr_mean_2perc * NS_total * hhi,
+    I_HHI_NS_POS_1   = d_ffr_mean_1perc * NS_positiv * hhi,
+    I_HHI_NS_POS_2   = d_ffr_mean_2perc * NS_positiv * hhi,
+    I_HHI_NS_NEG_1   = d_ffr_mean_1perc * NS_negativ * hhi,
+    I_HHI_NS_NEG_2   = d_ffr_mean_2perc * NS_negativ * hhi,
+    I_HHI_NS_TOTAL   = NS_total * hhi,
+    I_HHI_NS_POS     = NS_positiv * hhi,
+    I_HHI_NS_NEG     = NS_negativ * hhi,
+    # Jarocinski & Karadi (2020)
+    I_HHI_J_TOTAL_1  = d_ffr_mean_1perc * bp_u1_total* hhi,
+    I_HHI_J_TOTAL_2  = d_ffr_mean_2perc * bp_u1_total * hhi,
+    I_HHI_J_POS_1    = d_ffr_mean_1perc * bp_u1_positiv * hhi,
+    I_HHI_J_POS_2    = d_ffr_mean_2perc * bp_u1_positiv  * hhi,
+    I_HHI_J_NEG_1    = d_ffr_mean_1perc * bp_u1_negativ * hhi,
+    I_HHI_J_NEG_2    = d_ffr_mean_2perc * bp_u1_negativ * hhi,
+    I_HHI_J_TOTAL    = bp_u1_total * hhi,
+    I_HHI_J_POS      = bp_u1_positiv * hhi,   
+    I_HHI_J_NEG      = bp_u1_negativ * hhi
+)
 
 # 5. Saving the dataset ========================================================
 
