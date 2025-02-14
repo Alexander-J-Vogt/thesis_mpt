@@ -64,35 +64,14 @@ df_main <- df_main |>
     log_dl = log(dl_outst_amount_EUR),
     log_hp_total_amount =  log(hp_outst_amount_EUR)) 
 
-# 04. New Units for Variables ==================================================
 
-# # Delta
-# df_main <- df_main |> 
-#   # Make sure that the dataset is order by county, year
-#   arrange(country, month) |> 
-#   group_by(country) |> 
-#   mutate(
-#     # Delta Lending Rates
-#     delta_lending_rate_total = lending_rate_total - lag(lending_rate_total),
-#     delta_lending_rate_1year = lending_rate_1year - lag(lending_rate_1year),
-#     delta_lending_rate_5year = lending_rate_5year - lag(lending_rate_5year),
-#     
-#     # Delta Total Amount
-#     delta_hp_total = hp_outst_amount_EUR - lag(hp_outst_amount_EUR),
-#     
-#     # Log delta Total Amount
-#     log_delta_hp_total_amount = log(hp_outst_amount_EUR) - lag(log(hp_outst_amount_EUR))
-#   ) |> 
-#   ungroup()
-
-
-# 05. Monthly Dataset ==========================================================
+# 04. Monthly Dataset ==========================================================
 
 # Save as monthly dataset
 SAVE(df_main, paste0(MAINNAME, "_m"))
 
 
-# 06. Annual dataset =========================================================== 
+# 05. Annual dataset =========================================================== 
 
 # Collapse data to annual data by taking the mean over a month
 df_main_a <- df_main |> 
@@ -100,7 +79,7 @@ df_main_a <- df_main |>
   group_by(country, year) |> 
   summarise(across(everything(), \(x) mean(x, na.rm = TRUE)), .groups = "drop")
 
-# 05. Save =====================================================================
+# 06. Save =====================================================================
 
 # Save annual dataset
 SAVE(dfx = df_main_a, paste0(MAINNAME, "_a"))
