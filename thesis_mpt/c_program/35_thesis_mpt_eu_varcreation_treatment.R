@@ -51,23 +51,23 @@ df_ecb_policy_rate <- ecb_policy_rate |>
 # 03. Monetary Shock ===========================================================
 
 # Load Eurozone Monetary Shock
-monetary_shock <- LOAD("24_thesis_mpt_databasics_monetary_shock_eurozone")
-
-# SD
-sd_altavilla <- sd(monetary_shock$Altavilla_target)
-sd_jarocinski <- sd(monetary_shock$MP_median)
-
-
-# Select Relevant Variables
-df_monetary_shock <- monetary_shock |> 
-  select(month, MP_median, Altavilla_target)|> 
-  # Cintractionary & Expansionary Monetary Shock
-  mutate(
-    Altavilla_contractionary = -1 * Altavilla_target,
-    Altavilla_expansionary = Altavilla_target,
-    MP_median_contractionary = -1 * MP_median / sd_jarocinski, # Transform the shock from 1 bps to 1 sd
-    MP_median_expansionary = MP_median / sd_jarocinski # Transform the shock from 1 bps to 1 sd
-  )
+df_monetary_shock <- LOAD("24_thesis_mpt_databasics_monetary_shock_eurozone")
+# 
+# # SD
+# sd_altavilla <- sd(monetary_shock$Altavilla_target)
+# sd_jarocinski <- sd(monetary_shock$MP_median)
+# 
+# 
+# # Select Relevant Variables
+# df_monetary_shock <- monetary_shock |> 
+#   select(month, MP_median, Altavilla_target)|> 
+#   # Cintractionary & Expansionary Monetary Shock
+#   mutate(
+#     Altavilla_contractionary = -1 * Altavilla_target,
+#     Altavilla_expansionary = Altavilla_target,
+#     MP_median_contractionary = -1 * MP_median / sd_jarocinski, # Transform the shock from 1 bps to 1 sd
+#     MP_median_expansionary = MP_median / sd_jarocinski # Transform the shock from 1 bps to 1 sd
+#   )
 
 # 04. Merge Dataset ============================================================
 
@@ -91,7 +91,29 @@ df_merge <- df_month |>
   select(-year)
 
 
-# 04. SAVE =====================================================================
+# 05. Create Interaction Terms =================================================
+
+df_merge <- df_merge |> 
+  # Create Interaction Terms
+  mutate(
+    # Three Parted Interaction Term
+    I_HHI_A_TOTAL_NIRP = hhi_ci_total_assets * altavilla_total    * d_dfr_nirp,
+    I_HHI_A_POS_NIRP   = hhi_ci_total_assets * altavilla_positiv  * d_dfr_nirp,
+    I_HHI_A_NEG_NIRP   = hhi_ci_total_assets * altavilla_negativ  * d_dfr_nirp,
+    I_HHI_J_TOTAL_NIRP = hhi_ci_total_assets * MP_median_total    * d_dfr_nirp,
+    I_HHI_J_POS_NIRP   = hhi_ci_total_assets * MP_median_positiv  * d_dfr_nirp,
+    I_HHI_J_NEG_NIRP   = hhi_ci_total_assets * MP_median_negativ  * d_dfr_nirp,
+    #Two Parted Interaction Term
+    I_HHI_A_TOTAL      = hhi_ci_total_assets * altavilla_total    ,
+    I_HHI_A_POS        = hhi_ci_total_assets * altavilla_positiv ,
+    I_HHI_A_NEG        = hhi_ci_total_assets * altavilla_negativ  ,
+    I_HHI_J_TOTAL      = hhi_ci_total_assets * MP_median_total    ,
+    I_HHI_J_POS        = hhi_ci_total_assets * MP_median_positiv  ,
+    I_HHI_J_NEG        = hhi_ci_total_assets * MP_median_negativ  ,
+  )
+
+
+# 06. SAVE =====================================================================
 
 SAVE(dfx = df_merge)
 
