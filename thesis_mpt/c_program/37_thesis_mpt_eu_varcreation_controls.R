@@ -224,8 +224,21 @@ ggplot(df_combined, aes(x = month, y = ur, color = country)) +
 #' As approximation of the UR in the mid-2000s it is okay but is a bit off compared 
 #' to what is found at the Statistiches Bundesamt
 
-  
-# 05. SAVE =====================================================================
+# 05. Crisis Indicator =========================================================
+
+df_controls <- df_controls |> 
+  mutate(
+    d_fincrisis = if_else(inrange(month, as.Date("2008-04-01"), as.Date("2009-06-01")), 1, 0),
+    d_eurocrisis = if_else(inrange(month, as.Date("2011-06-01"), as.Date("2013-04-01")), 1, 0),
+    d_countries_arm = ifelse(country %in% c("AT", "GR", "IT", "PT", "ES"), 1, 0)
+  ) |> 
+  mutate(year = year(month))
+
+df_controls <- fastDummies::dummy_cols(df_controls, select_columns = "year", remove_first_dummy = TRUE)
+
+df_controls <- df_controls |> dplyr::select(-year)
+
+# 05. SAVE ==================================year# 05. SAVE =====================================================================
 
 SAVE(dfx = df_controls)
 
