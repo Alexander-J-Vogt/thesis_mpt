@@ -157,6 +157,8 @@ df_treatment <- df_treatment |>
     I_HHI_NS_TOTAL   = NS_total * hhi,
     I_HHI_NS_POS     = NS_positiv * hhi,
     I_HHI_NS_NEG     = NS_negativ * hhi,
+    I_NS_TOTAL_2     = d_ffr_mean_2perc * NS_total,
+    I_NS_TOTAL_1     = d_ffr_mean_1perc * NS_total,
     # Jarocinski & Karadi (2020)
     I_HHI_J_TOTAL_1  = d_ffr_mean_1perc * bp_u1_total* hhi,
     I_HHI_J_TOTAL_2  = d_ffr_mean_2perc * bp_u1_total * hhi,
@@ -166,7 +168,9 @@ df_treatment <- df_treatment |>
     I_HHI_J_NEG_2    = d_ffr_mean_2perc * bp_u1_negativ * hhi,
     I_HHI_J_TOTAL    = bp_u1_total * hhi,
     I_HHI_J_POS      = bp_u1_positiv * hhi,   
-    I_HHI_J_NEG      = bp_u1_negativ * hhi
+    I_HHI_J_NEG      = bp_u1_negativ * hhi,
+    I_J_TOTAL_2     = d_ffr_mean_2perc * bp_u1_total,
+    I_J_TOTAL_1     = d_ffr_mean_1perc * bp_u1_total
 )
 
 # 5. Saving the dataset ========================================================
