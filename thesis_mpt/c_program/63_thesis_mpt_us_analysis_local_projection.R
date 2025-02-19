@@ -62,11 +62,12 @@ df_hp_large <- df_hp_depository_large |>
     hpi_annual_change_perc = hpi_annual_change_perc / 100,
     inflation_us = inflation_us / 100,
     gdp_growth_us = gdp_growth_us / 100,
-    ur = ur / 100
+    ur_county = ur_county / 100,
+    ur_national = ur_national / 100
     ) |> 
   mutate(
-    loan_amount_pc = loan_amount * 1000 / cnty_pop.x,
-    log_loan_amount_pc = log(loan_amount * 1000 / cnty_pop.x)
+    loan_amount_pc = loan_amount * 1000 / cnty_pop,
+    log_loan_amount_pc = log(loan_amount * 1000 / cnty_pop)
   )
 
 # Create Low- and High-Concentration Counties
@@ -83,7 +84,18 @@ df_hp_large_lowconc <- df_hp_large |>
   # filter(hhi <= 0.18 & hhi >= 0.05) |> 
   # ungroup()
 
-  
+# Create Year Sample for HHI
+df_hp_large_zlb1 <- df_hp_large |> 
+  filter(d_ffr_mean_1perc == 1)
+
+zlb_year <- unique(df_hp_large_zlb1$year)
+
+# Create Year Sample Away from the ZLB
+df_hp_large_normal <- df_hp_large |> 
+  filter(d_ffr_mean_1perc == 0)
+
+normal_year <- unique(df_hp_large_normal$year)
+
   #|> 
   # Interaction Terms
   # mutate(
@@ -94,6 +106,7 @@ df_hp_large_lowconc <- df_hp_large |>
   #   I_hhi_NS = hhi * NS_target,
   #   I_2perc_NS = d_ffr_mean_2perc * NS_target
   # )
+
 if (DEBUG) {
 # Local Projection Model
 model_lp <- formula(log_loan_amount ~ hhi_scale + d_ffr_mean_2perc + NS_target + I_treatment_NS_2 + ur + poverty_percent_all_ages + log_median_household_income + hpi_annual_change_perc + inflation_us + gdp_growth_us)
@@ -229,8 +242,8 @@ HOR <- 6
 ###############################################################################+
 
 endo <- "log_loan_amount_pc"
-controls <- c("ur", "log_median_household_income", "hpi_annual_change_perc", 
-              "inflation_us", "gdp_growth_us")
+controls <- c("ur_county", "log_median_household_income", "hpi_annual_change_perc", "dti", 
+              "inflation_us", "gdp_growth_us", "ur_national")
 
 
 ### 3.1.1 Regressions for Baseline ---------------------------------------------
@@ -367,7 +380,7 @@ plot4_separate_sample_ms <- GG_IRF_TWO(data1 =  results_baseline$separate_sample
                                        y_lower = -2.5,
                                        y_upper = 5,
                                        breaks = .5,
-                                       title_name = "Negative MS",
+                                       title_name = "Subsample: Monetary Shock",
                                        time_name = "Years"
                                        )
 
@@ -381,16 +394,246 @@ graph_baseline <- (plot1_full_ms_hhi$plot + plot2_full_ms$plot) /
                     theme = theme(plot.title = element_text(size = 10, hjust = .5))
                   )
 
+
 ###############################################################################+
 ## 3.2 Interaction Term with ZLB Indicator #####################################
 ###############################################################################+
 
+# Define the four baseline specifications in a list
+shock_specs_zlb_indicator <- list(
+  full_sample_hhi_ms = list(
+    shock_var   = "I_HHI_NS_TOTAL_1",
+    select_cols = c("fips", "year", endo, "hhi", "I_HHI_NS_TOTAL_1",  controls),
+    sample = df_hp_large
+  ),
+  full_sample_ms = list(
+    shock_var   = "I_NS_TOTAL_1",
+    select_cols = c("fips", "year", endo, "hhi", "I_NS_TOTAL_1", controls),
+    sample = df_hp_large
+  ),
+  separate_sample_hhi_ms_high = list(
+    shock_var   = "I_HHI_NS_TOTAL_1",
+    select_cols = c("fips", "year", endo, "hhi", "I_HHI_NS_TOTAL_1",controls),
+    sample = df_hp_large_highconc
+    
+  ),
+  separate_sample_ms_high = list(
+    shock_var   = "I_NS_TOTAL_1",
+    select_cols = c("fips", "year", endo, "hhi", "I_NS_TOTAL_1", controls),
+    sample = df_hp_large_highconc
+  ),
+  separate_sample_hhi_ms_low = list(
+    shock_var   = "I_HHI_NS_TOTAL_1",
+    select_cols = c("fips", "year", endo, "hhi", "I_HHI_NS_TOTAL_1",controls),
+    sample = df_hp_large_lowconc
+    
+  ),
+  separate_sample_ms_low = list(
+    shock_var   = "I_NS_TOTAL_1",
+    select_cols = c("fips", "year", endo, "hhi", "I_NS_TOTAL_1", controls),
+    sample = df_hp_large_lowconc
+  )
+)
+
+# Set up the parallel backend (use available cores minus one)
+n_cores <- parallel::detectCores() - 1
+cl <- makeCluster(n_cores)
+registerDoParallel(cl)
+
+# Run the LP_LIN_PANEL function in parallel for each specification
+results_zlb_indicator <- foreach(spec = shock_specs_baseline,
+                            .packages = c("dplyr", "lpirfs", "plm", "clusterSEs", "lmtest"),
+                            .export = c("df_hp_large", "LP_LIN_PANEL", "CREATE_PANEL_DATA", "PANEL_EFFECT", "CI", "HOR", "BITER", "endo")) %dopar% {
+                              
+                              # Subset the data according to the current specification
+                              df_subset <- spec$sample  |> 
+                                select(all_of(spec$select_cols))
+                              
+                              # Run the model estimation
+                              LP_LIN_PANEL(
+                                data_set          = df_subset,
+                                data_sample       = "Full",
+                                endog_data        = endo,
+                                lags_endog_data   = 2,
+                                cumul_mult        = TRUE,
+                                shock             = spec$shock_var,
+                                lags_shock        = 2,
+                                diff_shock        = TRUE,
+                                panel_model       = "within",
+                                panel_effect      = PANEL_EFFECT,
+                                robust_cov        = "wild.cluster.boot",
+                                robust_cluster    = "time",
+                                c_exog_data       = NULL, #colnames(df_subset)[c(4, 6:10)],
+                                l_exog_data       = NULL, #colnames(df_subset)[c(4, 6:10)],
+                                lags_exog_data    = NaN,
+                                c_fd_exog_data    = colnames(df_subset)[c(4, 6:10)],
+                                l_fd_exog_data    = colnames(df_subset)[c(4, 6:10)],
+                                lags_fd_exog_data = 2,
+                                confint           = CI,
+                                hor               = HOR,
+                                biter             = BITER
+                              )
+                            }
+
+# Optionally, assign names to the results list based on your shock specifications
+names(results_zlb_indicator) <- names(shock_specs_zlb_indicator)
+
+# Shut down the parallel cluster
+stopCluster(cl)
+
+# Clear garbage
+gc()
+
+### 3.1.2 Graphs for Baseline --------------------------------------------------
+
+# Graph 5: Full Sample - Shock: MS x HHI x ZLB --------------------------------+
+
+plot5_full_ms_hhi <- GG_IRF_ONE(data = results_zlb_indicator$full_sample_hhi_ms,
+                                hhi_coef = FALSE, 
+                                y_lower = -1, 
+                                y_upper = 1, 
+                                breaks = .5,
+                                title_name = "Full Sample: Monetary Shock \u00D7 HHI \u00D7 ZLB",
+                                time_name = "Years"
+                                )
+
+# Graph 6: Full Sample - Shock: MS x ZLB --------------------------------------+
+
+plot6_full_ms <- GG_IRF_ONE(data = results_zlb_indicator$full_sample_ms,
+                            hhi_coef = FALSE, 
+                            y_lower = -1, 
+                            y_upper = 1, 
+                            breaks = .5,
+                            title_name = "Full Sample: Monetary Shock \u00D7 ZLB",
+                            time_name = "Years"
+                            )
+
+# Graph 7: High vs Low Sample - Shock: MS x HHI x ZLB -------------------------+
+
+plot7_separate_sample_ms_hhi <- GG_IRF_TWO(data1 = results_zlb_indicator$separate_sample_hhi_ms_high,
+                                           data2 = results_zlb_indicator$separate_sample_hhi_ms_low,
+                                           data_name = c("High HHI", "Low HHI"),
+                                           hhi_coef = FALSE, 
+                                           y_lower = -2.5,
+                                           y_upper = 5,
+                                           breaks = .5,
+                                           title_name = "Subsample: Monetary Shock \u00D7 HHI \u00D7 ZLB",
+                                           time_name = "Years"
+)
 
 
+# Graph 8: High vs Low Sample - Shock: MS x ZLB -------------------------------+
+
+plot8_separate_sample_ms <- GG_IRF_TWO(data1 =  results_zlb_indicator$separate_sample_ms_high,
+                                       data2 = results_zlb_indicator$separate_sample_ms_low,
+                                       data_name = c("High HHI", "Low HHI"),
+                                       hhi_coef = FALSE, 
+                                       y_lower = -2.5,
+                                       y_upper = 5,
+                                       breaks = .5,
+                                       title_name = "Subsample: Monetary Shock \u00D7 ZLB",
+                                       time_name = "Years"
+)
+
+# Final Graph: Combine 5 to 8 -------------------------------------------------+
+
+graph_baseline <- (plot5_full_ms_hhi$plot + plot6_full_ms$plot) / 
+                  (plot7_separate_sample_ms_hhi$plot + plot8_separate_sample_ms$plot) +
+                  plot_annotation(
+                    title = "Local Projection with ZLB Indicator",
+                    tag_levels = "I",
+                    theme = theme(plot.title = element_text(size = 10, hjust = .5))
+                  )
 
 
+###############################################################################+
+## 3.3 Subsample for the Identification of the ZLB Effect on HHI ###############
+###############################################################################+
 
+# Define the four baseline specifications in a list
+shock_specs_zlb_indicator <- list(
+  full_sample_hhi_ms = list(
+    shock_var   = "I_HHI_NS_TOTAL_1",
+    select_cols = c("fips", "year", endo, "hhi", "I_HHI_NS_TOTAL_1",  controls),
+    sample = df_hp_large
+  ),
+  full_sample_ms = list(
+    shock_var   = "I_NS_TOTAL_1",
+    select_cols = c("fips", "year", endo, "hhi", "I_NS_TOTAL_1", controls),
+    sample = df_hp_large
+  ),
+  separate_sample_hhi_ms_high = list(
+    shock_var   = "I_HHI_NS_TOTAL_1",
+    select_cols = c("fips", "year", endo, "hhi", "I_HHI_NS_TOTAL_1",controls),
+    sample = df_hp_large_highconc
+    
+  ),
+  separate_sample_ms_high = list(
+    shock_var   = "I_NS_TOTAL_1",
+    select_cols = c("fips", "year", endo, "hhi", "I_NS_TOTAL_1", controls),
+    sample = df_hp_large_highconc
+  ),
+  separate_sample_hhi_ms_low = list(
+    shock_var   = "I_HHI_NS_TOTAL_1",
+    select_cols = c("fips", "year", endo, "hhi", "I_HHI_NS_TOTAL_1",controls),
+    sample = df_hp_large_lowconc
+    
+  ),
+  separate_sample_ms_low = list(
+    shock_var   = "I_NS_TOTAL_1",
+    select_cols = c("fips", "year", endo, "hhi", "I_NS_TOTAL_1", controls),
+    sample = df_hp_large_lowconc
+  )
+)
 
+# Set up the parallel backend (use available cores minus one)
+n_cores <- parallel::detectCores() - 1
+cl <- makeCluster(n_cores)
+registerDoParallel(cl)
+
+# Run the LP_LIN_PANEL function in parallel for each specification
+results_zlb_sample <- foreach(spec = shock_specs_zlb_indicator,
+                              .packages = c("dplyr", "lpirfs", "plm", "clusterSEs", "lmtest"),
+                              .export = c("df_hp_large", "LP_LIN_PANEL", "CREATE_PANEL_DATA", "PANEL_EFFECT", "CI", "HOR", "BITER", "endo")) %dopar% {
+                                   
+                              # Subset the data according to the current specification
+                              df_subset <- spec$sample  |> 
+                                select(all_of(spec$select_cols))
+                              
+                              # Run the model estimation
+                              LP_LIN_PANEL(
+                                data_set          = df_subset,
+                                data_sample       = "Full",
+                                endog_data        = endo,
+                                lags_endog_data   = 2,
+                                cumul_mult        = TRUE,
+                                shock             = spec$shock_var,
+                                lags_shock        = 2,
+                                diff_shock        = TRUE,
+                                panel_model       = "within",
+                                panel_effect      = PANEL_EFFECT,
+                                robust_cov        = "wild.cluster.boot",
+                                robust_cluster    = "time",
+                                c_exog_data       = NULL, #colnames(df_subset)[c(4, 6:10)],
+                                l_exog_data       = NULL, #colnames(df_subset)[c(4, 6:10)],
+                                lags_exog_data    = NaN,
+                                c_fd_exog_data    = colnames(df_subset)[c(4, 6:10)],
+                                l_fd_exog_data    = colnames(df_subset)[c(4, 6:10)],
+                                lags_fd_exog_data = 2,
+                                confint           = CI,
+                                hor               = HOR,
+                                biter             = BITER
+                              )
+                            }
+
+# Optionally, assign names to the results list based on your shock specifications
+names(results_zlb_sample) <- names(shock_specs_zlb_sample)
+
+# Shut down the parallel cluster
+stopCluster(cl)
+
+# Clear garbage
+gc()
 
 ### 3.1.1 Full Sample ----------------------------------------------------------
 
