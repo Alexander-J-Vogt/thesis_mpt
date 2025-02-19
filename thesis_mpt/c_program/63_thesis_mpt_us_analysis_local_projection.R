@@ -107,7 +107,7 @@ BITER <- 10
 # Panel Effect: "individual", "time", "twoways"
 PANEL_EFFECT <- "individual"
 
-# Signigikance Level
+# Significance Level
 CI <- 1.96
 
 # Time Horizon
@@ -275,6 +275,8 @@ graph_baseline <- (plot1_full_ms_hhi$plot + plot2_full_ms$plot) /
 ## 3.2 Interaction Term with ZLB Indicator #####################################
 ###############################################################################+
 
+### 3.2.1 Regressions with Interaction Term ------------------------------------
+
 # Define the four baseline specifications in a list
 shock_specs_zlb_indicator <- list(
   full_sample_hhi_ms = list(
@@ -360,7 +362,7 @@ stopCluster(cl)
 # Clear garbage
 gc()
 
-### 3.1.2 Graphs for Baseline --------------------------------------------------
+### 3.2.2 Graphs for Regressions with Interaction Term -------------------------
 
 # Graph 5: Full Sample - Shock: MS x HHI x ZLB --------------------------------+
 
@@ -409,7 +411,7 @@ plot8_separate_sample_ms <- GG_IRF_TWO(data1 =  results_zlb_indicator$separate_s
                                        breaks = .5,
                                        title_name = "Subsample: Monetary Shock \u00D7 ZLB",
                                        time_name = "Years"
-)
+                                       )
 
 # Final Graph: Combine 5 to 8 -------------------------------------------------+
 
@@ -426,39 +428,47 @@ graph_baseline <- (plot5_full_ms_hhi$plot + plot6_full_ms$plot) /
 ## 3.3 Subsample for the Identification of the ZLB Effect on HHI ###############
 ###############################################################################+
 
+### 3.3.1 Regressions on Subsample ---------------------------------------------
+
 # Define the four baseline specifications in a list
 shock_specs_zlb_indicator <- list(
   full_sample_hhi_ms = list(
-    shock_var   = "I_HHI_NS_TOTAL_1",
-    select_cols = c("fips", "year", endo, "hhi", "I_HHI_NS_TOTAL_1",  controls),
-    sample = df_hp_large
+    shock_var   = "I_HHI_NS_TOTAL",
+    select_cols = c("fips", "year", endo, "hhi", "I_HHI_NS_TOTAL",  controls),
+    sample = df_hp_large,
+    sample_period = zlb_year
   ),
   full_sample_ms = list(
-    shock_var   = "I_NS_TOTAL_1",
-    select_cols = c("fips", "year", endo, "hhi", "I_NS_TOTAL_1", controls),
-    sample = df_hp_large
+    shock_var   = "I_NS_TOTAL",
+    select_cols = c("fips", "year", endo, "hhi", "I_NS_TOTAL", controls),
+    sample = df_hp_large,
+    sample_period = zlb_year
   ),
   separate_sample_hhi_ms_high = list(
-    shock_var   = "I_HHI_NS_TOTAL_1",
-    select_cols = c("fips", "year", endo, "hhi", "I_HHI_NS_TOTAL_1",controls),
-    sample = df_hp_large_highconc
+    shock_var   = "I_HHI_NS_TOTAL",
+    select_cols = c("fips", "year", endo, "hhi", "I_HHI_NS_TOTAL",controls),
+    sample = df_hp_large_highconc,
+    sample_period = zlb_year
     
   ),
   separate_sample_ms_high = list(
-    shock_var   = "I_NS_TOTAL_1",
-    select_cols = c("fips", "year", endo, "hhi", "I_NS_TOTAL_1", controls),
-    sample = df_hp_large_highconc
+    shock_var   = "I_NS_TOTAL",
+    select_cols = c("fips", "year", endo, "hhi", "I_NS_TOTAL", controls),
+    sample = df_hp_large_highconc,
+    sample_period = zlb_year
   ),
   separate_sample_hhi_ms_low = list(
-    shock_var   = "I_HHI_NS_TOTAL_1",
-    select_cols = c("fips", "year", endo, "hhi", "I_HHI_NS_TOTAL_1",controls),
-    sample = df_hp_large_lowconc
+    shock_var   = "I_HHI_NS_TOTAL",
+    select_cols = c("fips", "year", endo, "hhi", "I_HHI_NS_TOTAL",controls),
+    sample = df_hp_large_lowconc,
+    sample_period = zlb_year
     
   ),
   separate_sample_ms_low = list(
-    shock_var   = "I_NS_TOTAL_1",
-    select_cols = c("fips", "year", endo, "hhi", "I_NS_TOTAL_1", controls),
-    sample = df_hp_large_lowconc
+    shock_var   = "I_NS_TOTAL",
+    select_cols = c("fips", "year", endo, "hhi", "I_NS_TOTAL", controls),
+    sample = df_hp_large_lowconc,
+    sample_period = zlb_year
   )
 )
 
@@ -479,7 +489,7 @@ results_zlb_sample <- foreach(spec = shock_specs_zlb_indicator,
                               # Run the model estimation
                               LP_LIN_PANEL(
                                 data_set          = df_subset,
-                                data_sample       = "Full",
+                                data_sample       = spec$sample_period,
                                 endog_data        = endo,
                                 lags_endog_data   = 2,
                                 cumul_mult        = TRUE,
@@ -510,6 +520,69 @@ stopCluster(cl)
 
 # Clear garbage
 gc()
+
+### 3.3.2 Graphs for Regressions on Subsample ----------------------------------
+
+# Graph 9: Subsample - Shock: MS x HHI ----------------------------------------+
+
+plot9_full_ms_hhi <- GG_IRF_ONE(data = results_zlb_sample$full_sample_hhi_ms,
+                                hhi_coef = FALSE, 
+                                y_lower = -1, 
+                                y_upper = 1, 
+                                breaks = .5,
+                                title_name = "Subsample: Monetary Shock \u00D7 HHI",
+                                time_name = "Years"
+                                )
+
+# Graph 10: Subample - Shock: MS ----------------------------------------------+
+
+plot10_full_ms <- GG_IRF_ONE(data = results_zlb_sample$full_sample_ms,
+                             hhi_coef = FALSE, 
+                             y_lower = -1, 
+                             y_upper = 1, 
+                             breaks = .5,
+                             title_name = "Subsample: Monetary Shock",
+                             time_name = "Years"
+                             )
+
+# Graph 11: High vs Low Sample - Shock: MS x HHI ------------------------------+
+
+plot11_separate_sample_ms_hhi <- GG_IRF_TWO(data1 = results_zlb_sample$separate_sample_hhi_ms_high,
+                                           data2 = results_zlb_sample$separate_sample_hhi_ms_low,
+                                           data_name = c("High HHI", "Low HHI"),
+                                           hhi_coef = FALSE, 
+                                           y_lower = -2.5,
+                                           y_upper = 5,
+                                           breaks = .5,
+                                           title_name = "Subsample: Monetary Shock \u00D7 HHI \u00D7 ZLB",
+                                           time_name = "Years"
+)
+
+
+# Graph 12: High vs Low Sample - Shock: MS ------------------------------------+
+
+plot12_separate_sample_ms <- GG_IRF_TWO(data1 =  results_zlb_sample$separate_sample_ms_high,
+                                       data2 = results_zlb_sample$separate_sample_ms_low,
+                                       data_name = c("High HHI", "Low HHI"),
+                                       hhi_coef = FALSE, 
+                                       y_lower = -2.5,
+                                       y_upper = 5,
+                                       breaks = .5,
+                                       title_name = "Subsample: Monetary Shock \u00D7 ZLB",
+                                       time_name = "Years"
+)
+
+# Final Graph: Combine 9 to 12 ------------------------------------------------+
+
+graph_baseline <- (plot9_full_ms_hhi$plot + plot10_full_ms$plot) / 
+                  (plot11_separate_sample_ms_hhi$plot + plot12_separate_sample_ms$plot) +
+                  plot_annotation(
+                    title = "Local Projection on Subsample",
+                    tag_levels = "I",
+                    theme = theme(plot.title = element_text(size = 10, hjust = .5))
+                  )
+
+###################################### END #####################################
 
 ### 3.1.1 Full Sample ----------------------------------------------------------
 
