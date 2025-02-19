@@ -137,6 +137,8 @@ fred <- LOAD("05_thesis_mpt_databasics_fred")
 # MSA/MD Crosswalk files
 df_crosswalk_msamd <- LOAD("23_thesis_mpt_databasics_msa_county_crosswalk_file")
 
+# Debt-to-Income Ratio in the United States
+df_dti <- LOAD(dfinput = "17_thesis_mpt_databasics_us_debt_to_income")
 
 
 ## 2.2 Accounting for Changes in FIPS Codes ------------------------------------
@@ -216,7 +218,7 @@ data_merged <- left_join(data_merged, saipe, by = c("fips", "year"))
 data_merged <- left_join(data_merged, gazette, by = c("fips", "year"))
 data_merged <- left_join(data_merged, hpi, by = c("fips", "year"))
 data_merged <- left_join(data_merged, fred, by = c("year"))
-
+data_merged <- left_join(data_merged, df_dti, by = c("year", "fips"))
 
 # 3. Variable Creation =========================================================
 
@@ -243,7 +245,7 @@ data_merged[, pop_density := cnty_pop / landarea_sqkm]
 
 # Imputate missings for Alaska: 02105, 02195, 02198, 02230, 02270, 02275
 # Impute by  mean
-data_merged[, ur := ifelse(is.na(ur), mean(ur, na.rm = T), ur)]
+data_merged[, ur_county := ifelse(is.na(ur_county), mean(ur_county, na.rm = T), ur_county)]
 data_merged[, median_household_income := ifelse(is.na(median_household_income), mean(median_household_income, na.rm = T), median_household_income)]
 data_merged[, poverty_percent_all_ages := ifelse(is.na(poverty_percent_all_ages), mean(poverty_percent_all_ages, na.rm = T), poverty_percent_all_ages)]
 
