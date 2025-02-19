@@ -249,8 +249,20 @@ data_merged[, ur_county := ifelse(is.na(ur_county), mean(ur_county, na.rm = T), 
 data_merged[, median_household_income := ifelse(is.na(median_household_income), mean(median_household_income, na.rm = T), median_household_income)]
 data_merged[, poverty_percent_all_ages := ifelse(is.na(poverty_percent_all_ages), mean(poverty_percent_all_ages, na.rm = T), poverty_percent_all_ages)]
 
-# Impute missings in HPI grrowthby state mean 
+# Impute missing in HPI growth by state mean 
 data_merged[, hpi_annual_change_perc := fifelse(is.na(hpi_annual_change_perc), mean(hpi_annual_change_perc, na.rm = TRUE), hpi_annual_change_perc), by = .(state, year)]
+
+# Impute missing in DTI
+data_merged[, dti := if_else(is.na(dti), nafill(dti, type = "locf"), dti), by = "fips"]
+data_merged[, dti := if_else(is.na(dti), nafill(dti, type = "nocb"), dti), by = "fips"]
+data_merged[, dti := if_else(is.na(dti), mean(dti, na.rm = T), dti), by = "year"]
+
+# Fill missings in ur_national
+df_ur_national <- bls_ur |> 
+  dplyr::distinct(year, ur_national)
+
+data_merged[, ur_national := NULL]
+data_merged <- merge(data_merged, df_ur_national, by = "year")
 
 # Linking MSA/MD Codes with crosswalk files ---
 data_merged <- merge(data_merged, df_crosswalk_msamd, by = c("year", "fips"), all.x = TRUE)
