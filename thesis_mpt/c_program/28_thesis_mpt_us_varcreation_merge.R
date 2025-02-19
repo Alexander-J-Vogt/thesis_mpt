@@ -79,6 +79,7 @@ purrr::walk(all_outcome, function(i) {
   data[,  fips := if_else(fips == "46113", "46102", fips)]
   data <- data[fips != "51515"] # Drop Bredford City, VA
   data <- data[fips != "15005"] # Drop Kalawao County, HI
+  data <- data[, cnty_pop := NULL]
   
   # Save in global environment
   assign(i, data, envir = .GlobalEnv)
@@ -234,7 +235,7 @@ df_hp_depository_panel <- df_hp_depository_full |>
   mutate(state = str_sub(fips, 1, 2), .after = "year") |> 
   filter(state %in% STATE) |> 
   arrange(fips, year) |> 
-  select(-ends_with("applicant"))
+  dplyr::select(-ends_with("applicant"))
 
 # Check if panel is balanced
 is.pbalanced(df_hp_depository_panel)
@@ -309,7 +310,7 @@ df_ref_depository_panel <- df_ref_depository_full |>
   filter(!fips %in% unique_ref_fips) |> # Filter for counties which are either missing, not observed over all periods (because they have small population or there is a change in county code) or do not exist 
   mutate(state = str_sub(fips, 1, 2), .after = "year") |> 
   filter(state %in% STATE) |> 
-  select(-ends_with("applicant"))
+  dplyr::select(-ends_with("applicant"))
 
 # Check if panel is balanced
 is.pbalanced(df_ref_depository_panel)
