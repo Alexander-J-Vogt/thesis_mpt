@@ -31,7 +31,7 @@ df_worldscope <- LOAD(dfinput = "05_thesis_mpt_databasics_worldscope")
 
 # Restrict to the years tha will be observed
 df_bsi <- df_bsi |> 
-  select(country, year, hhi_ci_total_assets) |> 
+  dplyr::select(country, year, hhi_ci_total_assets) |> 
   filter(!(country == "GR" & year < 2001)) |> # Filter for years with GR being part of the Eurozone
   filter(!(country == "SI" & year < 2007)) |> # Filter for year with SI being part of the Eurozone
   filter(!(country == "SK" & year < 2009)) # Filter for years with SK being part of the Eurozone
@@ -63,11 +63,11 @@ for (names in df_names) {
       ) +
       theme_minimal() +  # Apply a clean and simple theme
       theme(
-        plot.title = element_text(size = 16, face = "bold", hjust = 0.5),  # Center and bold title
-        axis.title = element_text(size = 12, face = "bold"),  # Emphasize axis titles
+        plot.title = element_text(size = 12, face = "bold"),  # Center and bold title
+        axis.title = element_text(size = 10),  # Emphasize axis titles
         axis.text.x = element_text(angle = 45, hjust = 1),
         legend.position = "bottom",  # Move legend to the bottom
-        legend.title = element_text(face = "bold"),  # Emphasize legend title
+        # legend.title = element_text(),  # Emphasize legend title
         plot.caption = element_text(size = 10, hjust = 0) 
       ) +
       scale_x_continuous(breaks = unique(df_bsi$year))
@@ -75,7 +75,7 @@ for (names in df_names) {
   name <- str_replace(names, "df_", "")
   
   ggsave(
-    filename = paste0(FIGURE, paste0("graph_", name, ".pdf")),  
+    filename = paste0(FIGURE,"08_EA_Descriptive_Statistics/", paste0("graph_", name, ".pdf")),  
     plot = graph,                   
     device = "pdf",                   
     width = 10,                       
@@ -84,77 +84,149 @@ for (names in df_names) {
   )
 }
 
-## 01.2 Worldscope  ============================================================
+## 01.2 Top 5 Credit Institutions ==============================================
 
-df_worldscope <- LOAD(dfinput = "35_thesis_mpt_eu_varcreation_treatment") 
-
-df_worldscope <- df_worldscope |> 
-  select(country, quarter, hhi_assets, hhi_liabilities) |> 
-  mutate(year = year(quarter)) |> 
-  filter(!(country == "GR" & year < 2001)) |> # Filter for years with GR being part of the Eurozone
-  filter(!(country == "SI" & year < 2007)) |> # Filter for year with SI being part of the Eurozone
-  filter(!(country == "SK" & year < 2009)) # Filter for years with SK being part of the Eurozone
-  
-
-# Restrict sample by countries
-df_worldscope_large_countries <- df_worldscope |> 
-  filter(country %in% c("AT", "BE", "DE", "FR", "ES", "IT", "NL"))
-
-df_worldscope_small_countries <- df_worldscope |> 
-  filter(!(country %in%  c("AT", "BE", "DE", "FR", "ES", "IT", "NL")))
-
-# Vector over the three different df
-df_names <- c("df_worldscope", "df_worldscope_large_countries", "df_worldscope_small_countries")
-
-# Generate three graphs
-for (names in df_names) {
-  
-  data <- get(names)
-  
-  graph <- ggplot(data = data, aes(x = quarter, y = hhi_assets, color = country)) +
-    geom_point(alpha = 0.7, size = 2) +  # Slight transparency and size adjustment
-    geom_line(size = 0.6, na.rm = FALSE) + # Increase line width for better visibility
-    labs(
-      title = "Herfindahl-Hirschman Index (HHI) of Total Assets by Country",
-      x = "Year",
-      y = "HHI",
-      color = "Country",
-      caption = "Source: Worldscope"
-    ) +
-    theme_minimal() +  # Apply a clean and simple theme
-    theme(
-      plot.title = element_text(size = 16, face = "bold", hjust = 0.5),  # Center and bold title
-      axis.title = element_text(size = 12, face = "bold"),  # Emphasize axis titles
-      axis.text.x = element_text(angle = 45, hjust = 1),
-      legend.position = "bottom",  # Move legend to the bottom
-      legend.title = element_text(face = "bold"),  # Emphasize legend title
-      plot.caption = element_text(size = 10, hjust = 0) 
-    ) +
-    scale_x_continuous(breaks = unique(data$quarter[grepl("-10-01", data$quarter)]))
-  
-  name <- str_replace(names, "df_", "")
-  
-  ggsave(
-    filename = paste0(FIGURE, paste0("graph_", name, ".pdf")),  
-    plot = graph,                   
-    device = "pdf",                   
-    width = 10,                       
-    height = 6,                       
-    units = "in"                      
+df_ci_top5 <- df_bsi |> 
+  dplyr::select(year, country, share_top5_largest_ci_total_asset) |> 
+  rename(
+    share_top5 = share_top5_largest_ci_total_asset
+  ) |> 
+  group_by(year) |> 
+  summarize(
+    q1 = quantile(share_top5, probs = 0.25),
+    q3 = quantile(share_top5, probs = 0.75),
+    q2 = quantile(share_top5, probs = 0.5),
+    mean = mean(share_top5)
   )
-}
+
+# Define custom color mapping
+colors <- c("Interquartile Range" = "#003399", "Mean" = "orange")
+
+market_concentration <- ggplot(df_ci_top5) +
+  # Interquartile range (Q1 to Q3) using geom_tile for legend support
+  geom_tile(aes(x = year, y = (q1 + q3) / 2, height = q3 - q1, fill = "Interquartile Range"), 
+            width = 0.5, color = "#003399") + 
+  # Mean line
+  geom_line(aes(x = year, y = mean, color = "Mean"), size = 2) + 
+  geom_point(aes(x = year, y = mean, color = "Mean"), size = 2) + 
   
+  # Define legend colors
+  scale_fill_manual(name = "", values = colors) +
+  scale_color_manual(name = "", values = colors) +
+  
+  # Adjust axes
+  scale_y_continuous(
+    breaks = seq(30, 90, by = 10),
+    limits = c(30, 90),
+    labels = function(x) paste0(x, " %")
+  ) +
+  scale_x_continuous(
+    breaks = seq(1999, 2023, by = 1)
+  ) +
+  
+  # Labels
+  labs(
+    title = "Interquartile Range of Market Share",
+    x = "",
+    y = "Market Concentration",
+    caption = "Source: BSI from the ECB - Annual Data on the market share of the top 5 banks in each country."
+  ) +
+  
+  # Theme modifications
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 12),
+    axis.title.x = element_text(size = 10),
+    axis.title.y = element_text(size = 10),
+    axis.text.x = element_text(angle = 45, hjust = 1),  # Rotate x-axis labels
+    axis.text.y = element_text(size = 8),
+    legend.position = "bottom"  # Legend placed beside the plot
+  )
+
+ggsave(
+  filename = paste0(FIGURE,"08_EA_Descriptive_Statistics/", "ea_market_concentration_top5_banks.pdf"),  
+  plot = market_concentration,                   
+  device = "pdf",                   
+  width = 10,                       
+  height = 6,                       
+  units = "in"                      
+)
+
 # 2. Monetary Shock ============================================================
 
 df_monetary_shock <- LOAD("24_thesis_mpt_databasics_monetary_shock_eurozone")
 
+monetary_shock <- df_monetary_shock |> 
+  dplyr::select(month, MP_median, altavilla_total) |> 
+  # mutate(across(-1, ~ if_else(.x == 0, NA, .x))) |> 
+  mutate(MP_median = MP_median * 100)
+  
+
 # Plot Monetary Shock of Jarcinski & Karadi (2020) based on the 
+ms_jk <- ggplot(monetary_shock, aes(x = month, y = (MP_median))) +
+  geom_col(color = "red", fill = "red") +
+  scale_x_continuous(
+    breaks = seq(as.Date("2000-01-01"), as.Date("2023-12-01"), by = "2 year"),
+    labels = function(x) lubridate::year(x)
+  ) +
+  scale_y_continuous(
+    breaks = seq(-20, 25, by = 5),
+    limit = c(-20, 25)
+  ) + 
+  labs(
+    title = "Jarocinski & Karadi (2020)",
+    # subtitle = "Unit: Percentage Points",
+    y = "Percentage Points",
+    x = ""
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45)
+  ) 
 
-ggplot(df_monetary_shock, aes(x = month, y = (MP_pm + CBI_pm))) +
-  geom_point()
+# Monetary Shock: Altavilla et al. (2019) 
+ms_altavilla <- ggplot(monetary_shock, aes(x = month, y = altavilla_total)) + 
+  geom_col(color = "blue", fill = "blue") +
+  scale_x_continuous(
+    breaks = seq(as.Date("2000-01-01"), as.Date("2023-12-01"), by = "2 year"),
+    labels = function(x) lubridate::year(x)
+  ) +
+  scale_y_continuous(
+    breaks = seq(-20, 25, by = 5),
+    limit = c(-20, 25)
+  ) + 
+  labs(
+    title = "Altavilla et al. (2019)",
+    # subtitle = "Unit: Percentage Points",
+    y = "Standard Deviation",
+    x = ""
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+
+# Compare both Monetary Shocks
+combined_ms <- ms_jk + ms_altavilla +
+  plot_annotation(
+    title = "Comparsion of Monetary Shock Measures",
+    theme = theme(
+      plot.title = element_text(size = 16, hjust = .03)
+    ))
+
+# Save
+ggsave(
+  filename = paste0(FIGURE,"08_EA_Descriptive_Statistics/", "ea_monetary_shock.pdf"),  
+  plot = combined_ms,                   
+  device = "pdf",                   
+  width = 12,                       
+  height = 4,                       
+  units = "in"                      
+)
 
 
-# 3. Summary of Staistics ======================================================
+
+# 3. Summary of Statistics ======================================================
 
 
 df_main <- LOAD("39_thesis_mpt_eu_samplecreation_main_m")
@@ -420,6 +492,20 @@ ggsave(
   width = 10, 
   height = 8
 )
+
+
+# 6. Relationship between Lending Rate and Market Concentration ================
+
+outst <- LOAD("39_thesis_mpt_eu_samplecreation_main_m")
+
+df_lending_rate <- outst |> 
+  dplyr::select(month, country, lending_rate_total, hhi_ci_total_assets) |> 
+  filter(month %in% c(as.Date("2003-12-01"), as.Date("2013-12-01"), as.Date("2015-12-01"), as.Date("2018-12-01"),  as.Date("2020-12-01"), 
+                      as.Date("2021-12-01"),as.Date("2022-12-01"), as.Date("2023-12-01")))
+
+ggplot(df_lending_rate, aes(x = hhi_ci_total_assets, y = lending_rate_total, color = factor(month))) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE)
 
 
 
