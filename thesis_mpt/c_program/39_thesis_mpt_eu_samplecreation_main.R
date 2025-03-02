@@ -58,11 +58,12 @@ df_main <- df_main |>
     reer_deci = reer / 100,
     ur_deci = ur / 100,
     
-    # Log variables
-    log_cr = log(cr_outst_amount_EUR),
-    log_tl = log(tl_outst_amount_EUR),
-    log_dl = log(dl_outst_amount_EUR),
-    log_hp_total_amount =  log(hp_outst_amount_EUR)) 
+    # # Log variables
+    # log_cr = log(cr_outst_amount_EUR),
+    # log_tl = log(tl_outst_amount_EUR),
+    # log_dl = log(dl_outst_amount_EUR),
+    # log_hp_total_amount =  log(hp_outst_amount_EUR)
+    ) 
 
 
 # 04. Monthly Dataset ==========================================================

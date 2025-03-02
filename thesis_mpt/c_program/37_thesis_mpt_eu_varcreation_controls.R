@@ -266,6 +266,7 @@ df_controls <- df_ecb |>
   full_join(df_hicp_ea, by = c("month")) |> # EA HICP
   full_join(df_real_gdp_ea, by = c("month")) |>  # EA GDP
   full_join(df_hpi, by = c("country", "month")) |> # House Price Index
+  full_join(df_hosr, by = c("country", "month")) |> 
   # Filter for relevant time period
   filter(month > as.Date("2002-12-01") & month < as.Date("2024-01-01")) |> 
   filter(!(country == "GR" & month < as.Date("2003-01-01"))) |> # Filter for years with GR being part of the Eurozone
@@ -302,7 +303,7 @@ df_controls <- df_controls_ximp |>
 
 df_non_imp <- df_controls_imp |> 
   filter(country %in% c("BE", "DE", "FR", "NL")) |> 
-  select(month, country, ur) |> 
+  dplyr::select(month, country, ur) |> 
   mutate(
     country = as.character(country),
     month = as.Date(month)
@@ -311,7 +312,7 @@ df_non_imp <- df_controls_imp |>
 
 df_imp <- df_controls |> 
   filter(country %in% c("BE", "DE", "FR", "NL")) |>
-  select(country, month, ur) |> 
+  dplyr::select(country, month, ur) |> 
   rename(ur_imp = ur)
 
 df_combined <- df_imp |> 
