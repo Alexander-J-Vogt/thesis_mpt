@@ -38,7 +38,7 @@ euro_cntry_relevant <- c("AT", "BE", "FI", "FR", "DE", "GR", "IE", "IT", "NL",
 df_ssi <- df_ssi_raw |> 
   filter(REF_AREA %in% euro_cntry_relevant) |> 
   filter(SSI_INDICATOR %in% c("H10", "H20", "S10")) |> # Include only H10, H20 & S10
-  select(REF_AREA, TIME_PERIOD, SSI_INDICATOR, OBS_VALUE) |> 
+  dplyr::select(REF_AREA, TIME_PERIOD, SSI_INDICATOR, OBS_VALUE) |> 
   pivot_wider(names_from = "SSI_INDICATOR", values_from = "OBS_VALUE") |> # Wide Format
   rename(hhi_ci_total_assets = H10, # Herfindahl index for Credit institutions (CIs) total assets
          hhi_total_credit = H20, # Herfindahl index for total credit
@@ -77,7 +77,7 @@ df_mfi <- df_mfi_raw |>
   filter(BS_ITEM %in% c("A22", "A2C", "A2CC")) |> # "A20" is total loan but is excluded
   filter(!MATURITY_NOT_IRATE %in% c("AM", "FM", "HHL", "HL","KF", "KKF", "KM")) |> 
   filter(DATA_TYPE_MIR == "R") |> 
-  select(REF_AREA, TIME_PERIOD, BS_ITEM, MATURITY_NOT_IRATE, BS_COUNT_SECTOR, 
+  dplyr::select(REF_AREA, TIME_PERIOD, BS_ITEM, MATURITY_NOT_IRATE, BS_COUNT_SECTOR, 
          CURRENCY_TRANS, IR_BUS_COV, OBS_VALUE) |> 
   mutate(
     maturity = case_when(
@@ -104,7 +104,7 @@ df_mfi <- df_mfi_raw |>
       IR_BUS_COV == "R" ~ "reneg" # Renegotiation
     )
   ) |> 
-  select(-c("BS_ITEM", "MATURITY_NOT_IRATE", "BS_COUNT_SECTOR", "IR_BUS_COV")) |> 
+  dplyr::select(-c("BS_ITEM", "MATURITY_NOT_IRATE", "BS_COUNT_SECTOR", "IR_BUS_COV")) |> 
   pivot_wider(names_from = c("item", "maturity", "coverage"), 
               values_from = "OBS_VALUE",
               values_fill = NA) |> 
@@ -114,7 +114,7 @@ df_mfi <- df_mfi_raw |>
     currency = CURRENCY_TRANS
   ) |> 
   filter(currency == "EUR") |> 
-  select(-currency) |> 
+  dplyr::select(-currency) |> 
   mutate(across(-c(1:2), as.numeric)) |> 
   mutate(month = as.Date(paste0(month, "-01")))
 
@@ -130,8 +130,8 @@ df_mfi_q <- df_mfi |>
   mutate(quarter = paste0(year(month), "-Q", quarter(month)), .after = "month") |> 
   group_by(country, quarter) |> 
   mutate(across(-c(1:2), ~ mean(.x, na.rm = TRUE), .names = "Q_{.col}")) |> 
-  select(-month) |> 
-  select(country, quarter, starts_with("Q_")) |> 
+  dplyr::select(-month) |> 
+  dplyr::select(country, quarter, starts_with("Q_")) |> 
   distinct(country, quarter, .keep_all = TRUE) |> 
   rename_with(~ sub("^Q_", "", .), starts_with("Q_")) |> 
   mutate(quarter_date = lubridate::yq(quarter), .after = "quarter") |> 
@@ -144,39 +144,6 @@ lapply(colnames(df_mfi), function(x){
 })
 
 
-if (DEBUG) {
-df_mfi |> 
-  group_by(across(-DATA_TYPE_MIR)) |> 
-  filter(n_distinct(DATA_TYPE_MIR) > 1) |> 
-  ungroup()
-
-df_mfi |> 
-  summarise(across(-c(1:4), ~ sum(is.na(.)), .names = "missing_{col}")) |> 
-  pivot_longer(everything(), names_to = "Column", values_to = "Missing_Count")
-
-df_mfi_q |> 
-  group_by(country) |> 
-  summarise(across(-c(1:4), ~ sum(is.na(.)), .names = "missing_{.col}")) |> 
-  pivot_longer(-country, names_to = "Column", values_to = "Missing_Count") |>
-  pivot_wider(names_from = country, values_from = Missing_Count)
-
-df_mfi_q |> 
-  mutate(year = year(quarter)) |> 
-  group_by(country, year) |> 
-  summarise(across(-c(country, month, year), ~ sum(is.na(.)), .names = "missing_{.col}"), .groups = "drop") |> 
-  pivot_longer(-c(country, year), names_to = "Column", values_to = "Missing_Count") |> 
-  pivot_wider(names_from = country, values_from = "Missing_Count")
-
-missings <- df_mfi |> 
-  mutate(year = year(month), .after = "month") |> 
-  group_by(country, year) |> 
-  summarise(across(where(is.numeric), ~ sum(is.na(.)), .names = "missing_{.col}"), .groups = "drop") |> 
-  pivot_longer(-c(country, year), names_to = "Column", values_to = "Missing_Count") |> 
-  pivot_wider(names_from = country, values_from = "Missing_Count") |> 
-  group_by(year) |> 
-  summarise(across(-Column, ~ sum(.), .names = "total_missing_{.col}"), .groups = "drop")
-}
-
 ## Deposit Rate
 
 df_deposit_rate <- df_mfi_raw |> 
@@ -188,8 +155,15 @@ df_deposit_rate <- df_mfi_raw |>
     month = TIME_PERIOD,
     country = REF_AREA,
     deposit_rate = OBS_VALUE
-  )
+  ) |> 
+  mutate(month = as.Date(paste0(month, "-01")))
 
+# Filter for years, where countries were actually part of the Eurozone
+df_deposit_rate <- df_deposit_rate |> 
+  filter(!(country == "GR" & month < as.Date("2001-01-01"))) |> # Filter for years with GR being part of the Eurozone
+  filter(!(country == "SI" & month < as.Date("2007-01-01"))) |> # Filter for year with SI being part of the Eurozone
+  filter(!(country == "SK" & month < as.Date("2009-01-01"))) |> # Filter for years with SK being part of the Eurozone
+  filter(month > as.Date("2002-12-01") & month < as.Date("2024-01-01")) # Data only available from 2003 on
 
 # 04. Balance Sheet Items (BSI) ================================================
 
@@ -209,14 +183,14 @@ df_bsi_a22 <- df_bsi |>
     DATA_TYPE == "4" ~ "hp_fin_transaction_EUR", # Financial Transactions
     DATA_TYPE == "I" ~ "hp_index_notional_stocks_PPCH" # Index of Notional Stocks
   ), .after = DATA_TYPE) |> 
-  select(c("REF_AREA", "TIME_PERIOD", "data_type", "OBS_VALUE", "OBS_STATUS")) |> 
+  dplyr::select(c("REF_AREA", "TIME_PERIOD", "data_type", "OBS_VALUE", "OBS_STATUS")) |> 
   pivot_wider(names_from = "data_type", 
               values_from = "OBS_VALUE") |>
   mutate(across(-c(1:3), as.numeric)) |> 
   arrange(REF_AREA, TIME_PERIOD) |> 
   mutate(month = as.Date(paste0(TIME_PERIOD, "-01" )), .after = TIME_PERIOD) |> # Format Data Variable
   rename(country = REF_AREA) |> 
-  select(-c("TIME_PERIOD", "OBS_STATUS"))
+  dplyr::select(-c("TIME_PERIOD", "OBS_STATUS"))
 
 # Filter for years, where countries were actually part of the Eurozone + Exclude the year 2014
 df_bsi_a22 <- df_bsi_a22 |> 
@@ -238,14 +212,14 @@ df_bsi_l20 <- df_bsi |>
     DATA_TYPE == "4" ~ "dl_fin_transaction_EUR", # Financial Transactions
     DATA_TYPE == "I" ~ "dl_index_notional_stocks_PPCH" # Index of Notional Stocks
   ), .after = DATA_TYPE) |> 
-  select(c("REF_AREA", "TIME_PERIOD", "data_type", "OBS_VALUE")) |> 
+  dplyr::select(c("REF_AREA", "TIME_PERIOD", "data_type", "OBS_VALUE")) |> 
   pivot_wider(names_from = "data_type",
               values_from = "OBS_VALUE") |> # Put Dataset into wide format
   mutate(month = as.Date(paste0(TIME_PERIOD, "-01")), .after = TIME_PERIOD) |>  # Format Date Variable
   mutate(across(c(4:6), as.integer)) |> 
   rename(country = REF_AREA) |> 
   arrange(country, month) |> 
-  select(-c("TIME_PERIOD"))
+  dplyr::select(-c("TIME_PERIOD"))
   
    
 # Filter for years, where countries were actually part of the Eurozone + Exclude the year 2014
@@ -267,7 +241,7 @@ df_bsi_t00 <- df_bsi |>
     DATA_TYPE == "4" ~ "tl_fin_transaction_EUR", # Financial Transactions
     DATA_TYPE == "I" ~ "tl_index_notional_stocks_PPCH" # Index of Notional Stocks
   ), .after = DATA_TYPE) |> 
-  select(c("REF_AREA", "TIME_PERIOD", "data_type", "OBS_VALUE")) |>
+  dplyr::select(c("REF_AREA", "TIME_PERIOD", "data_type", "OBS_VALUE")) |>
   pivot_wider(names_from = "data_type",
               values_from = "OBS_VALUE"
               ) |> 
@@ -275,7 +249,7 @@ df_bsi_t00 <- df_bsi |>
   mutate(across(c(4:6), as.integer)) |> 
   rename(country = REF_AREA) |> 
   arrange(country, month) |> 
-  select(-c("TIME_PERIOD"))
+  dplyr::select(-c("TIME_PERIOD"))
 
 df_bsi_t00 <- df_bsi_t00 |> 
   filter(month > as.Date("1999-09-01") & month < as.Date("2024-01-01")) |> 
@@ -295,7 +269,7 @@ df_bsi_l60 <- df_bsi |>
     DATA_TYPE == "4" ~ "cr_fin_transaction_EUR", # Financial Transactions
     DATA_TYPE == "I" ~ "cr_index_notional_stocks_PPCH" # Index of Notional Stocks
   ), .after = DATA_TYPE) |>  # MFI exld ESCB
-  select(c("REF_AREA", "TIME_PERIOD", "data_type", "OBS_VALUE")) |>
+  dplyr::select(c("REF_AREA", "TIME_PERIOD", "data_type", "OBS_VALUE")) |>
   pivot_wider(names_from = "data_type",
               values_from = "OBS_VALUE"
   ) |> 
@@ -303,7 +277,7 @@ df_bsi_l60 <- df_bsi |>
   mutate(across(c(4:6), as.integer)) |> 
   rename(country = REF_AREA) |> 
   arrange(country, month) |> 
-  dyplr::select(-c("TIME_PERIOD"))
+  dplyr::select(-c("TIME_PERIOD"))
 
 df_bsi_l60 <- df_bsi_l60 |> 
   filter(month > as.Date("1999-01-01") & month < as.Date("2024-01-01")) |> 
@@ -329,6 +303,13 @@ df_bsi_a20 <- df_bsi |>
   rename(country = REF_AREA, total_loan = OBS_VALUE) |>
   dplyr::select(-c("TIME_PERIOD")) 
 
+df_bsi_a20 <- df_bsi_a20 |> 
+  filter(month > as.Date("1999-01-01") & month < as.Date("2024-01-01")) |> 
+  filter(!(country == "GR" & month < as.Date("2001-01-01"))) |> # Filter for years with GR being part of the Eurozone
+  filter(!(country == "SI" & month < as.Date("2007-01-01"))) |> # Filter for year with SI being part of the Eurozone
+  filter(!(country == "SK" & month < as.Date("2009-01-01"))) # Filter for years with SK being part of the Eurozone
+
+
 ## 04.6 Deposit Volume ---------------------------------------------------------
 
 df_bsi_l21 <- df_bsi |>
@@ -344,6 +325,13 @@ df_bsi_l21 <- df_bsi |>
   mutate(month = as.Date(paste0(TIME_PERIOD, "-01" )), .after = TIME_PERIOD) |> # Format Data Variable
   rename(country = REF_AREA, overnight_deposits = OBS_VALUE) |>
   dplyr::select(-c("TIME_PERIOD")) 
+
+df_bsi_l21 <- df_bsi_l21 |> 
+  filter(month > as.Date("1999-01-01") & month < as.Date("2024-01-01")) |> 
+  filter(!(country == "GR" & month < as.Date("2001-01-01"))) |> # Filter for years with GR being part of the Eurozone
+  filter(!(country == "SI" & month < as.Date("2007-01-01"))) |> # Filter for year with SI being part of the Eurozone
+  filter(!(country == "SK" & month < as.Date("2009-01-01"))) # Filter for years with SK being part of the Eurozone
+
 
 ## 04.7 MMF Volume -------------------------------------------------------------
 
@@ -361,6 +349,12 @@ df_bsi_a42 <- df_bsi |>
   rename(country = REF_AREA, MMF = OBS_VALUE) |>
   dplyr::select(-c("TIME_PERIOD"))
 
+df_bsi_a42 <- df_bsi_a42 |> 
+  filter(month > as.Date("1999-01-01") & month < as.Date("2024-01-01")) |> 
+  filter(!(country == "GR" & month < as.Date("2001-01-01"))) |> # Filter for years with GR being part of the Eurozone
+  filter(!(country == "SI" & month < as.Date("2007-01-01"))) |> # Filter for year with SI being part of the Eurozone
+  filter(!(country == "SK" & month < as.Date("2009-01-01"))) # Filter for years with SK being part of the Eurozone
+
 
 ## 04.8 Debt Volume ------------------------------------------------------------
 
@@ -377,6 +371,12 @@ df_bsi_a30 <- df_bsi |>
   mutate(month = as.Date(paste0(TIME_PERIOD, "-01" )), .after = TIME_PERIOD) |> # Format Data Variable
   rename(country = REF_AREA, bonds = OBS_VALUE) |>
   dplyr::select(-c("TIME_PERIOD"))
+
+df_bsi_a30 <- df_bsi_a30 |> 
+  filter(month > as.Date("1999-01-01") & month < as.Date("2024-01-01")) |> 
+  filter(!(country == "GR" & month < as.Date("2001-01-01"))) |> # Filter for years with GR being part of the Eurozone
+  filter(!(country == "SI" & month < as.Date("2007-01-01"))) |> # Filter for year with SI being part of the Eurozone
+  filter(!(country == "SK" & month < as.Date("2009-01-01"))) # Filter for years with SK being part of the Eurozone
 
 
 # 05. ECB's Policy Rates =======================================================
@@ -457,15 +457,20 @@ SAVE(dfx = df_ecb_policy_rate, namex = paste0(MAINNAME, "_policy_rates"))
 
 # Merge Monthly dataset
 df_ecb_monthly <- df_bsi_a22 |> 
-  full_join(df_bsi_l20, by = c("country", "month")) |> 
-  full_join(df_bsi_l60, by = c("country", "month")) |> 
-  full_join(df_bsi_t00, by = c("country", "month")) |> 
-  full_join(df_mfi, by = c("country", "month"))
+  full_join(df_bsi_l20, by = c("country", "month")) |> # Deposit & Liabilities
+  full_join(df_bsi_l60, by = c("country", "month")) |> # Capital & Reserves
+  full_join(df_bsi_t00, by = c("country", "month")) |> # Total Assets / Liabilities
+  full_join(df_bsi_a20, by = c("country", "month")) |> # Loan Volume 
+  full_join(df_bsi_l21, by = c("country", "month")) |> # Deposit Volume
+  full_join(df_bsi_a42, by = c("country", "month")) |> # MMF Volume
+  full_join(df_bsi_a30, by = c("country", "month")) |> # Debt Volume - Measure for Bond Volume
+  full_join(df_deposit_rate, by = c("country", "month")) |> # Overnight Deposit Rate 
+  full_join(df_mfi, by = c("country", "month")) # Mortgage Lending Rate
 
 # SAVE
 SAVE(dfx = df_ecb_monthly, namex = paste0(MAINNAME, "_m"))
 
-# 07. Annual ===================================================================
+# 07. Annual Dataset ===========================================================
 
 # Annual Dataset
 df_ecb_annual <- df_ssi
