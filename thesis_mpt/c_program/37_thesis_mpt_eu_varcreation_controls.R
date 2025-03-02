@@ -33,17 +33,32 @@ df_imf <- LOAD(dfinput = "06_thesis_mpt_databasics_imf")
 
 df_eurostat_q <- LOAD(dfinput = "04_thesis_mpt_databasics_eurostat_q")
 
+df_eurostat_a <- LOAD(dfinput = "04_thesis_mpt_databasics_eurostat_a")
 
 # 02. Relevant Variables =======================================================
 
 # Select relevant variables from the BSI
 df_ecb <- df_ecb |> 
-  select(country, 
+  dplyr::select(country, 
          month, 
          cr_outst_amount_EUR, # Credit & Reserves
          dl_outst_amount_EUR, # Deposit and Liabilities
-         tl_outst_amount_EUR  # Total Assets & Liabilities
-         ) 
+         tl_outst_amount_EUR, # Total Assets / Liabilities
+         deposit_rate,        # Deposit Rate 
+         total_loan,          # Loan Volume
+         MMF,                 # Money Market Fund
+         overnight_deposits,  # Overnight Deposit Volume 
+         bonds                # Bond Volume
+         ) |> 
+  mutate(
+    loan_share = total_loan / (total_loan + bonds) * 100,
+    deposit_share = overnight_deposits / (overnight_deposits + MMF) * 100,
+    log_credit_reserves = log(cr_outst_amount_EUR),
+    log_deposit = log(dl_outst_amount_EUR),
+    log_assets = log(tl_outst_amount_EUR)
+  ) |> 
+  dplyr::select(-c("MMF", "bonds")) |> 
+  mutate(deposit_rate = as.numeric(deposit_rate))
 
 
 # 03. Real GDP =================================================================
@@ -53,32 +68,15 @@ df_ecb <- df_ecb |>
 # install.packages("tsbox")
 library(tsbox)
 
-EA <- c("AT", "BE", "FI", "FR", "DE", "IE", "IT", 
+EA <- c("AT", "BE", "FI", "FR", "DE", "GR", "IE", "IT", 
   "NL", "PT", "ES", "SI", "SK")
 
 list_gdp <- purrr::map(EA, function (x) {
-  
-  # Get data to ts-object
-  df_gdp <- df_eurostat_q |> 
-    filter(country == x) |> 
-    mutate(real_gdp = as.double(real_gdp)) |> 
-    select(real_gdp)
-  
-  ip <- df_eurostat |> 
-    filter(country == x) |> 
-    select(ip)
-  
-  ts_gdp <- ts(data = df_gdp$real_gdp, start = 2003, frequency = 4)
-  
-  ts_ip <- ts(data = ip$ip, start = 2003, frequency = 12)
-  
-  # Use Chow-Lin Interpolation to get monthly real GDP
-  real_gdp <- tempdisagg::td(ts_gdp ~ ts_ip, to = 12, method = "chow-lin-maxlog", conversion = "last")
-  real_gdp_predict <- predict(real_gdp)
-  
+  x <- "IE"
+   
   # Transform back to data frame
   if (x == "GR") {
-    time <- seq(as.Date("2001-01-01"), as.Date("2023-12-01"), by = "month")
+    time <- seq(as.Date("2003-01-01"), as.Date("2023-12-01"), by = "month")
   } else if (x == "SI") {
     time <- seq(as.Date("2007-01-01"), as.Date("2023-12-01"), by = "month")
   } else if (x == "SK") {
@@ -87,7 +85,32 @@ list_gdp <- purrr::map(EA, function (x) {
     time <- seq(as.Date("2003-01-01"), as.Date("2023-12-01"), by = "month")
   }
   
+  # Get data to ts-object
+  df_gdp <- df_eurostat_q |> 
+    filter(country == x) |> 
+    filter(month %in% time) |> 
+    dplyr::select(real_gdp)
   
+  ip <- df_eurostat |> 
+    filter(country == x) |> 
+    filter(month %in% time) |> 
+    dplyr::select(ip)
+  
+  if (x %in% c("SI", "SK")) {
+    min <- min(year(time))
+  } else {
+    min <- 2003
+  }
+  
+  # Determine TS
+  ts_gdp <- ts(data = df_gdp$real_gdp, start =  min, frequency = 4)
+  ts_ip <- ts(data = ip$ip, start = min, frequency = 12)
+  
+  # Use Chow-Lin Interpolation to get monthly real GDP
+  real_gdp <- tempdisagg::td(ts_gdp ~ ts_ip, to = 12, method = "chow-lin-maxlog", conversion = "last")
+  real_gdp_predict <- predict(real_gdp)
+  
+  # Main dataset
   df_long <- data.frame(
     country = x,
     month = time,
@@ -101,6 +124,10 @@ list_gdp <- purrr::map(EA, function (x) {
 
 df_gdp <- bind_rows(list_gdp)
 
+df_gdp <- df_gdp |> 
+  mutate(gdp_growth = (gdp - lag(gdp, 1)) / gdp)
+
+
 ## 03.2 EA Real GDP ------------------------------------------------------------
 
 # Import 
@@ -108,7 +135,7 @@ df_gdp <- bind_rows(list_gdp)
 df_gdp_ea <- df_eurostat_q |> 
   filter(country == "EA") |> 
   mutate(real_gdp = as.double(real_gdp)) |> 
-  select(real_gdp)
+  dplyr::select(real_gdp)
 
 ts_gdp_ea <- ts(data = df_gdp_ea$real_gdp, start = 2003, frequency = 4)
 
@@ -122,6 +149,9 @@ df_real_gdp_ea <- data.frame(
   gdp_ea = as.vector(real_gdp_ea_predict)
 )
 
+df_real_gdp_ea <- df_real_gdp_ea |> 
+  mutate(gdp_ea_growth = (gdp_ea - lag(gdp_ea, 1)) / gdp_ea)
+
 
 # 04. HICP =====================================================================
 
@@ -130,20 +160,103 @@ df_real_gdp_ea <- data.frame(
 # All countries excl IP
 df_eurostat_country <- df_eurostat |> 
   filter(country != "EA") |> 
-  select(-ip)
+  dplyr::select(-ip)
 
 
 ## 04.2 HICP for EA ------------------------------------------------------------
 
 # HICP for EA
 df_hicp_ea <- df_eurostat |> 
-  select(country, month, hicp) |> 
+  dplyr::select(country, month, hicp) |> 
   filter(country == "EA") |> 
-  select(-country) |> 
+  dplyr::select(-country) |> 
   rename(hicp_ea = hicp)
 
+# 05. HPI ======================================================================
 
-# 03. Merge to Dataset =========================================================
+# install.packages("tsbox")
+library(tsbox)
+
+EA <- c("AT", "BE", "FI", "FR", "DE", "GR", "IE", "IT", 
+        "NL", "PT", "ES", "SI", "SK")
+
+list_hpi <- purrr::map(EA, function (x) {
+  
+  # Get data to ts-object
+  df_hpi <- df_eurostat_q |> 
+    filter(country == x) |> 
+    dplyr::select(hpi)
+  
+  ts_hpi <- ts(data = df_hpi$hpi, start = 2003, frequency = 4)
+
+  
+  # Use Chow-Lin Interpolation to get monthly real GDP
+  hpi <- tempdisagg::td(ts_hpi ~ 1, to = 12, method = "denton-cholette", conversion = "last")
+  hpi_predict <- predict(hpi)
+  
+  # Transform back to data frame
+  if (x == "GR") {
+    time <- seq(as.Date("2003-01-01"), as.Date("2023-12-01"), by = "month")
+  } else if (x == "SI") {
+    time <- seq(as.Date("2007-01-01"), as.Date("2023-12-01"), by = "month")
+  } else if (x == "SK") {
+    time <- seq(as.Date("2009-01-01"), as.Date("2023-12-01"), by = "month")
+  } else {
+    time <- seq(as.Date("2003-01-01"), as.Date("2023-12-01"), by = "month")
+  }
+  
+  
+  df_long <- data.frame(
+    country = x,
+    month = time,
+    hpi = as.vector(hpi_predict)
+  )
+  
+  # Return Value
+  return(df_long)
+  
+})
+
+df_hpi <- bind_rows(list_hpi)
+
+df_hpi <- df_hpi |> 
+  mutate(delta_hpi = (hpi - lag(hpi, 1)) / hpi)
+
+# 06. Homeownership Rate with Mortgage loan ====================================
+
+list_hosr <- purrr::map(EA, function (x) {
+  
+  # Get data to ts-object
+  df_hosr <- df_eurostat_a |> 
+    arrange(country, year) |> 
+    filter(!is.na(hosr)) |> 
+    filter(country == x) |>
+    dplyr::select(hosr)
+  
+  # Create TS
+  ts_hosr <- ts(data = df_hosr$hosr, start = 2003, frequency = 1)
+
+  # Use Chow-Lin Interpolation to get monthly real GDP
+  hosr <- tempdisagg::td(ts_hosr ~ 1, to = 12, method = "denton-cholette", conversion = "last")
+  hosr_predict <- predict(hosr)
+  
+  time <- seq(as.Date("2003-01-01"), as.Date("2023-12-01"), by = "month")
+  
+  df_long <- data.frame(
+    country = x,
+    month = time,
+    hosr = as.vector(hosr_predict)
+  )
+  
+  # Return Value
+  return(df_long)
+  
+})
+
+df_hosr <- bind_rows(list_hosr)
+
+
+# 07. Merge to Dataset =========================================================
 
 # Merge datasets
 df_controls <- df_ecb |> 
@@ -152,14 +265,15 @@ df_controls <- df_ecb |>
   full_join(df_gdp, by = c("country", "month")) |> # GDP by country
   full_join(df_hicp_ea, by = c("month")) |> # EA HICP
   full_join(df_real_gdp_ea, by = c("month")) |>  # EA GDP
+  full_join(df_hpi, by = c("country", "month")) |> # House Price Index
+  # Filter for relevant time period
   filter(month > as.Date("2002-12-01") & month < as.Date("2024-01-01")) |> 
   filter(!(country == "GR" & month < as.Date("2003-01-01"))) |> # Filter for years with GR being part of the Eurozone
   filter(!(country == "SI" & month < as.Date("2007-01-01"))) |> # Filter for year with SI being part of the Eurozone
   filter(!(country == "SK" & month < as.Date("2009-01-01"))) # Filter for years with SK being part of the Eurozone
 
 
-
-# 04. Impute Missings ==========================================================
+# 08. Impute Missings ==========================================================
 
 # Prepare dataset for Imputation
 df_controls_imp <- df_controls |> 
@@ -224,6 +338,7 @@ ggplot(df_combined, aes(x = month, y = ur, color = country)) +
 #' As approximation of the UR in the mid-2000s it is okay but is a bit off compared 
 #' to what is found at the Statistiches Bundesamt
 
+
 # 05. Crisis Indicator =========================================================
 
 df_controls <- df_controls |> 
@@ -238,7 +353,8 @@ df_controls <- fastDummies::dummy_cols(df_controls, select_columns = "year", rem
 
 df_controls <- df_controls |> dplyr::select(-year)
 
-# 05. SAVE ==================================year# 05. SAVE =====================================================================
+
+# 05. SAVE =====================================================================
 
 SAVE(dfx = df_controls)
 
