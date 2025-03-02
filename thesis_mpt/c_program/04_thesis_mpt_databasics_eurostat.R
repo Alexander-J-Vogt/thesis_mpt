@@ -282,7 +282,7 @@ hosr <- fread(
 
 # Data Wrangling Homeownership with mortgage loan
 df_hosr <- hosr |> 
-  filter(tenure == "Owner, with mortgage or loan") |> 
+  filter(tenure == "Owner") |> 
   filter(geo %in% c("Austria",
                      "Belgium",
                      "Finland",
@@ -317,6 +317,22 @@ df_hosr <- hosr |>
   ) |> 
   dplyr::select(year, country, hosr) |> 
   arrange(country, year)
+
+
+# Impute Missings
+time <- rep(seq(2003, 2023, by = 1), 13)
+
+EA <- c("AT", "BE", "FI", "FR", "DE", "GR", "IE", "IT", 
+        "NL", "PT", "ES", "SI", "SK")
+
+df <- data.frame(year = time, country = rep(EA, each = 21))
+
+df_hosr <-  df |> 
+  left_join(df_hosr, by = c("country", "year")) |> 
+  group_by(country) |> 
+  fill(hosr, .direction = "up") |> 
+  fill(hosr, .direction = "down") |> 
+  ungroup()
 
 
 # 8. House Price Index (BSI) ===================================================
@@ -460,7 +476,7 @@ df_annual <- df_hosr |>
   full_join(df_hpti_ratio, by = c("year", "country"))
 
 
-SAVE(dfx = df_hosr, namex = paste0(MAINNAME, "_a"))
+SAVE(dfx = df_annual, namex = paste0(MAINNAME, "_a"))
 
 
 ###############################################################################+
