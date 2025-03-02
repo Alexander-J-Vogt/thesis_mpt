@@ -156,7 +156,8 @@ df_real_gdp <- df_gdp |>
   filter(unit == "CLV_I15") |> 
   rename(real_gdp = obs_value) |> 
   dplyr::select(country, quarter, real_gdp) |> 
-  rename(month = quarter)
+  rename(month = quarter) |> 
+  mutate(real_gdp = as.numeric(real_gdp))
   
 
 # 04. Unemployment Rate - Monthly - Total ======================================
@@ -344,20 +345,31 @@ df_hpi <- hpi |>
     hpi = `OBS_VALUE:Value`
   ) |> 
   mutate(country = str_sub(country, 1, 2),
-         quarter = as.Date(paste0(str_sub(quarter, 1, 7), "-01")),
+         month = as.Date(paste0(str_sub(quarter, 1, 7), "-01")),
          year = year(quarter),
-         hpi = as.numeric(hpi)) 
+         hpi = as.numeric(hpi)) |> 
+  dplyr::select(country, month, hpi)
 
 # Calculate Index for year 2015
 index <- df_hpi |> 
-  filter(year(quarter) == 2015) |> 
+  filter(year(month) == 2015) |> 
   group_by(country) |> 
   summarize(index = mean(hpi))
 
 # Reindex to year 2015
 df_hpi <- df_hpi |> 
   left_join(index, by = "country") |> 
-  mutate(hpi_2015 = hpi / index * 100)
+  mutate(hpi = hpi / index * 100) |> 
+  dplyr::select(-index) |> 
+  # mutate(month = as.character(month))  %>%
+  mutate(month = case_when(
+    month(month) %in% c(1, 2, 3) ~ make_date(year(month), 1, 1),
+    month(month) %in% c(4, 5, 6) ~ make_date(year(month), 4, 1),
+    month(month) %in% c(7, 8, 9) ~ make_date(year(month), 7, 1),
+    month(month) %in% c(10, 11, 12) ~ make_date(year(month), 10, 1)
+  ))
+
+
 
 # 09. House Price-to-Income Ratio ==============================================
 
@@ -435,11 +447,11 @@ SAVE(dfx = df_eurostat_m, namex = paste0(MAINNAME, "_m"))
 
 # Merge quarterly data
 df_quarterly <- df_real_gdp |> 
-  full_join(df_hpi, by = c("country", "quarter"))
+  left_join(df_hpi, by = c("country", "month"))
 
 
 # Save quarterly data
-SAVE(dfx = df_real_gdp, namex = paste0(MAINNAME, "_q"))
+SAVE(dfx = df_quarterly, namex = paste0(MAINNAME, "_q"))
 
 # 11. Annual Dataset ===========================================================
 
