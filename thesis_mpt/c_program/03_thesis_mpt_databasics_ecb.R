@@ -176,6 +176,21 @@ missings <- df_mfi |>
   group_by(year) |> 
   summarise(across(-Column, ~ sum(.), .names = "total_missing_{.col}"), .groups = "drop")
 }
+
+## Deposit Rate
+
+df_deposit_rate <- df_mfi_raw |> 
+  filter(REF_AREA %in% euro_cntry_relevant) |> 
+  filter(BS_ITEM %in% c("L21")) |> # "A20" is total loan but is excluded
+  filter(BS_COUNT_SECTOR == "2240") |> 
+  dplyr::select(TIME_PERIOD, REF_AREA, OBS_VALUE) |> 
+  rename(
+    month = TIME_PERIOD,
+    country = REF_AREA,
+    deposit_rate = OBS_VALUE
+  )
+
+
 # 04. Balance Sheet Items (BSI) ================================================
 
 # Import bulk download
@@ -288,7 +303,7 @@ df_bsi_l60 <- df_bsi |>
   mutate(across(c(4:6), as.integer)) |> 
   rename(country = REF_AREA) |> 
   arrange(country, month) |> 
-  select(-c("TIME_PERIOD"))
+  dyplr::select(-c("TIME_PERIOD"))
 
 df_bsi_l60 <- df_bsi_l60 |> 
   filter(month > as.Date("1999-01-01") & month < as.Date("2024-01-01")) |> 
@@ -299,27 +314,70 @@ df_bsi_l60 <- df_bsi_l60 |>
 
 ## 04.5 Loan Volumes -----------------------------------------------------------
 
-# df_bsi_a20 <- df_bsi |> 
-#   filter(BS_ITEM == "A20") |> # Loan for house purchases 
-#   filter(MATURITY_ORIG == "A") |>  # Total Maturity
-#   filter(COUNT_AREA == "U2") |>  # Concentrate on Domestic Area and not EU Changing Composition (U2)
-#   filter(FREQ == "M") |> 
-#   filter(DATA_TYPE == "1") |>  # Outstanding Amount
-#   filter(BS_COUNT_SECTOR == "0000") # Deposit-taking corporations except the central bank (S.122) (19)
-#   
-#   mutate(data_type = case_when(
-#     DATA_TYPE == "1" ~ "hp_outst_amount_EUR", # Outstanding Amount at the end of the period (stocks)
-#     DATA_TYPE == "4" ~ "hp_fin_transaction_EUR", # Financial Transactions
-#     DATA_TYPE == "I" ~ "hp_index_notional_stocks_PPCH" # Index of Notional Stocks
-#   ), .after = DATA_TYPE) |> 
-#   select(c("REF_AREA", "TIME_PERIOD", "data_type", "OBS_VALUE", "OBS_STATUS")) |> 
-#   pivot_wider(names_from = "data_type", 
-#               values_from = "OBS_VALUE") |>
-#   mutate(across(-c(1:3), as.numeric)) |> 
-#   arrange(REF_AREA, TIME_PERIOD) |> 
-#   mutate(month = as.Date(paste0(TIME_PERIOD, "-01" )), .after = TIME_PERIOD) |> # Format Data Variable
-#   rename(country = REF_AREA) |> 
-#   select(-c("TIME_PERIOD", "OBS_STATUS"))
+df_bsi_a20 <- df_bsi |>
+  filter(BS_ITEM == "A20") |> # Loan for house purchases
+  filter(MATURITY_ORIG == "A") |>  # Total Maturity
+  filter(COUNT_AREA == "U2") |>  # Concentrate on Domestic Area and not EU Changing Composition (U2)
+  filter(FREQ == "M") |>
+  filter(DATA_TYPE == "1") |>  # Outstanding Amount
+  filter(BS_COUNT_SECTOR == "0000") |> # Deposit-taking corporations except the central bank (S.122) (19)
+  filter(BS_REP_SECTOR == "A")  |> # MFIs excluding ESCB
+  dplyr::select(REF_AREA, TIME_PERIOD, OBS_VALUE) |> 
+  mutate(across(-c(1:2), as.numeric)) |>
+  arrange(REF_AREA, TIME_PERIOD) |>
+  mutate(month = as.Date(paste0(TIME_PERIOD, "-01" )), .after = TIME_PERIOD) |> # Format Data Variable
+  rename(country = REF_AREA, total_loan = OBS_VALUE) |>
+  dplyr::select(-c("TIME_PERIOD")) 
+
+## 04.6 Deposit Volume ---------------------------------------------------------
+
+df_bsi_l21 <- df_bsi |>
+  filter(BS_ITEM == "L21") |> # Overnight deposits
+  filter(MATURITY_ORIG == "A") |> # Total Maturity
+  filter(COUNT_AREA == "U2") |>  # Concentrate on Domestic Area and not EU Changing Composition (U2)
+  filter(FREQ == "M") |>
+  filter(DATA_TYPE == "1") |> 
+  filter(BS_COUNT_SECTOR == "2250") |>  # Households and non-profit organizations that serve households (s.14 and S.15)
+  dplyr::select(REF_AREA, TIME_PERIOD, OBS_VALUE) |> 
+  mutate(across(-c(1:2), as.numeric)) |>
+  arrange(REF_AREA, TIME_PERIOD) |>
+  mutate(month = as.Date(paste0(TIME_PERIOD, "-01" )), .after = TIME_PERIOD) |> # Format Data Variable
+  rename(country = REF_AREA, overnight_deposits = OBS_VALUE) |>
+  dplyr::select(-c("TIME_PERIOD")) 
+
+## 04.7 MMF Volume -------------------------------------------------------------
+
+df_bsi_a42 <- df_bsi |>
+  filter(BS_ITEM == "L21") |> # MMF
+  filter(MATURITY_ORIG == "A") |> # Total Maturity
+  filter(COUNT_AREA == "U2") |>  # Concentrate on Domestic Area and not EU Changing Composition (U2)
+  filter(FREQ == "M") |>
+  filter(DATA_TYPE == "1") |> 
+  filter(BS_COUNT_SECTOR == "2250") |>  # Households and non-profit organizations that serve households (s.14 and S.15)
+  dplyr::select(REF_AREA, TIME_PERIOD, OBS_VALUE) |> 
+  mutate(across(-c(1:2), as.numeric)) |>
+  arrange(REF_AREA, TIME_PERIOD) |>
+  mutate(month = as.Date(paste0(TIME_PERIOD, "-01" )), .after = TIME_PERIOD) |> # Format Data Variable
+  rename(country = REF_AREA, MMF = OBS_VALUE) |>
+  dplyr::select(-c("TIME_PERIOD"))
+
+
+## 04.8 Debt Volume ------------------------------------------------------------
+
+df_bsi_a30 <- df_bsi |>
+  filter(BS_ITEM == "A30") |> # Debt Securities Held - (Measure for bonds volume)
+  filter(MATURITY_ORIG == "A") |> # Total Maturity
+  filter(COUNT_AREA == "U6") |>  # Concentrate on Domestic Area and not EU Changing Composition (U2)
+  filter(FREQ == "M") |>
+  filter(DATA_TYPE == "1") |> 
+  filter(BS_COUNT_SECTOR == "1000") |>  # Monetary financial institutions (MFIs) (4679)
+  dplyr::select(REF_AREA, TIME_PERIOD, OBS_VALUE) |> 
+  mutate(across(-c(1:2), as.numeric)) |>
+  arrange(REF_AREA, TIME_PERIOD) |>
+  mutate(month = as.Date(paste0(TIME_PERIOD, "-01" )), .after = TIME_PERIOD) |> # Format Data Variable
+  rename(country = REF_AREA, bonds = OBS_VALUE) |>
+  dplyr::select(-c("TIME_PERIOD"))
+
 
 # 05. ECB's Policy Rates =======================================================
 
