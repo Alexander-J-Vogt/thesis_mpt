@@ -131,7 +131,7 @@ df_gdp <- gdp |>
                    "PD15_EUR")) |> # Implicit GDP Deflator
   filter(s_adj == "SCA") |> 
   filter(na_item == "B1GQ") |> 
-  select(unit, geo, TIME_PERIOD, OBS_VALUE) |> 
+  dplyr::select(unit, geo, TIME_PERIOD, OBS_VALUE) |> 
   rename(
     country = geo,
     quarter = TIME_PERIOD,
@@ -163,7 +163,7 @@ df_real_gdp <- df_gdp |>
 
 # Import data
 df_ur_raw <- read_excel(
-  path = paste0(A, "c_eurostat/ei_lmhr_m_spreadsheet.xlsx"),
+  path = paste0(A, "c_eurostat/UR/ei_lmhr_m_spreadsheet.xlsx"),
   sheet = "Sheet 1",
   range = cell_rows(10:48),
   col_types = "text"
@@ -215,8 +215,6 @@ df_ur <- df_ur_raw |>
     )
   ) |> 
   dplyr::select(country, month, ur)
-# |> 
-#   filter(month > as.Date("1999-12-01") & month < as.Date("2024-01-01"))
 
 
 # 05. Industrial Production ====================================================
@@ -247,7 +245,7 @@ df_ip <- ip |>
   filter(!(country == "SI" & month < as.Date("2007-01-01"))) |> # Filter for year with SI being part of the Eurozone
   filter(!(country == "SK" & month < as.Date("2009-01-01"))) |> # Filter for years with SK being part of the Eurozone
   filter(month > as.Date("2002-12-01") & month < as.Date("2024-01-01"))  |> # Data only available from 2003 on
-  select(country, month, ip)
+  dplyr::select(country, month, ip)
 
 
 # 06. USD/EUR Exchange Rate ====================================================
@@ -274,7 +272,149 @@ df_exr <- exr |>
     exr = as.double(exr)
   )
 
-# 07. Monthly - Dataset ========================================================
+# 07. Homeownership Rate =======================================================
+
+hosr <- fread(
+  file = paste0(A, "c_eurostat/Homeownership/estat_ilc_lvho02_filtered_en.csv"),
+  colClasses = "character"
+)
+
+# Data Wrangling Homeownership with mortgage loan
+df_hosr <- hosr |> 
+  filter(tenure == "Owner, with mortgage or loan") |> 
+  filter(geo %in% c("Austria",
+                     "Belgium",
+                     "Finland",
+                     "France",
+                     "Germany",
+                     "Greece",
+                     "Ireland",
+                     "Italy",
+                     "Netherlands",
+                     "Portugal",
+                     "Spain",
+                     "Slovenia",
+                     "Slovakia")) |> 
+  mutate(
+    hosr = as.numeric(OBS_VALUE), # Potentially rescaling to decimal instead of %
+    year = as.numeric(TIME_PERIOD),
+    country = case_when(
+      geo == "Austria" ~ "AT",
+      geo == "Belgium" ~ "BE",
+      geo == "Finland" ~ "FI",
+      geo == "France" ~ "FR",
+      geo == "Germany" ~ "DE",
+      geo == "Greece" ~ "GR",
+      geo == "Ireland" ~ "IE",
+      geo == "Italy" ~ "IT",
+      geo == "Netherlands" ~ "NL",
+      geo == "Portugal" ~ "PT",
+      geo == "Spain" ~ "ES",
+      geo == "Slovenia" ~ "SI",
+      geo == "Slovakia" ~ "SK"
+    )
+  ) |> 
+  dplyr::select(year, country, hosr) |> 
+  arrange(country, year)
+
+
+# 8. House Price Index (BSI) ===================================================
+
+hpi1 <- read_excel(
+  path = paste0(A, "c_eurostat/House Price Index/bis_dp_search_export_20250302-120036.xlsx"),
+  sheet = "timeseries observations",
+  col_types = "text"
+)
+
+hpi2 <- read_excel(
+  path = paste0(A, "c_eurostat/House Price Index/bis_dp_search_export_20250302-120215.xlsx"),
+  sheet = "timeseries observations",
+  col_types = "text"
+)
+
+# Bind Datasets
+hpi <- bind_rows(hpi1, hpi2)
+
+# Data Wrangling
+df_hpi <- hpi |> 
+  dplyr::select(`REF_AREA:Reference area`, `TIME_PERIOD:Period`, `OBS_VALUE:Value`) |> 
+  rename(
+    country = `REF_AREA:Reference area`,
+    quarter = `TIME_PERIOD:Period`,
+    hpi = `OBS_VALUE:Value`
+  ) |> 
+  mutate(country = str_sub(country, 1, 2),
+         quarter = as.Date(paste0(str_sub(quarter, 1, 7), "-01")),
+         year = year(quarter),
+         hpi = as.numeric(hpi)) 
+
+# Calculate Index for year 2015
+index <- df_hpi |> 
+  filter(year(quarter) == 2015) |> 
+  group_by(country) |> 
+  summarize(index = mean(hpi))
+
+# Reindex to year 2015
+df_hpi <- df_hpi |> 
+  left_join(index, by = "country") |> 
+  mutate(hpi_2015 = hpi / index * 100)
+
+# 09. House Price-to-Income Ratio ==============================================
+
+# Import data
+hpti_ratio_raw <- read_excel(
+  path = paste0(A, "c_eurostat/House_Price_to_Income_Ratio/tipsho60_spreadsheet.xlsx"),
+  sheet = "Sheet 2",
+  range = cell_rows(8:38),
+  col_types = "text"
+)
+
+df_hpti_ratio <- hpti_ratio_raw |> 
+  dplyr::select(-c(starts_with("..."))) |>
+  rename_with(~ paste0("year_", .), -1) |> 
+  filter(TIME %in% c("Austria",
+                     "Belgium",
+                     "Finland",
+                     "France",
+                     "Germany",
+                     "Greece",
+                     "Ireland",
+                     "Italy",
+                     "Netherlands",
+                     "Portugal",
+                     "Spain",
+                     "Slovenia",
+                     "Slovakia")) |> 
+  # Reshape into long format
+  pivot_longer(
+    cols = starts_with("year_"),
+    names_to = "year",
+    values_to = "hpti_ratio"
+  ) |> 
+  # Format variables + Standardize country variable
+  mutate(
+    year = as.numeric(str_sub(year, 6, 9)),
+    hpti_ratio = as.numeric(hpti_ratio),
+    country = case_when(
+      TIME == "Austria" ~ "AT",
+      TIME == "Belgium" ~ "BE",
+      TIME == "Finland" ~ "FI",
+      TIME == "France" ~ "FR",
+      TIME == "Germany" ~ "DE",
+      TIME == "Greece" ~ "GR",
+      TIME == "Ireland" ~ "IE",
+      TIME == "Italy" ~ "IT",
+      TIME == "Netherlands" ~ "NL",
+      TIME == "Portugal" ~ "PT",
+      TIME == "Spain" ~ "ES",
+      TIME == "Slovenia" ~ "SI",
+      TIME == "Slovakia" ~ "SK"
+    )
+  ) |> 
+  dplyr::select(country, year, hpti_ratio)
+
+
+# 09. Monthly - Dataset ========================================================
 
 # Merge monthly data
 df_eurostat_m <- df_hicp |> 
@@ -291,11 +431,24 @@ df_eurostat_m <- df_hicp |>
 # Save monthly data
 SAVE(dfx = df_eurostat_m, namex = paste0(MAINNAME, "_m"))
 
-# 08. Quarterly - Dataset ======================================================
+# 10. Quarterly - Dataset ======================================================
+
+# Merge quarterly data
+df_quarterly <- df_real_gdp |> 
+  full_join(df_hpi, by = c("country", "quarter"))
 
 
 # Save quarterly data
 SAVE(dfx = df_real_gdp, namex = paste0(MAINNAME, "_q"))
+
+# 11. Annual Dataset ===========================================================
+
+# Merge Annual Data
+df_annual <- df_hosr |> 
+  full_join(df_hpti_ratio, by = c("year", "country"))
+
+
+SAVE(dfx = df_hosr, namex = paste0(MAINNAME, "_a"))
 
 
 ###############################################################################+
