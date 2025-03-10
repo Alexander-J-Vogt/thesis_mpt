@@ -29,32 +29,17 @@ df_hp_depository_large <- LOAD("28_thesis_mpt_us_varcreation_merge_hp")
 
 # Load: Refinancing for large sample
 df_ref_depository_large <- LOAD("28_thesis_mpt_us_varcreation_merge_ref")
- 
-# # Load: Home Purchase for small sample
-# df_hp_depository_small <- LOAD("28_thesis_mpt_us_varcreation_merge_hp_small")
-# 
-# # Load: Refinancing for small sample
-# df_ref_depository_small <- LOAD("28_thesis_mpt_us_varcreation_merge_ref_small")
 
-# 1. Dataset with Mortgages of Commercial Banks ================================
+# Further Steps are not necessary to implement in order to create the main sample
+# as all steps are happening in Script 28.
+# Script is included for completeness purposes in the project structure. 
 
-
-
-
-# 2. Save dataset ==============================================================
-
-# 4. Saving ====================================================================
+# 1. Saving ====================================================================
 
 # Save: House Purchase - 2004 bis 2023
 SAVE(dfx = df_hp_depository_large, namex = paste0(MAINNAME, "_hp_large"))
 
 # Save: Refinancing - 2004 bis 2023
 SAVE(dfx = df_ref_depository_large, namex = paste0(MAINNAME, "_ref_large"))
-# 
-# # Save: House Purchase - 2018 bis 2023
-# SAVE(dfx = df_hp_depositor0y_reform_panel, namex = paste0(MAINNAME, "_hp"))
-# 
-# # Save: Refinancing - 2018 bis 2023
-# SAVE(dfx = df_ref_depository_reform_panel, namex = paste0(MAINNAME, "_ref"))
 
 ########################## ENDE ###############################################+
