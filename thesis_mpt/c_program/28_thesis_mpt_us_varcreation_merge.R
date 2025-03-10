@@ -316,37 +316,6 @@ df_ref_depository_panel <- df_ref_depository_full |>
 is.pbalanced(df_ref_depository_panel)
 
 
-
-
-
-
-
-
-# 
-# library(VIM)
-# marginplot(df_hp_depository_panel[, c("fips", "log_loan_amount")])
-# marginplot(dt_50000[, c("fips", "log_loan_amount")])
-# 
-# # 3. Exclude non-relevant variables ============================================
-# 
-# # Deselect variables
-# data_merge <- data_merge[, c("date", "landarea_sqm", "ffr") := NULL]
-# data_merge <- data_merge[state %in% c(
-#   "01", "02", "04", "05", "06", "08", "09", "10", "12", "13",
-#   "15", "16", "17", "18", "19", "20", "21", "22", "23", "24",
-#   "25", "26", "27", "28", "29", "30", "31", "32", "33", "34",
-#   "35", "36", "37", "38", "39", "40", "41", "42", "44", "45",
-#   "46", "47", "48", "49", "50", "51", "53", "54", "55", "56", "11"
-# )]
-# data_merge <- data_merge[inrange(year, 2004, 2023)]
-# 
-# 
-# library(VIM)
-# marginplot(data_merge[, c("fips", "total_amount_loan")])
-# marginplot(data_merge[, c("fips", "poverty_percent_all_ages")])
-
-
-
 # 4. Saving ====================================================================
 
 # Save: House Purchase - 2004 bis 2023
@@ -354,12 +323,6 @@ SAVE(dfx = df_hp_depository_panel, namex = paste0(MAINNAME, "_hp"))
 
 # Save: Refinancing - 2004 bis 2023
 SAVE(dfx = df_ref_depository_panel, namex = paste0(MAINNAME, "_ref"))
-# 
-# # Save: House Purchase - 2018 bis 2023
-# SAVE(dfx = df_hp_depositor0y_reform_panel, namex = paste0(MAINNAME, "_hp_small"))
-# 
-# # Save: Refinancing - 2018 bis 2023
-# SAVE(dfx = df_ref_depository_reform_panel, namex = paste0(MAINNAME, "_ref_small"))
 
 
 ########################## ENDE ###############################################+
