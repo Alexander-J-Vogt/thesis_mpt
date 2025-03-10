@@ -90,7 +90,7 @@ ggsave(filename = paste0(FIGURE, "us_market_concentration_map_2019.pdf"),
 
 ## Year 2004 -------------------------------------------------------------------
 
-
+# Filter for the year 2004
 df_hhi_2004 <- df_hp |> 
   filter(year == 2004) |> 
   dplyr::select(fips, hhi) 
@@ -154,80 +154,183 @@ ggsave(filename = paste0(FIGURE, "us_market_concentration_map_2004.pdf"),
 
 # 02. Plot Monetary Shocks =====================================================
 
-# Annual Monetary Shock 
-df_monetary_shock <- LOAD(dfinput = "26_thesis_mpt_us_varcreation_treatment")
+# Monthly Monetary Shock -----------------------------------------------------+
 
-# Plot yearly NS
-df_NS <- df_monetary_shock |> 
-  distinct(year, NS_total)
+# Import
+ms_monthly <- LOAD("24_thesis_mpt_databasics_monetary_shock_us_monthly")
+ms_monthly <- ms_monthly |> filter(month > as.Date("2003-12-31") &  month < as.Date("2024-01-01"))
 
-annual_ms <- ggplot(df_NS, aes(x = year, y = NS_total)) +
-  geom_point(size = 2) +
-  labs(
-    title = "Annual Monetary Shock \nby Nakamura & Steinsson (2018)",
-    x = "Year",
-    y = "Size of Monetary Shock"
-  ) +
+# Plot Monetary Shock of Jarcinski & Karadi (2020) based on the 
+ms_jk <- ggplot(ms_monthly, aes(x = month, y = MP_median)) +
+  geom_col(color = "red", fill = "red") +
   scale_x_continuous(
-    breaks = seq(2004, 2023, by = 2)
+    breaks = seq(as.Date("2004-01-01"), as.Date("2023-12-01"), by = "year"),
+    labels = function(x) lubridate::year(x)
   ) +
   scale_y_continuous(
-    # breaks = seq(-0.3, .2, by = .1),
-    limit = c(-0.3, .2)
+    breaks = seq(-.20, .2, by = .05),
+    limit = c(-.20, .2)
+  ) + 
+  labs(
+    title = "Jarociński & Karadi (2020)",
+    subtitle = "Pure monetary shock without Central Bank information shock.",
+    y = "Percentage Points",
+    x = "",
+    caption = "Source: Jarocinski & Karadi (2020)- Based on interest rates derivatives with 1-year maturity."
   ) +
+  theme_minimal() +
   theme(
-    title = element_text(size = 10, hjust = .5),
-    axis.title.x = element_text(size = 8),
-    axis.title.y = element_text(size = 8)
-  ) +
-  geom_hline(yintercept = 0, color = "black", linetype = "dashed") +
-  theme_minimal()
+    axis.text.x = element_text(angle = 45, size = 8),
+    plot.caption = element_text(hjust = 0)
+  ) 
 
-# Monethly Monetary Shock
-df_monthly_ms <- read_excel(
-  path = paste0(A, "t_policy_shocks_us/NS_GSS_monetary_shock/ABJ-2024-monetary-policy-surprises.xlsx"),
-  sheet = "Data"
+# Monetary Shock: Nakamura & Steinsson (2018)
+ms_ns <- ggplot(ms_monthly, aes(x = month, y = NS)) + 
+  geom_col(color = "blue", fill = "blue") +
+  scale_x_continuous(
+    breaks = seq(as.Date("2004-01-01"), as.Date("2023-12-01"), by = "year"),
+    labels = function(x) lubridate::year(x)
+  ) +
+  scale_y_continuous(
+    breaks = seq(-.20, .2, by = .05),
+    limit = c(-.20, .2)
+  ) + 
+  labs(
+    title = "Nakamura & Steinsson (2018)",
+    subtitle = "Data from Acosta et al. (2024) calculated with SOFR futures",
+    y = "Percentage Points",
+    x = "",
+    caption = "Source: Nakamura & Steinsson (2018) - Based on zero-coupon 1-year Treasuries."
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, , size = 8),
+    plot.caption = element_text(hjust = 0)
+  )
+
+# Compare both Monetary Shocks
+combined_ms <- ms_jk + ms_ns +
+  plot_annotation(
+    title = "High-Frequency Monetary Policy Surprises",
+    theme = theme(
+      plot.title = element_text(size = 16, hjust = .03)
+    ))
+
+# Save
+ggsave(
+  filename = paste0(FIGURE,"07_US_Descriptive_Statistics/", "us_monetary_shock.pdf"),  
+  plot = combined_ms,                   
+  device = "pdf",                   
+  width = 12,                       
+  height = 4,                       
+  units = "in"                      
 )
 
-df_monthly_ms <- df_monthly_ms |> 
-  mutate(
-    month = date(date),
-  ) |> 
-  dplyr::select(month, NS) |> 
-  filter(month > as.Date("2003-12-01"))
 
-month_ms <- ggplot(df_monthly_ms, aes(x = month, y = NS)) +
+# Annual Monetary Shock -------------------------------------------------------+
+
+# Import
+ms_annual <- LOAD("24_thesis_mpt_databasics_monetary_shock_us")
+
+# Create Annual NS Shock by mean
+df_annual_mean_NS <- ms_annual |>
+  dplyr::select(year, NS_total, NS_total_mean, MP_median_sum, MP_median_mean)
+
+# Plot yearly NS
+df_ms <- df_annual_mean_NS |> 
+  pivot_longer(
+    cols = c(NS_total, NS_total_mean, MP_median_sum, MP_median_mean),
+    names_to = "shock",
+    values_to = "shock_value"
+  ) |> 
+  mutate(
+    shock = case_when(
+      shock == "NS_total_mean" ~ "NS Mean",
+      shock == "NS_total" ~ "NS Sum",
+      shock == "MP_median_sum" ~ "JK Sum",
+      shock == "MP_median_mean" ~ "JK Mean"
+    )
+  )
+
+# Plot Mean vs Sum Monetary Shock of NS (2018)
+NS_annual <- df_ms |>
+  filter(str_detect(shock, "NS")) |>
+  ggplot(aes(x = year, y = shock_value, color = shock)) +
   geom_point(size = 2) +
   labs(
-    title = "Monthly Monetary Shock \nby Nakamura & Steinsson (2018)",
-    x = "Month",
-    y = "Size of Monetary Shock"
+    title = "Annual Monetary Policy Suprise by Nakamura & Steinsson (2018)",
+    subtitle = "Aggregated from monthly- to annual-level.",
+    x = "Year",
+    y = "Percentage Points"
   ) +
-  # scale_x_continuous(
-  #   breaks = seq(2004, 2023, by = 2)
-  # ) +
+  # Use 'labels' in scale_x_continuous to format with one decimal place
+  scale_x_continuous(
+    breaks = seq(2004, 2023, by = 1),
+    limits = c(2004, 2023)
+  ) +
   scale_y_continuous(
-    # breaks = seq(-0.3, .2, by = .1),
-    limit = c(-0.3, .2)
+    breaks = seq(-0.3, .2, by = .05),
+    limits = c(-0.3, .2),
+    labels = function(x) sprintf("%.2f", x)
   ) +
+  # Rename the legend title
+  scale_color_discrete(name = "Aggregation Type") +
+  geom_hline(yintercept = 0, color = "black", linetype = "dashed") +
+  theme_minimal() +
   theme(
     title = element_text(size = 10, hjust = .5),
-    axis.title.x = element_text(size = 8),
-    axis.title.y = element_text(size = 8)
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    axis.title.x = element_text(size = 10),
+    axis.title.y = element_text(size = 10)
+  )
+
+# Plot Mean vs Sum Monetary Shock of JK (2020)
+JK_annual <- df_ms |>
+  filter(str_detect(shock, "JK")) |>
+  ggplot(aes(x = year, y = shock_value, color = shock)) +
+  geom_point(size = 2) +
+  labs(
+    title = "Annual Monetary Policy Surpise by Jarociński & Karadi (2020)",
+    subtitle = "Aggregated from monthly- to annual-level.",
+    x = "Year",
+    y = "Percentage Points"
   ) +
+  # Use 'labels' in scale_x_continuous to format with one decimal place
+  scale_x_continuous(
+    breaks = seq(2004, 2023, by = 1),
+    limits = c(2004, 2023)
+  ) +
+  scale_y_continuous(
+    breaks = seq(-0.45, .4, by = .05),
+    limits = c(-0.45, .4),
+    labels = function(x) sprintf("%.2f", x)
+  ) +
+  # Rename the legend title
+  scale_color_discrete(name = "Aggregation Type") +
   geom_hline(yintercept = 0, color = "black", linetype = "dashed") +
-  theme_minimal()
+  theme_minimal() +
+  theme(
+    title = element_text(size = 10, hjust = .5),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    axis.title.x = element_text(size = 10),
+    axis.title.y = element_text(size = 10)
+  )
+
+# Combine to Graph
+compare_ms <- JK_annual + NS_annual +
+  plot_annotation("Aggregation of High-Frequency Monetary Policy Surprises")
+
+# Save
+ggsave(
+  filename = paste0(FIGURE,"07_US_Descriptive_Statistics/", "us_monetary_shock_annual.pdf"),  
+  plot = combined_ms,                   
+  device = "pdf",                   
+  width = 12,                       
+  height = 4,                       
+  units = "in"                      
+)
 
 
-compare_ms <- annual_ms + month_ms
-
-
-month <- seq(as.Date("1995-01-01"), as.Date("2024-12-01"), by = "month")
-month <- data.frame(month = month)
-
-df_monthly_ms <- month |> 
-  left_join(df_monthly_ms, by = "month") |> 
-  mutate()
 
 
 # 03. Plot Total Mortgage Amount for New House Purchases and Refinancing =======
@@ -468,7 +571,7 @@ density_market_share <- ggplot(market_concentration, aes(x = marketshare_yearly,
 # Save 
 ggsave(
   filename = paste0(FIGURE, "07_US_Descriptive_Statistics/us_densityplot_market_share.pdf"),
-  plot = plot_marketshare_top5,
+  plot = density_market_share,
   width = 10, 
   height = 6, 
   dpi = 600, 
@@ -481,12 +584,46 @@ df_main <- LOAD("29_thesis_mpt_us_samplecreation_main_hp_large")
 
 df_corr <- df_main |> 
   filter(year %in% c(2007, 2008, 2009)) |> 
-  select(year, fips, log_loan_amount_pc, rate_spread_wloan, hhi) 
+  dplyr::select(year, fips, log_loan_amount, rate_spread_wloan, hhi) 
+
+log_loan_amount <- lm(log_loan_amount ~ cnty_pop, df_main[df_main$year %in% c(2007, 2008, 2009),])
+predict <- predict(log_loan_amount)
+
+df_corr_test <- cbind(df_corr, predict)
 
 
-ggplot(df_corr, aes(x = hhi, y = log_loan_amount_pc, color = factor(year))) +
+ggplot(df_corr_test, aes(x = hhi, y = predict, color = factor(year))) +
   geom_point(size = .9) + 
   geom_smooth(method = "lm" )
 
+
+# 08. Descriptive Table ========================================================
+
+df_descriptive_stats <- df_main |> 
+  dplyr::select(loan_amount, log_loan_amount, hhi  , NS_total, ur_county, hpi_annual_change_perc, 
+         median_household_income, dti,  cnty_pop, inflation_us, gdp_growth_us,  ur_national)
+
+
+stargazer(df_descriptive_stats, 
+          type = "latex",
+          title = "Descriptive Statistics of U.S. Data",
+          digits = 2,
+          summary.stat = c("mean", "sd", "min", "max"),
+          covariate.labels = c("Mortgage Loan Amount in 000s", 
+                               "Log Mortgage Loan Amount",
+                               "Market Concentration (HHI)",
+                               "Monetary Shock",
+                               "Unemployment Rate - County",
+                               "House Price Index - County",
+                               "Median Household Income - County",
+                               "Debt-to-Income Ratio - County",
+                               "Population - County",
+                               "Inflation - National",
+                               "GDP Growth - National",
+                               "Unemployment Rate - National"
+                               ),
+          align = TRUE,
+          file = paste0(FIGURE, "07_US_Descriptive_Statistics/us_descriptive_statistics.tex" )
+          )
 
 
