@@ -120,13 +120,7 @@ monetary_shock <- LOAD("24_thesis_mpt_databasics_monetary_shock_us")
 
 # Select Conventional Monetary Policy Shocks
 df_monetary_shock <- monetary_shock |> 
-  dplyr::select(year, starts_with("NS"), starts_with("bp"))
-  # rename(
-  #   GSS_target = GSS_target, # Guerkaynak, Sack, and Swanson
-  #   NS_target = NS, # Nakamura & Steinsson
-  #   J_target = bp_u1 # Jarocinski (2020)
-  # )
-
+  dplyr::select(year, starts_with("NS"), starts_with("MP"))
 
 # 3. Combine Federal Funds Rate & SOD ==========================================
 
@@ -137,40 +131,49 @@ df_treatment <- sod |>
   dplyr::select(-date)
 
 
-# 4. Create Interaction Term between ZLB Dummy * Monetary Shock * HHI ==========
+# 4. Create Interaction Term for Endogenous Variables ==========================
 
 df_treatment <- df_treatment |> 
   mutate(
-    # I_HHI_GSS_1_total = d_ffr_mean_1perc * GSS_target * hhi,
-    # I_HHI_GSS_2_total = d_ffr_mean_2perc * GSS_target * hhi,
-    # I_HHI_GSS_1 = d_ffr_mean_1perc * GSS_target * hhi,
-    # I_HHI_GSS_2 = d_ffr_mean_2perc * GSS_target * hhi,
-    # I_HHI_GSS_1 = d_ffr_mean_1perc * GSS_target * hhi,
-    # I_HHI_GSS_2 = d_ffr_mean_2perc * GSS_target * hhi,
     # Nakamura & Steinsson (2018)
-    I_HHI_NS_TOTAL_1 = d_ffr_mean_1perc * NS_total * hhi,
-    I_HHI_NS_TOTAL_2 = d_ffr_mean_2perc * NS_total * hhi,
-    I_HHI_NS_POS_1   = d_ffr_mean_1perc * NS_positiv * hhi,
-    I_HHI_NS_POS_2   = d_ffr_mean_2perc * NS_positiv * hhi,
-    I_HHI_NS_NEG_1   = d_ffr_mean_1perc * NS_negativ * hhi,
-    I_HHI_NS_NEG_2   = d_ffr_mean_2perc * NS_negativ * hhi,
-    I_HHI_NS_TOTAL   = NS_total * hhi,
-    I_HHI_NS_POS     = NS_positiv * hhi,
-    I_HHI_NS_NEG     = NS_negativ * hhi,
-    I_NS_TOTAL_2     = d_ffr_mean_2perc * NS_total,
-    I_NS_TOTAL_1     = d_ffr_mean_1perc * NS_total,
-    # Jarocinski & Karadi (2020)
-    I_HHI_J_TOTAL_1  = d_ffr_mean_1perc * bp_u1_total* hhi,
-    I_HHI_J_TOTAL_2  = d_ffr_mean_2perc * bp_u1_total * hhi,
-    I_HHI_J_POS_1    = d_ffr_mean_1perc * bp_u1_positiv * hhi,
-    I_HHI_J_POS_2    = d_ffr_mean_2perc * bp_u1_positiv  * hhi,
-    I_HHI_J_NEG_1    = d_ffr_mean_1perc * bp_u1_negativ * hhi,
-    I_HHI_J_NEG_2    = d_ffr_mean_2perc * bp_u1_negativ * hhi,
-    I_HHI_J_TOTAL    = bp_u1_total * hhi,
-    I_HHI_J_POS      = bp_u1_positiv * hhi,   
-    I_HHI_J_NEG      = bp_u1_negativ * hhi,
-    I_J_TOTAL_2     = d_ffr_mean_2perc * bp_u1_total,
-    I_J_TOTAL_1     = d_ffr_mean_1perc * bp_u1_total
+    ## Sum
+    I_HHI_NS_SUM_1  = d_ffr_mean_1perc * NS_total * hhi,
+    I_HHI_NS_SUM_2  = d_ffr_mean_2perc * NS_total * hhi,
+    I_HHI_NS_SUM    = NS_total * hhi,
+    I_NS_SUM_2      = d_ffr_mean_2perc * NS_total,
+    I_NS_SUM_1      = d_ffr_mean_1perc * NS_total,
+    ## Mean
+    I_HHI_NS_MEAN_1 = d_ffr_mean_1perc * NS_total_mean * hhi,
+    I_HHI_NS_MEAN_2 = d_ffr_mean_2perc * NS_total_mean * hhi,
+    I_HHI_NS_MEAN   = NS_total_mean * hhi,
+    I_NS_MEAN_2     = d_ffr_mean_2perc * NS_total_mean,
+    I_NS_MEAN_1     = d_ffr_mean_1perc * NS_total_mean,
+    # Jarocinski & Karadi - Median (2020)
+    ## Sum
+    I_HHI_JK_MEDIAn_SUM_1  = d_ffr_mean_1perc * MP_median_sum * hhi,
+    I_HHI_JK_MEDIAn_SUM_2  = d_ffr_mean_2perc * MP_median_sum * hhi,
+    I_HHI_JK_MEDIAn_SUM    = MP_median_sum  * hhi,
+    I_JK_SUM_MEDIAn_2      = d_ffr_mean_2perc * MP_median_sum ,
+    I_JK_SUM_MEDIAn_1      = d_ffr_mean_1perc * MP_median_sum,
+    ## Mean
+    I_HHI_JK_MEDIAN_MEAN_1  = d_ffr_mean_1perc * MP_median_mean * hhi,
+    I_HHI_JK_MEDIAN_MEAN_2  = d_ffr_mean_2perc * MP_median_mean* hhi,
+    I_HHI_JK_MEDIAN_MEAN    = MP_median_mean * hhi,
+    I_JK_MEDIAN_MEAN_2      = d_ffr_mean_2perc * MP_median_mean,
+    I_JK_MEDIAN_MEAN_1      = d_ffr_mean_1perc * MP_median_mean,
+    # Jarocinski & Karadi - PM (2020)
+    ## Sum
+    I_HHI_JK_PM_SUM_1  = d_ffr_mean_1perc * MP_pm_sum * hhi,
+    I_HHI_JK_PM_SUM_2  = d_ffr_mean_2perc * MP_pm_sum * hhi,
+    I_HHI_JK_PM_SUM    = MP_pm_sum * hhi,
+    I_JK_PM_SUM_2      = d_ffr_mean_2perc * MP_pm_sum,
+    I_JK_PM_SUM_1      = d_ffr_mean_1perc * MP_pm_sum,
+    ## Mean
+    I_HHI_JK_PM_MEAN_1  = d_ffr_mean_1perc * MP_median_mean * hhi,
+    I_HHI_JK_PM_MEAN_2  = d_ffr_mean_2perc * MP_median_mean * hhi,
+    I_HHI_JK_PM_MEAN    = MP_median_mean * hhi,
+    I_JK_PM_MEAN_2      = d_ffr_mean_2perc * MP_median_mean,
+    I_JK_PM_MEAN_1      = d_ffr_mean_1perc * MP_median_mean
 )
 
 # 5. Saving the dataset ========================================================
