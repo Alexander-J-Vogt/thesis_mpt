@@ -29,10 +29,10 @@ start <- Sys.time()
 # install.packages("CADFtest")
 library(lpirfs)
 # library(TS)
-library(urca)
-library(panelvar)
-library(CADFtest)
-library(pcse)
+# library(urca)
+# library(panelvar)
+# library(CADFtest)
+# library(pcse)
 
 
 # 1. Import Datasets ===========================================================
@@ -54,7 +54,7 @@ df_hp_depository_large <- LOAD("29_thesis_mpt_us_samplecreation_main_hp_large")
 
 # 2.1 Home Purchase Large Sample -----------------------------------------------
 
-# Main Dataset
+# Main Dataset ----------------------------------------------------------------+
 df_hp_large <- df_hp_depository_large |> 
   mutate( 
     log_median_household_income = log(median_household_income),
@@ -63,26 +63,43 @@ df_hp_large <- df_hp_depository_large |>
     inflation_us = inflation_us / 100,
     gdp_growth_us = gdp_growth_us / 100,
     ur_county = ur_county / 100,
-    ur_national = ur_national / 100
+    ur_national = ur_national /100
     ) |> 
   mutate(
     loan_amount_pc = loan_amount * 1000 / cnty_pop,
     log_loan_amount_pc = log(loan_amount * 1000 / cnty_pop)
   )
 
+
+# Determine High- and Low Market Concentration Subsamples ---------------------+
+
+# 1. hhi_mean: Take the mean of HHI for each county over time
+# 2. SD: Take the SD over the hhi_mean
+# 3. HHI_mean: Take the mean over hhi_mean
+# 4. High Market Concentration: Counties above HHI_mean + SD
+# 5. Low Market Concentration: Counties below HHI_mean - SD 
+
+df_subsample <- df_hp_large |> 
+  mutate(
+    # Step 2:
+    HHI_mean = mean(hhi_mean),
+    # Step 3:
+    SD = sd(hhi_mean)) |> 
+  mutate(
+    # Step 4:
+    high_conc = if_else(hhi_mean > HHI_mean + SD, 1, 0),
+    # Step 5:
+    low_conc = if_else(hhi_mean < HHI_mean - SD, 1, 0)
+  )
+
 # Create Low- and High-Concentration Counties
-df_hp_large_highconc <- df_hp_large |>
-  filter(d_hhi_indicator == 1)
-  # group_by(year) |>
-  # filter(hhi > 0.18) |> 
-  # ungroup()
+df_hp_large_highconc <- df_subsample |>
+  filter(high_conc == 1)
 
+df_hp_large_lowconc <- df_subsample |>
+  filter(low_conc == 1)
 
-df_hp_large_lowconc <- df_hp_large |>
-  filter(d_hhi_indicator == 0)
-  # dplyr::group_by(year) |> 
-  # filter(hhi <= 0.18 & hhi >= 0.05) |> 
-  # ungroup()
+# Create ZLB Time Period Sample -----------------------------------------------+
 
 # Create Year Sample for HHI
 df_hp_large_zlb1 <- df_hp_large |> 
@@ -117,7 +134,7 @@ HOR <- 6
 ## 3.1 Baseline ################################################################
 ###############################################################################+
 
-endo <- "log_loan_amount_pc"
+dep <- "log_loan_amount"
 controls <- c("ur_county", "log_median_household_income", "hpi_annual_change_perc", "dti", 
               "inflation_us", "gdp_growth_us", "ur_national")
 
@@ -128,34 +145,34 @@ controls <- c("ur_county", "log_median_household_income", "hpi_annual_change_per
 shock_specs_baseline <- list(
   full_sample_hhi_ms = list(
     shock_var   = "I_HHI_NS_TOTAL",
-    select_cols = c("fips", "year", endo, "hhi", "I_HHI_NS_TOTAL",  controls),
+    select_cols = c("fips", "year", dep, "hhi", "I_HHI_NS_TOTAL",  controls),
     sample = df_hp_large
   ),
   full_sample_ms = list(
     shock_var   = "NS_total",
-    select_cols = c("fips", "year", endo, "hhi", "NS_total", controls),
+    select_cols = c("fips", "year", dep, "hhi", "NS_total", controls),
     sample = df_hp_large
   ),
   separate_sample_hhi_ms_high = list(
     shock_var   = "I_HHI_NS_TOTAL",
-    select_cols = c("fips", "year", endo, "hhi", "I_HHI_NS_TOTAL",controls),
+    select_cols = c("fips", "year", dep, "hhi", "I_HHI_NS_TOTAL",controls),
     sample = df_hp_large_highconc
     
   ),
   separate_sample_ms_high = list(
     shock_var   = "NS_total",
-    select_cols = c("fips", "year", endo, "hhi", "NS_total", controls),
+    select_cols = c("fips", "year", dep, "hhi", "NS_total", controls),
     sample = df_hp_large_highconc
   ),
   separate_sample_hhi_ms_low = list(
     shock_var   = "I_HHI_NS_TOTAL",
-    select_cols = c("fips", "year", endo, "hhi", "I_HHI_NS_TOTAL",controls),
+    select_cols = c("fips", "year", dep, "hhi", "I_HHI_NS_TOTAL",controls),
     sample = df_hp_large_lowconc
     
   ),
   separate_sample_ms_low = list(
     shock_var   = "NS_total",
-    select_cols = c("fips", "year", endo, "hhi", "NS_total", controls),
+    select_cols = c("fips", "year", dep, "hhi", "NS_total", controls),
     sample = df_hp_large_lowconc
   )
 )
@@ -179,21 +196,21 @@ results_baseline <- foreach(spec = shock_specs_baseline,
                              data_set          = df_subset,
                              data_sample       = "Full",
                              endog_data        = endo,
-                             lags_endog_data   = 2,
+                             lags_endog_data   = 1,
                              cumul_mult        = TRUE,
                              shock             = spec$shock_var,
-                             lags_shock        = 2,
-                             diff_shock        = TRUE,
+                             lags_shock        = 1,
+                             diff_shock        = FALSE,
                              panel_model       = "within",
                              panel_effect      = PANEL_EFFECT,
-                             robust_cov        = "wild.cluster.boot",
-                             robust_cluster    = "time",
-                             c_exog_data       = NULL, #colnames(df_subset)[c(4, 6:10)],
-                             l_exog_data       = NULL, #colnames(df_subset)[c(4, 6:10)],
+                             robust_cov        = "vcovSCC",
+                             # robust_cluster    = "time",
+                             c_exog_data       = colnames(df_subset)[c(4, 6:12)],
+                             l_exog_data       = NULL, #colnames(df_subset)[c(4 :12)],
                              lags_exog_data    = NaN,
-                             c_fd_exog_data    = colnames(df_subset)[c(4, 6:10)],
-                             l_fd_exog_data    = colnames(df_subset)[c(4, 6:10)],
-                             lags_fd_exog_data = 2,
+                             c_fd_exog_data    = colnames(df_subset)[c(4, 6:12)],
+                             l_fd_exog_data    = colnames(df_subset)[c(4, 6:12)],
+                             lags_fd_exog_data = 1,
                              confint           = CI,
                              hor               = HOR,
                              biter             = BITER
@@ -211,26 +228,30 @@ gc()
 
 ### 3.1.2 Graphs for Baseline --------------------------------------------------
 
+# y_lower_baseline <-
+# y_upper_baseline <-
+# breaks_baseline <-
+
 # Graph 1: Full Sample - Shock: MS x HHI --------------------------------------+
 
 plot1_full_ms_hhi <- GG_IRF_ONE(data = results_baseline$full_sample_hhi_ms,
                                 hhi_coef = FALSE, 
-                                y_lower = -1, 
-                                y_upper = 1, 
-                                breaks = .5,
+                                y_lower = -2, 
+                                y_upper = 4, 
+                                breaks = 1,
                                 title_name = "Full Sample: Monetary Shock \u00D7 HHI",
                                 time_name = "Years"
                                 )
 
 # Graph 2: Full Sample - Shock: MS --------------------------------------------+
 
-plot2_full_ms <- GG_IRF_ONE(data = results_baseline$full_sample_ms,
+plot2_full_ms <- GG_IRF_ONE(data     = results_baseline$full_sample_ms,
                             hhi_coef = FALSE, 
-                            y_lower = -1, 
-                            y_upper = 1, 
-                            breaks = .5,
+                            y_lower  = -2, 
+                            y_upper  = 4, 
+                            breaks   = 1,
                             title_name = "Full Sample: Monetary Shock",
-                            time_name = "Years"
+                            time_name  = "Years"
                             )
 
 # Graph 3: High vs Low Sample - Shock: MS x HHI -------------------------------+
@@ -239,9 +260,9 @@ plot3_separate_sample_ms_hhi <- GG_IRF_TWO(data1 = results_baseline$separate_sam
                                            data2 = results_baseline$separate_sample_hhi_ms_low,
                                            data_name = c("High HHI", "Low HHI"),
                                            hhi_coef = FALSE, 
-                                           y_lower = -2.5,
-                                           y_upper = 5,
-                                           breaks = .5,
+                                           y_lower = -2,
+                                           y_upper = 10,
+                                           breaks = 1,
                                            title_name = "Subsample: Monetary Shock \u00D7 HHI",
                                            time_name = "Years"
                                            )
@@ -249,26 +270,33 @@ plot3_separate_sample_ms_hhi <- GG_IRF_TWO(data1 = results_baseline$separate_sam
 
 # Graph 4: High vs Low Sample - Shock: MS -------------------------------------+
 
-plot4_separate_sample_ms <- GG_IRF_TWO(data1 =  results_baseline$separate_sample_ms_high,
+plot4_separate_sample_ms <- GG_IRF_TWO(data1 = results_baseline$separate_sample_ms_high,
                                        data2 = results_baseline$separate_sample_ms_low,
                                        data_name = c("High HHI", "Low HHI"),
                                        hhi_coef = FALSE, 
-                                       y_lower = -2.5,
-                                       y_upper = 5,
-                                       breaks = .5,
+                                       y_lower = -2,
+                                       y_upper = 10,
+                                       breaks = 1,
                                        title_name = "Subsample: Monetary Shock",
                                        time_name = "Years"
                                        )
 
 # Final Graph: Combine 1 to 4 -------------------------------------------------+
 
-graph_baseline <- (plot1_full_ms_hhi$plot + plot2_full_ms$plot) / 
-                  (plot3_separate_sample_ms_hhi$plot + plot4_separate_sample_ms$plot) +
-                  plot_annotation(
+graph_baseline <- (plot1_full_ms_hhi$plot            | plot2_full_ms$plot) / 
+                  (plot3_separate_sample_ms_hhi$plot | plot4_separate_sample_ms$plot) +
+                   plot_annotation(
                     title = "Baseline",
-                    tag_levels = "I",
+                    # tag_levels = "I",
                     theme = theme(plot.title = element_text(size = 10, hjust = .5))
-                  )
+                   )
+
+# Save
+ggsave(
+  filename = paste0(FIGURE, "01_US_Panel_A/", "us_panel_a_1lag_DKSE_noCM.pdf"),
+  plot = graph_baseline,
+  width = 8, height = 12, dpi = 300
+  )
 
 
 ###############################################################################+
