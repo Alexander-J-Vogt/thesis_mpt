@@ -51,7 +51,7 @@ df_us_hf_year <- df_us_hf |>
   )
   
 
-## 1.2 Jarocinski (2024) - Unconvetionaö ==============================================================
+## 1.2 Jarocinski (2024) - Unconvetional ==============================================================
 
 # Import Jarocinski's measure on monetary shock (available as one sd shocj and 1 bps shock)
 df_jarocinski_bp <- read_csv(
@@ -67,7 +67,6 @@ df_jarocinski_sd <- read_csv(
 #' Odyssean forward guidance: u2
 #' Long term rate shock: u3
 #' Delphic forward guidance: u4
-
 
 # BPS: Create a yearly monetary shock measure by taking the mean by year
 df_jarocinski_bp <- df_jarocinski_bp |> 
@@ -123,28 +122,20 @@ df_ms_jk <- ms_jk |>
   mutate(
     MP_median_total = MP_median,
     MP_median_positiv = sum(MP_median[MP_median > 0], na.rm = TRUE),
-    MP_median_negativ = sum(MP_median[MP_median < 0], na.rm = TRUE),
+    MP_median_negativ = sum(MP_median[MP_median < 0], na.rm = TRUE)
   ) |> 
-  dplyr::select(month, starts_with("MP_median")) |> 
+  dplyr::select(month, starts_with("MP_median"), MP_pm) |> 
   mutate(year = year(month), .after = month)
 
 df_ms_jk_annual <- df_ms_jk |> 
   group_by(year) |> 
   mutate(
     MP_median_sum = sum(MP_median_total),
-    MP_median_mean = mean(MP_median_total)
+    MP_median_mean = mean(MP_median_total),
+    MP_pm_sum = sum(MP_pm),
+    MP_pm_mean = mean(MP_pm)
   ) |> 
-  dplyr::select(year, MP_median_sum, MP_median_mean)
-
-results <- lm(MP_median_total ~ lag(MP_median_total), data = df_ms_jk)
-summary(results)
-
-
-results <- lm(MP_median_mean ~ lag(MP_median_mean), data = df_ms_jk_annual)
-summary(results)
-
-results <- lm(MP_median_sum ~ lag(MP_median_sum), data = df_ms_jk_annual)
-summary(results)
+  dplyr::select(year, MP_median_sum, MP_median_mean, MP_pm_sum, MP_pm_mean)
 
 
 ## 1.4 Save US Monetary Shocks =================================================
@@ -176,7 +167,7 @@ df_us_shock_monthly <- df_ms_jk |>
 SAVE(dfx = df_us_shock_monthly, namex = paste0(MAINNAME, "_us_monthly"))
 
 
-# 2. Import Eur zone Measure for Monetary Policy Shock =========================
+# 2. Import Eue Area Measure for Monetary Policy Shock =========================
 
 ## 2.1 Altavilla et al. (2019) (with package from Martin Baumgärtner) -----------
 
@@ -198,19 +189,6 @@ df_eurozone_shock <- ecb_shocks(
 
 # Get the measure for the conventional monetary shock
 df_eurozone_target <- data.frame(df_eurozone_shock$factors$release)
-
-# df_eurozone <- df_eurozone_target |> 
-#   mutate(
-#     target = as.numeric(format(target, scientific = FALSE)),
-#     year = as.numeric(year(date))
-#     ) |> 
-#   group_by(year) |> 
-#   summarise(
-#     target = sum(target)
-#   )
-# 
-# # Get the measure for unconventional monetary shock
-# df_eurozone_unconv_mp <- data.frame(df_eurozone_shock$factors$conference)
 
 # Data Manipulating
 df_eurozone <- df_eurozone_target |> 
@@ -265,7 +243,7 @@ df_jarocinski_eu <- jarocinski |>
     MP_median_positiv = sum(MP_median[MP_median > 0], na.rm = TRUE),
     MP_median_negativ = sum(MP_median[MP_median < 0], na.rm = TRUE),
   ) |> 
-  dplyr::select(month, starts_with("MP_median"))
+  dplyr::select(month, starts_with("MP_median"), MP_pm)
 
 # Add last two month to df
 df_jarocinski_eu <- df_month |> 
