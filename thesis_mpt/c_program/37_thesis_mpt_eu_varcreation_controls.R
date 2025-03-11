@@ -371,6 +371,12 @@ df_controls <- df_controls |>
 df_controls <- fastDummies::dummy_cols(df_controls, select_columns = "year", remove_first_dummy = TRUE)
 df_controls <- df_controls |> dplyr::select(-year)
 
+# Month Dummy Variables
+df_controls <- df_controls |> 
+  mutate(d_month = str_sub(month, start = 6, end = 7))
+df_controls <- fastDummies::dummy_cols(df_controls, select_columns = "d_month", remove_first_dummy = TRUE)
+
+
 # 10. Format Variables to Decimal ==============================================
 
 df_controls <- df_controls |> 
