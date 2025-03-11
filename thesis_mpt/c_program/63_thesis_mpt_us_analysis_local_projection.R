@@ -180,12 +180,12 @@ shock_specs_baseline_NS <- list(
   )
 )
 
-# Define the four baseline specifications in a list ----
+# Define the four baseline specifications in a list ---------------------------+
 shock_specs_baseline_JK <- list(
   # Full Sample + JK SUM
   full_sample_hhi_ms_SUM = list(
-    shock_var   = "I_HHI_JK_SUM",
-    select_cols = c("fips", "year", endo, "hhi", "I_HHI_JK_SUM",  controls),
+    shock_var   = "I_HHI_JK_MEDIAN_SUM",
+    select_cols = c("fips", "year", endo, "hhi", "I_HHI_JK_MEDIAN_SUM",  controls),
     sample = df_hp_large
   ),
   full_sample_ms_SUM = list(
@@ -195,8 +195,8 @@ shock_specs_baseline_JK <- list(
   ),
   # High-Concentration Sample + JK SUM
   separate_sample_hhi_ms_high_SUM = list(
-    shock_var   = "I_HHI_JK_SUM",
-    select_cols = c("fips", "year", endo, "hhi", "I_HHI_JK_SUM",controls),
+    shock_var   = "I_HHI_JK_MEDIAN_SUM",
+    select_cols = c("fips", "year", endo, "hhi", "I_HHI_JK_MEDIAN_SUM",controls),
     sample = df_hp_large_highconc
     
   ),
@@ -207,8 +207,8 @@ shock_specs_baseline_JK <- list(
   ),
   # Low-Concentration Sample + JK SUM
   separate_sample_hhi_ms_low_SUM = list(
-    shock_var   = "I_HHI_JK_SUM",
-    select_cols = c("fips", "year", endo, "hhi", "I_HHI_JK_SUM",controls),
+    shock_var   = "I_HHI_JK_MEDIAN_SUM",
+    select_cols = c("fips", "year", endo, "hhi", "I_HHI_JK_MEDIAN_SUM",controls),
     sample = df_hp_large_lowconc
     
   ),
@@ -219,7 +219,7 @@ shock_specs_baseline_JK <- list(
   )
 )
 
-# Parallel Computing ----
+# Parallel Computing ----------------------------------------------------------+
 
 # Set up the parallel backend (use available cores minus one)
 n_cores <- parallel::detectCores() - 1
@@ -417,35 +417,35 @@ shock_specs_zlb_indicator_NS <- list(
 
 shock_specs_zlb_indicator_JK <- list(
   full_sample_hhi_ms = list(
-    shock_var   = "I_HHI_JK_SUM_1",
-    select_cols = c("fips", "year", endo, "hhi", "I_HHI_JK_SUM_1",  controls),
+    shock_var   = "I_HHI_JK_MEDIAN_SUM_1",
+    select_cols = c("fips", "year", endo, "hhi", "I_HHI_JK_MEDIAN_SUM_1",  controls),
     sample = df_hp_large
   ),
   full_sample_ms = list(
-    shock_var   = "I_JK_SUM_1",
-    select_cols = c("fips", "year", endo, "hhi", "I_JK_SUM_1", controls),
+    shock_var   = "I_JK_MEDIAN_SUM_1",
+    select_cols = c("fips", "year", endo, "hhi", "I_JK_MEDIAN_SUM_1", controls),
     sample = df_hp_large
   ),
   separate_sample_hhi_ms_high = list(
-    shock_var   = "I_HHI_JK_SUM_1",
-    select_cols = c("fips", "year", endo, "hhi", "I_HHI_JK_SUM_1",controls),
+    shock_var   = "I_HHI_JK_MEDIAN_SUM_1",
+    select_cols = c("fips", "year", endo, "hhi", "I_HHI_JK_MEDIAN_SUM_1",controls),
     sample = df_hp_large_highconc
     
   ),
   separate_sample_ms_high = list(
-    shock_var   = "I_JK_SUM_1",
-    select_cols = c("fips", "year", endo, "hhi", "I_JK_SUM_1", controls),
+    shock_var   = "I_JK_MEDIAN_SUM_1",
+    select_cols = c("fips", "year", endo, "hhi", "I_JK_MEDIAN_SUM_1", controls),
     sample = df_hp_large_highconc
   ),
   separate_sample_hhi_ms_low = list(
-    shock_var   = "I_HHI_JK_SUM_1",
-    select_cols = c("fips", "year", endo, "hhi", "I_HHI_JK_SUM_1",controls),
+    shock_var   = "I_HHI_JK_MEDIAN_SUM_1",
+    select_cols = c("fips", "year", endo, "hhi", "I_HHI_JK_MEDIAN_SUM_1",controls),
     sample = df_hp_large_lowconc
     
   ),
   separate_sample_ms_low = list(
-    shock_var   = "I_JK_SUM_1",
-    select_cols = c("fips", "year", endo, "hhi", "I_JK_SUM_1", controls),
+    shock_var   = "I_JK_MEDIAN_SUM_1",
+    select_cols = c("fips", "year", endo, "hhi", "I_JK_MEDIAN_SUM_1", controls),
     sample = df_hp_large_lowconc
   )
 )
@@ -457,7 +457,7 @@ cl <- makeCluster(n_cores)
 registerDoParallel(cl)
 
 # Run the LP_LIN_PANEL function in parallel for each specification
-results_zlb_indicator <- foreach(spec = shock_specs_zlb_indicator_NS,
+results_zlb_indicator <- foreach(spec = shock_specs_zlb_indicator_JK,
                             .packages = c("dplyr", "lpirfs", "plm", "clusterSEs", "lmtest"),
                             .export = c("df_hp_large", "LP_LIN_PANEL", "CREATE_PANEL_DATA", "PANEL_EFFECT", "CI", "HOR", "BITER", "endo")) %dopar% {
                               
@@ -492,7 +492,7 @@ results_zlb_indicator <- foreach(spec = shock_specs_zlb_indicator_NS,
                             }
 
 # Optionally, assign names to the results list based on your shock specifications
-names(results_zlb_indicator) <- names(shock_specs_zlb_indicator_NS)
+names(results_zlb_indicator) <- names(shock_specs_zlb_indicator_JK)
 
 # Shut down the parallel cluster
 stopCluster(cl)
@@ -502,13 +502,13 @@ gc()
 
 ### 3.2.2 Graphs for Regressions with Interaction Term -------------------------
 
-# Graph 5: Full Sample - Shock: MS x HHI x ZLB --------------------------------+
+# Graph 5: Full Sample - Shock: MS x HHI x ZLB [INCLUDE] ----------------------+
 
 plot7_full_ms_hhi <- GG_IRF_ONE(data = results_zlb_indicator$full_sample_hhi_ms,
                                 hhi_coef = FALSE, 
-                                y_lower = -1, 
-                                y_upper = 1, 
-                                breaks = .5,
+                                y_lower = -2, 
+                                y_upper = 4, 
+                                breaks = 1,
                                 title_name = "Full Sample: Monetary Shock \u00D7 HHI \u00D7 ZLB",
                                 time_name = "Years"
                                 )
@@ -517,9 +517,9 @@ plot7_full_ms_hhi <- GG_IRF_ONE(data = results_zlb_indicator$full_sample_hhi_ms,
 
 plot8_full_ms <- GG_IRF_ONE(data = results_zlb_indicator$full_sample_ms,
                             hhi_coef = FALSE, 
-                            y_lower = -1, 
-                            y_upper = 1, 
-                            breaks = .5,
+                            y_lower = -3, 
+                            y_upper = 5, 
+                            breaks = 1,
                             title_name = "Full Sample: Monetary Shock \u00D7 ZLB",
                             time_name = "Years"
                             )
@@ -530,30 +530,30 @@ plot9_separate_sample_ms_hhi <- GG_IRF_TWO(data1 = results_zlb_indicator$separat
                                            data2 = results_zlb_indicator$separate_sample_hhi_ms_low,
                                            data_name = c("High HHI", "Low HHI"),
                                            hhi_coef = FALSE, 
-                                           y_lower = -2.5,
-                                           y_upper = 5,
-                                           breaks = .5,
+                                           y_lower = -14,
+                                           y_upper = 28,
+                                           breaks = 2,
                                            title_name = "Subsample: Monetary Shock \u00D7 HHI \u00D7 ZLB",
                                            time_name = "Years"
 )
 
-# Graph 7.2: Large Market Concentration ---------------------------------------+
+# Graph 7.2: Large Market Concentration [INCLUDE ------------------------------+
 
 plot10_separate_sample_ms_hhi <- GG_IRF_ONE(data = results_zlb_indicator$separate_sample_hhi_ms_high,
                                  hhi_coef   = FALSE, 
-                                 y_lower    = -4.5, 
-                                 y_upper    = 2, 
+                                 y_lower    = -2, 
+                                 y_upper    = 4, 
                                  breaks     = 1,
                                  title_name = "Sample: Large Market Concentration",
-                                 time_name  = "Years"
+                                 time_name  = "h-horizon in Years"
 )  
 
-# Graph 7.3: Low Market Concentration ---------------------------------------+
+# Graph 7.3: Low Market Concentration [INCLUDE] -------------------------------+
 
 plot11_separate_sample_ms_hhi <- GG_IRF_ONE(data = results_zlb_indicator$separate_sample_hhi_ms_low,
                                hhi_coef = FALSE, 
-                               y_lower  = -24, 
-                               y_upper  = 8, 
+                               y_lower  = -14, 
+                               y_upper  = 28, 
                                breaks   = 1,
                                title_name = " Sample: Low Market Concentration",
                                time_name  = "h-horizon in Years"
@@ -576,7 +576,12 @@ plot8_separate_sample_ms <- GG_IRF_TWO(data1 =  results_zlb_indicator$separate_s
 
 graph_ZLB_indicator <- (plot7_full_ms_hhi$plot + plot10_separate_sample_ms_hhi$plot + plot11_separate_sample_ms_hhi$plot) +
   plot_annotation(
-    title = "Results on including ... "
+    title = "Results at the ZLB - ZLB Indicator",
+    subtitle = "The results of the Linear Projection model represent the Baseline Results with the interaction term between Monetary Shock \u00D7 HHI \u00D7 ZLB Indicator.",
+    theme = theme(
+      plot.title = element_text(size = 12, hjust = 0),
+      plot.caption = element_text(size = 10, hjust = 0)
+    )
   )
 
 # Save
@@ -728,7 +733,7 @@ results_zlb_sample <- foreach(spec = shock_specs_zlb_indicator_JK,
                             }
 
 # Optionally, assign names to the results list based on your shock specifications
-names(results_zlb_sample) <- names(shock_specs_zlb_sample)
+names(results_zlb_sample) <- names(shock_specs_zlb_indicator_NS)
 
 # Shut down the parallel cluster
 stopCluster(cl)
