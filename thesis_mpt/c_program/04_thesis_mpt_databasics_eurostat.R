@@ -34,7 +34,7 @@ df_hicp <- hicp |>
   filter(coicop == "CP00") |> # Total Inflation Index
   filter(unit == "I15") |> # Indexed to 2015
   # Filter countries
-  filter(geo %in% c("AT", "BE", "FI", "FR", "DE", "IE", "IT", 
+  filter(geo %in% c("AT", "BE", "FI", "FR", "DE", "IE", "EL", "IT", 
                         "NL", "PT", "ES", "SI", "SK", "EA" )) |> 
   # Select & Rename
   dplyr::select(geo, TIME_PERIOD, OBS_VALUE) |> 
@@ -43,6 +43,7 @@ df_hicp <- hicp |>
     month = TIME_PERIOD,
     hicp = OBS_VALUE
   ) |> 
+  mutate(country = if_else(country == "EL", "GR", country)) |> 
   # Format
   mutate(
     month = as.Date(paste0(month, "-01")),
