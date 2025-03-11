@@ -1,5 +1,4 @@
-# TARGET: Download Call Reports from FFIEC & Perform Basic Data Cleaning
-# INDATA: banks_sod, pop_cnty, ur_cnty, qwi_earnings, controls_sod
+# TARGET: Import IMF data on Commodity Indexs by country
 # OUTDATA/ OUTPUT: MAINNAME 
 
 ################################################################################################################+
