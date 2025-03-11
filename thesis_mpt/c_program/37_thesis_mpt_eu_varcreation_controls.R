@@ -1,6 +1,5 @@
-# TARGET: 
-# INDATA: 
-# OUTDATA/ OUTPUT:  
+# TARGET: Merge Control Variables from ECB, Eurostat, BSI and IMF
+# OUTDATA/ OUTPUT: MAINNAME 
 
 ################################################################################################################+
 # INTRO	script-specific ####
@@ -35,6 +34,7 @@ df_eurostat_q <- LOAD(dfinput = "04_thesis_mpt_databasics_eurostat_q")
 
 df_eurostat_a <- LOAD(dfinput = "04_thesis_mpt_databasics_eurostat_a")
 
+
 # 02. Relevant Variables =======================================================
 
 # Select relevant variables from the BSI
@@ -55,9 +55,11 @@ df_ecb <- df_ecb |>
     deposit_share = overnight_deposits / (overnight_deposits + MMF) * 100,
     log_credit_reserves = log(cr_outst_amount_EUR),
     log_deposit = log(dl_outst_amount_EUR),
-    log_assets = log(tl_outst_amount_EUR)
+    log_assets = log(tl_outst_amount_EUR),
+    log_overnight_deposits = log(overnight_deposits),
+    log_total_loan = log(total_loan)
   ) |> 
-  dplyr::select(-c("MMF", "bonds")) |> 
+  dplyr::select(-c("MMF", "bonds", ends_with("EUR"), "total_loan", "overnight_deposits")) |> 
   mutate(deposit_rate = as.numeric(deposit_rate))
 
 
@@ -65,9 +67,8 @@ df_ecb <- df_ecb |>
 
 ## 03.1 Real GDP by Country ----------------------------------------------------
 
-# install.packages("tsbox")
-library(tsbox)
 
+# List of EA countries in 
 EA <- c("AT", "BE", "FI", "FR", "DE", "GR", "IE", "IT", 
   "NL", "PT", "ES", "SI", "SK")
 
@@ -124,8 +125,11 @@ list_gdp <- purrr::map(EA, function (x) {
 
 df_gdp <- bind_rows(list_gdp)
 
+# Calculate annual GDP growth
 df_gdp <- df_gdp |> 
-  mutate(gdp_growth = (gdp - lag(gdp, 1)) / gdp)
+  group_by(country) |> 
+  mutate(gdp_country_growth = (gdp - lag(gdp, 12)) / gdp) |> 
+  ungroup()
 
 
 ## 03.2 EA Real GDP ------------------------------------------------------------
@@ -139,7 +143,7 @@ df_gdp_ea <- df_eurostat_q |>
 
 ts_gdp_ea <- ts(data = df_gdp_ea$real_gdp, start = 2003, frequency = 4)
 
-# Use denton-cholette Interpolation to get monthly real GDP
+# Use Denton-Cholette Interpolation to get annual real GDP
 real_gdp_ea <- tempdisagg::td(ts_gdp_ea ~ 1, to = 12, method = "denton-cholette", conversion = "last")
 real_gdp_ea_predict <- predict(real_gdp_ea)
 
@@ -149,9 +153,10 @@ df_real_gdp_ea <- data.frame(
   gdp_ea = as.vector(real_gdp_ea_predict)
 )
 
+# Calculate Annual GDP growth
 df_real_gdp_ea <- df_real_gdp_ea |> 
-  mutate(gdp_ea_growth = (gdp_ea - lag(gdp_ea, 1)) / gdp_ea)
-
+  mutate(gdp_ea_growth = (gdp_ea - lag(gdp_ea, 12)) / gdp_ea * 100)
+ 
 
 # 04. HICP =====================================================================
 
@@ -174,12 +179,11 @@ df_hicp_ea <- df_eurostat |>
 
 # 05. HPI ======================================================================
 
-# install.packages("tsbox")
-library(tsbox)
-
+# EA Countries in Sample
 EA <- c("AT", "BE", "FI", "FR", "DE", "GR", "IE", "IT", 
         "NL", "PT", "ES", "SI", "SK")
 
+# Create a monthly frequency from the quarterly HPI
 list_hpi <- purrr::map(EA, function (x) {
   
   # Get data to ts-object
@@ -219,11 +223,16 @@ list_hpi <- purrr::map(EA, function (x) {
 
 df_hpi <- bind_rows(list_hpi)
 
+# Calcualte Annual HPI growth
 df_hpi <- df_hpi |> 
-  mutate(delta_hpi = (hpi - lag(hpi, 1)) / hpi)
+  group_by(country) |> 
+  mutate(hpi_growth = (hpi - lag(hpi, 12)) / hpi * 100) |> 
+  ungroup()
 
-# 06. Homeownership Rate with Mortgage loan ====================================
 
+# 06. Homeownership Rate  ====================================
+
+# Create a monthly frequency from the annual Homeownership Rate Data
 list_hosr <- purrr::map(EA, function (x) {
   
   # Get data to ts-object
@@ -253,13 +262,15 @@ list_hosr <- purrr::map(EA, function (x) {
   
 })
 
+# Combine to DF
 df_hosr <- bind_rows(list_hosr)
 
 
 # 07. Merge to Dataset =========================================================
 
 # Merge datasets
-df_controls <- df_ecb |> 
+df_controls <- df_ecb |>
+  # Merge Dataset
   full_join(df_eurostat_country, by = c("country", "month")) |> # REER, HICP, UR by Country + EUR/USD Exchange Rate
   full_join(df_imf, by = c("country", "month")) |> # Commodity Index by country
   full_join(df_gdp, by = c("country", "month")) |> # GDP by country
@@ -299,7 +310,7 @@ df_controls <- df_controls_ximp |>
   # Select and arrange variables
   arrange(country, month)
 
-# 04.1 Check Imputations on plausibility ---------------------------------------
+## 08.1 Check Imputations on plausibility ---------------------------------------
 
 df_non_imp <- df_controls_imp |> 
   filter(country %in% c("BE", "DE", "FR", "NL")) |> 
@@ -337,25 +348,29 @@ ggplot(df_combined, aes(x = month, y = ur, color = country)) +
   theme_minimal()
 
 #' As approximation of the UR in the mid-2000s it is okay but is a bit off compared 
-#' to what is found at the Statistiches Bundesamt
+#' to what is found at the Statistiches Bundesamt.
 
 
-# 05. Crisis Indicator =========================================================
+# 09. Crisis Indicator =========================================================
 
+# State-Dependent Indicator
 df_controls <- df_controls |> 
   mutate(
+    # Financial Crisis
     d_fincrisis = if_else(inrange(month, as.Date("2008-04-01"), as.Date("2009-06-01")), 1, 0),
+    # Euoprean Sovereing Debt Crisis
     d_eurocrisis = if_else(inrange(month, as.Date("2011-06-01"), as.Date("2013-04-01")), 1, 0),
+    # Countries with a large share of ARM mortgages by Albertazzi, Ugo, Fulvia Fringuellotti, and Steven Ongena (2024)
     d_countries_arm = ifelse(country %in% c("AT", "GR", "IT", "PT", "ES"), 1, 0)
   ) |> 
   mutate(year = year(month))
 
+# Year Dummy Variable
 df_controls <- fastDummies::dummy_cols(df_controls, select_columns = "year", remove_first_dummy = TRUE)
-
 df_controls <- df_controls |> dplyr::select(-year)
 
 
-# 05. SAVE =====================================================================
+# 10. SAVE =====================================================================
 
 SAVE(dfx = df_controls)
 
