@@ -1,6 +1,5 @@
 # TARGET: Import GDP United States 
-# INDATA: qwi_e14db0de913c427aa12de971a73eb389.csv
-# OUTDATA/ OUTPUT: mp_transmission_databasics_qwi
+# OUTDATA/ OUTPUT: MAINNAME
 
 ################################################################################################################+
 # INTRO	script-specific ####
