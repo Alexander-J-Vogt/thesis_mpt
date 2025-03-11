@@ -1,6 +1,6 @@
 # TARGET: Import population for each county
 # INDATA: Population Data
-# OUTDATA/ OUTPUT: mp_transmission_databasics_pop, pop_state
+# OUTDATA/ OUTPUT: MAINNAME, pop_state
 
 ################################################################################################################+
 # INTRO	script-specific ####
@@ -94,5 +94,7 @@ setnames(pop_state_data, old = c("population"), new = c("state_pop"))
 # SAVE
 SAVE(dfx = pop_cnty_data, namex = MAINNAME)
 SAVE(dfx = pop_state_data, namex = "pop_state")
+
+
 
 ################################### END #######################################+
