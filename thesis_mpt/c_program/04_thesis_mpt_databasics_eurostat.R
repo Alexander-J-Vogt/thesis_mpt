@@ -1,6 +1,5 @@
-# TARGET: Download Call Reports from FFIEC & Perform Basic Data Cleaning
-# INDATA: banks_sod, pop_cnty, ur_cnty, qwi_earnings, controls_sod
-# OUTDATA/ OUTPUT: MAINNAME 
+# TARGET: Import Eurostat data for HICP, HDP, IP, UR, Homeownership Rate, and House Price Index by BSI
+# OUTDATA/ OUTPUT: MAINNAME for quarterly and monthly data
 
 ################################################################################################################+
 # INTRO	script-specific ####
@@ -140,11 +139,12 @@ df_gdp <- gdp |>
   # Create time variable 
   mutate(
     quarter = yq(quarter),
-    ovs_value = as.double(obs_value)
+    ovb_value = as.double(obs_value)
     ) |> 
   # Filter countries
-  filter(country %in% c("AT", "BE", "FI", "FR", "DE", "IE", "IT", 
+  filter(country %in% c("AT", "BE", "FI", "FR", "DE", "IE","EL", "IT", 
                         "NL", "PT", "ES", "SI", "SK", "EA" )) |> 
+  mutate(country = if_else(country == "EL", "GR", country)) |> 
   # Filter for relevant time period
   filter(!(country == "GR" & quarter < as.Date("2001-01-01"))) |> # Filter for years with GR being part of the Eurozone
   filter(!(country == "SI" & quarter < as.Date("2007-01-01"))) |> # Filter for year with SI being part of the Eurozone
@@ -239,8 +239,9 @@ df_ip <- ip |>
   ) |> 
   rename(country = geo) |> 
   # Filter countries
-  filter(country %in% c("AT", "BE", "FI", "FR", "DE", "IE", "IT", 
+  filter(country %in% c("AT", "BE", "FI", "FR", "DE", "EL", "IT", "IE",
                         "NL", "PT", "ES", "SI", "SK", "EA" )) |> 
+  mutate(country = if_else(country == "EL", "GR", country)) |> 
   # Filter for relevant time period
   filter(!(country == "GR" & month < as.Date("2001-01-01"))) |> # Filter for years with GR being part of the Eurozone
   filter(!(country == "SI" & month < as.Date("2007-01-01"))) |> # Filter for year with SI being part of the Eurozone
@@ -383,7 +384,8 @@ df_hpi <- df_hpi |>
     month(month) %in% c(4, 5, 6) ~ make_date(year(month), 4, 1),
     month(month) %in% c(7, 8, 9) ~ make_date(year(month), 7, 1),
     month(month) %in% c(10, 11, 12) ~ make_date(year(month), 10, 1)
-  ))
+  )) |> 
+  distinct(.keep_all = TRUE)
 
 
 
@@ -465,7 +467,6 @@ SAVE(dfx = df_eurostat_m, namex = paste0(MAINNAME, "_m"))
 df_quarterly <- df_real_gdp |> 
   left_join(df_hpi, by = c("country", "month"))
 
-
 # Save quarterly data
 SAVE(dfx = df_quarterly, namex = paste0(MAINNAME, "_q"))
 
@@ -475,7 +476,7 @@ SAVE(dfx = df_quarterly, namex = paste0(MAINNAME, "_q"))
 df_annual <- df_hosr |> 
   full_join(df_hpti_ratio, by = c("year", "country"))
 
-
+# SAVE
 SAVE(dfx = df_annual, namex = paste0(MAINNAME, "_a"))
 
 
