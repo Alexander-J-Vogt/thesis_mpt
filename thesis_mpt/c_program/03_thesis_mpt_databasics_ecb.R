@@ -1,5 +1,4 @@
-# TARGET: Download Call Reports from FFIEC & Perform Basic Data Cleaning
-# INDATA: banks_sod, pop_cnty, ur_cnty, qwi_earnings, controls_sod
+# TARGET: Import data from BSI, MFI & SSI
 # OUTDATA/ OUTPUT: MAINNAME 
 
 ################################################################################################################+
@@ -48,25 +47,8 @@ df_ssi <- df_ssi_raw |>
   ) |> 
   mutate(across(-1, as.numeric))
 
-# 2. Consolidated Banking Data =================================================
 
-## 2.1 CBD (Discontinued) ------------------------------------------------------
-# Data from 2007 and 2013
-if (DEBUG) {
-df_cbd <- read.csv(paste0(A, "b_ecb/cbd.csv"), colClasses = "character")
-
-
-## 2.2 CBD2 --------------------------------------------------------------------
-# Data from 2014 on
-# Read bulk download dataset
-df_cbd2 <- read.csv(paste0(A, "b_ecb/cbd2.csv"), colClasses = "character")
-
-test <- df_cbd |> 
-  filter(substr(CB_ITEM, 1, 3) == "D12")
-}
-
-
-# 3. Monetary Finanical Institutions (MFI) =====================================
+# 2. Monetary Finanical Institutions (MFI) =====================================
 
 # Import bulk download dataset
 df_mfi_raw <- read.csv(paste0(A, "b_ecb/mfi.csv"), colClasses = "character")
@@ -145,7 +127,6 @@ lapply(colnames(df_mfi), function(x){
 
 
 ## Deposit Rate
-
 df_deposit_rate <- df_mfi_raw |> 
   filter(REF_AREA %in% euro_cntry_relevant) |> 
   filter(BS_ITEM %in% c("L21")) |> # "A20" is total loan but is excluded
