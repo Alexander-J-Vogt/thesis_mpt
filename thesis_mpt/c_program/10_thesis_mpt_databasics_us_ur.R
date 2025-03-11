@@ -1,5 +1,4 @@
 # TARGET: Import Unemployment Rate data
-# INDATA: Unemployment.xlsx
 # OUTDATA/ OUTPUT: mp_transmission_databasics_ur
 
 ################################################################################################################+
@@ -36,10 +35,12 @@ df_gazette <- df_gazette |>
     "35", "36", "37", "38", "39", "40", "41", "42", "44", "45",
     "46", "47", "48", "49", "50", "51", "53", "54", "55", "56", "11"
   )) |> 
-  select(-state_code)
-fips_master <- data.frame(fips = unique(df_gazette$fips))
+  dplyr::select(-state_code)
+
+
 
 # Create series ids for BLS 
+fips_master <- data.frame(fips = unique(df_gazette$fips))
 fips_master <- fips_master |> 
   mutate(series_id = paste0("LAUCN", fips, "0000000003"))
 
@@ -53,18 +54,20 @@ fips_master <- c(fips_master, new_fips)
 
 # Define a function to fetch unemployment rate using the BLS API (version 2)
 fetch_unemployment_rate_v2 <- function(series_ids, start_year = 2004, end_year = 2023, api_key) {
-  # """
-  # Fetch unemployment rate data using the BLS API (version 2).
-  # 
-  # Parameters:
-  #     series_ids (vector): A vector of BLS series IDs for unemployment rates.
-  #     start_year (int): The starting year for the data range.
-  #     end_year (int): The ending year for the data range.
-  #     api_key (str): Your BLS API key.
-  # 
-  # Returns:
-  #     DataFrame: A DataFrame (tibble) containing the unemployment rates.
-  # """
+  
+#'
+#' Fetch unemployment rate data using the BLS API (version 2).
+#' 
+#' Parameters:
+#'     series_ids (vector): A vector of BLS series IDs for unemployment rates.
+#'     start_year (int): The starting year for the data range.
+#'     end_year (int): The ending year for the data range.
+#'     api_key (str): Your BLS API key.
+#' 
+#' Returns:
+#'     DataFrame: A DataFrame (tibble) containing the unemployment rates.
+#'
+  
   tryCatch({
     # Split series IDs into batches of 50 (BLS API limit)
     batches <- split(series_ids, ceiling(seq_along(series_ids) / 50))
@@ -109,12 +112,12 @@ fetch_unemployment_rate_v2 <- function(series_ids, start_year = 2004, end_year =
   })
 }
 
-# Example usage
+# Download BLS API
 if (interactive()) {
   # Define parameters
   api_key <- BLS_API_KEY  # Replace with your actual BLS API key
   
-  # Example: Create a vector of series IDs for 3000+ counties (use actual series IDs for your case)
+  # Create a vector of series IDs for 3000+ counties
   series_ids <- fips_master$series_id  # Replace with actual county series IDs
   
   # Fetch data for years 2004 to 2023
@@ -131,20 +134,46 @@ if (interactive()) {
 # SAVE raw API data
 SAVE(dfx = unemployment_data, namex = "bls_api_ur")
 
-## 1.2 Clean & Collapse Data ---------------------------------------------------
+
+# 1.2 UR - US ------------------------------------------------------------------
+
+ur_country <- fread(
+  file = paste0(A, "h_fred/UNRATE.csv"),
+  colClasses = "character"
+)
+
+# avg by year
+df_ur_country <-ur_country |> 
+  mutate(
+    year = year(observation_date),
+    UNRATE = as.numeric(UNRATE)) |> 
+  group_by(year) |> 
+  summarise(
+    ur_national = mean(UNRATE, na.rm = T)
+  ) |> 
+  ungroup()
+
+
+## 1.3 Clean & Collapse Data ---------------------------------------------------
 
 # Get saved unemployment rate
-unemployment_rate <- LOAD(dfinput = "bls_api_ur")
+unemployment_data <- LOAD(dfinput = "bls_api_ur")
 
 # Clean and Collapse Data 
 df_ur <- unemployment_data |> 
-  mutate(
+  dplyr::mutate(
     fips = str_sub(seriesID, 6, 10), # Retrieve fips
-    value = as.integer(value) # format values
+    value = as.integer(value), # format values
+    year = as.numeric(year)
     ) |> 
-  select(year, fips, value, period) |> 
+  dplyr::select(year, fips, value, period) |> 
   group_by(year, fips) |> # Collapse data to annual-county level (from month-county level)
-  summarise(ur = mean(value, na.rm = TRUE), .groups = "drop") # Rem. half of the years monthly ur in 2005 and 2006 are missing for the counties: 22051, 22071, 22075, 22087, 22089, 22095, 22071
+  summarise(ur_county = mean(value, na.rm = TRUE), .groups = "drop")  |> # Rem. half of the years monthly ur in 2005 and 2006 are missing for the counties: 22051, 22071, 22075, 22087, 22089, 22095, 22071
+  ungroup() |> 
+  full_join(df_ur_country, by = "year")
+
+
+## 1.4 SAVE --------------------------------------------------------------------
 
 # SAVE
 SAVE(dfx = df_ur)
