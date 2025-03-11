@@ -48,9 +48,11 @@ df_hicp <- hicp |>
     month = as.Date(paste0(month, "-01")),
     hicp = as.double(hicp)
   ) |> 
+  group_by(country) |> 
   mutate(
-    hicp_inflation = (hicp - lag(hicp, 12)) / hicp,
+    hicp_inflation = (hicp - lag(hicp, 12)) / hicp * 100,
   ) |> 
+  ungroup() |> 
   # Filter for relevant time period
   filter(!(country == "GR" & month < as.Date("2001-01-01"))) |> # Filter for years with GR being part of the Eurozone
   filter(!(country == "SI" & month < as.Date("2007-01-01"))) |> # Filter for year with SI being part of the Eurozone
