@@ -63,144 +63,189 @@ source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
 ################################################################################################################+
 # MAIN PART ####
 
-input <- '61_thesis_mpt_us_analysis_vardistribution_hmda.R'
+# 0. Parameters to run the code #############
+
+## RUN APIs 
+RUNAPI <- FALSE
+
+## RUN HMDA IMPORT - Caution: Takes approximately 30-60 mins depending on whether 
+#  the Import only or together with sample creation is run.
+RUNHMDA <- FALSE
+
+## CREATA ALL GRAPHS
+ALLGRAPHS <- TRUE
+
+
+
+#############################################+
+# 01. Linear Projection Function for Panel Data ####
+input <- '70_thesis_mpt_function_lp.R'
 source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
 
-# #############################################+
-# # read-in + basic editing of raw data: create base df ####
-# input <- 'm6practice_databasics_ex4.R'
-# source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
-# 
-# #############################################+
-# # variable grouping, selection, creation ####
-# input <- 'm6practice_varcreation_outcomes_ex4.R'
-# source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
-# 
-# input <- 'm6practice_varcreation_treatments_ex4.R'
-# source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
-# 
-# # input <- 'm6practice_varcreation_controls_ex4.R'
-# # source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
-# 
-# #...
-# 
-# input <- 'm6practice_varcreation_merge_ex4.R'
-# source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
-# 
-# #############################################+
-# # main & subsample creation ####
-# input <- 'm6practice_samplecreation_main_ex4.R'
-# source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
-# 
-# #...
-# 
-# #############################################+
-# # regressions ####
-# input <- 'm6practice_analysis_regressions_ex4.R'
-# source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# ##########################################################################################+
-# # exercise 2 ####
-# 
-# #############################################+
-# # read-in + basic editing of raw data: create base df ####
-# input <- 'm6practice_databasics_ex2.R'
-# source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
-# 
-# #############################################+
-# # variable grouping, selection, creation ####
-# input <- 'm6practice_varcreation_outcomes_ex2.R'
-# source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
-# 
-# input <- 'm6practice_varcreation_treatments_ex2.R'
-# source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
-# 
-# # input <- 'm6practice_varcreation_controls_ex2.R'
-# # source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
-# 
-# #...
-# 
-# input <- 'm6practice_varcreation_merge_ex2.R'
-# source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
-# 
-# #############################################+
-# # main & subsample creation ####
-# input <- 'm6practice_samplecreation_main_ex2.R'
-# source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
-# 
-# #...
-# 
-# #############################################+
-# # var distribution checks (inherent and coding quality) ####
-# input <- 'm6practice_analysis_vardistribution_ex2.R'
-# source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
-# 
-# #############################################+
-# # regressions ####
-# input <- 'm6practice_analysis_regressions_ex2.R'
-# source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
-# 
-# #...
-# 
-# #############################################+
-# # figures ####
-# input <- 'm6practice_analysis_figures_ex2.R'
-# source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
-# 
-# 
-# ##########################################################################################+
-# # exercise 1 ####
-# 
-# #############################################+
-# # read-in + basic editing of raw data: create base df ####
-# input <- 'm6practice_databasics_ex1.R'
-# source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
-# 
-# #############################################+
-# # variable grouping, selection, creation ####
-# input <- 'm6practice_varcreation_outcomes_ex1.R'
-# source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
-# 
-# input <- 'm6practice_varcreation_treatments_ex1.R'
-# source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
-# 
-# # input <- 'm6practice_varcreation_controls_ex1.R'
-# # source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
-# 
-# #...
-# 
-# input <- 'm6practice_varcreation_merge_ex1.R'
-# source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
-# 
-# #############################################+
-# # main & subsample creation ####
-# input <- 'm6practice_samplecreation_main_ex1.R'
-# source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
-# 
-# #...
-# 
-# #############################################+
-# # var distribution checks (inherent and coding quality) ####
-# input <- 'm6practice_analysis_vardistribution_ex1.R'
-# source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
-# 
-# #############################################+
-# # regressions ####
-# input <- 'm6practice_analysis_regressions_ex1.R'
-# source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
-# 
-# #...
-# 
-# #############################################+
-# # figures ####
-# input <- 'm6practice_analysis_figures_ex1.R'
-# source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+#############################################+
+# 02. Data Analysis for United States ############
+#############################################+
+
+#############################################+
+## 02.1 read-in + basic editing of raw data: create base df ####
+
+# FRED --------------------------------------+
+input <- '05_thesis_mpt_databasics_fred.R'
+source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+
+# Summary of Deposits -----------------------+
+input <- '07_thesis_mpt_databasics_sod.R'
+source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+
+# GDP --------------------------------------+
+input <- '09_thesis_mpt_databasics_us_gdp.R'
+source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+
+# Bureau of Labor Statistics ---------------+
+# CAVEAT: Need for API KEY from BLS
+# see: https://www.bls.gov/developers/home.htm
+input <- '10_thesis_mpt_databasics_us_ur.R'
+source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+
+# FFR --------------------------------------+
+input <- '11_thesis_mpt_databasics_us_ffr.R'
+source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+
+# U.S. Census Bureau: Population -----------+
+input <- '12_thesis_mpt_databasics_us_pop.R'
+source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+
+# U.S. Census Bureau: Gazette Files  -------+
+input <- '13_thesis_mpt_databasics_us_landarea.R'
+source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+
+# U.S. Census Bureau: FIPS -----------------+
+input <- '14_thesis_mpt_databasics_fips.R'
+source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+
+# FHFA: House Price Index ------------------+
+input <- '15_thesis_mpt_databasics_fhfa.R'
+source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+
+# SAPIE Program: Median HH Income ----------+
+input <- '16_thesis_mpt_databasics_saipe.R'
+source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+
+# SAPIE Program: Median HH Income ----------+
+input <- '17_thesis_mpt_databasics_us_debt_to_income.R'
+source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+
+# HMDA --------------------------------------+
+input <- '19_thesis_mpt_databasics_hmda.R'
+source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+
+# U.S.Census Bureau: Conneticute Crosswalk Fles -+
+input <- '22_thesis_mpt_databasics_ct_crosswalk_file.R'
+source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+
+# Monetary Shock for U.S. & EA -------------+
+input <- '24_thesis_mpt_databasics_monetary_shock.R'
+source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+
+# Monetary Shock for U.S. & EA -------------+
+input <- '24_thesis_mpt_databasics_monetary_shock.R'
+source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+
+
+
+#############################################+
+## 02.2 variable grouping, selection, creation ####
+input <- '25_thesis_mpt_us_varceation_outcome.R'
+source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+
+input <- '26_thesis_mpt_us_varcreation_treatment.R'
+source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+
+input <- '27_thesis_mpt_us_varcreation_controls.R'
+source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+
+
+
+#############################################+
+## 02.3 main & subsample creation ####
+input <- '28_thesis_mpt_us_varcreation_merge.R'
+source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+
+input <- '29_thesis_mpt_us_samplecreation_main.R'
+source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+
+
+#############################################+
+## 02.4 var distribution checks (inherent and coding quality) ####
+input <- '60_thesis_mpt_us_analysis_vardistribution.R'
+source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+
+#############################################+
+## figures ####
+input <- '62_thesis_mpt_us_analysis_figures.R'
+source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+
+#############################################+
+## Local Projection ####
+input <- '63_thesis_mpt_us_analysis_local_projection.R'
+source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+
+
+#############################################+
+# 03. Data Analysis for the Euro Area ############
+#############################################+
+
+#############################################+
+## 03.1 read-in + basic editing of raw data: create base df ####
+
+# Eurostat  --------------------------------+
+input <- '03_thesis_mpt_databasics_ecb.R'
+source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+
+# ECB - BSI | MFI | SSI  -------------------+
+input <- '04_thesis_mpt_databasics_eurostat.R'
+source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+
+# IMF - Commodity Index ------ -------------+
+input <- '06_thesis_mpt_databasics_imf.R'
+source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+
+
+#############################################+
+## 03.2 variable grouping, selection, creation ####
+input <- '36_thesis_mpt_eu_varcreation_outcome.R'
+source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+
+input <- '35_thesis_mpt_eu_varcreation_treatment.R'
+source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+
+input <- '37_thesis_mpt_eu_varcreation_controls.R'
+source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+
+
+#############################################+
+## 03.3 main & subsample creation ####
+input <- '38_thesis_mpt_eu_varcreation_merge.R'
+source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+
+input <- '39_thesis_mpt_eu_samplecreation_main.R'
+source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+
+
+#############################################+
+## 03.4 var distribution checks (inherent and coding quality) ####
+input <- '41_thesis_mpt_eu_analysis_vardistribution'
+source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+
+#############################################+
+## figures ####
+input <- '40_thesis_mpt_eu_analysis_figures'
+source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+
+#############################################+
+## Local Projection ####
+input <- '42_thesis_mpt_eu_analysis_local_projection.R'
+source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+
+
+############################### END ###########################################+
