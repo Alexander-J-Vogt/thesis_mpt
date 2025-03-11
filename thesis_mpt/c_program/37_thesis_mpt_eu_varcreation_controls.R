@@ -73,7 +73,6 @@ EA <- c("AT", "BE", "FI", "FR", "DE", "GR", "IE", "IT",
   "NL", "PT", "ES", "SI", "SK")
 
 list_gdp <- purrr::map(EA, function (x) {
-  x <- "IE"
    
   # Transform back to data frame
   if (x == "GR") {
@@ -175,7 +174,9 @@ df_hicp_ea <- df_eurostat |>
   dplyr::select(country, month, hicp) |> 
   filter(country == "EA") |> 
   dplyr::select(-country) |> 
-  rename(hicp_ea = hicp)
+  rename(hicp_ea = hicp)  |>
+  arrange(month) |> 
+  mutate(hicp_ea_inflation = (hicp_ea - lag(hicp_ea, 12)) / hicp_ea * 100)
 
 # 05. HPI ======================================================================
 
@@ -223,7 +224,7 @@ list_hpi <- purrr::map(EA, function (x) {
 
 df_hpi <- bind_rows(list_hpi)
 
-# Calcualte Annual HPI growth
+# Calculate Annual HPI growth
 df_hpi <- df_hpi |> 
   group_by(country) |> 
   mutate(hpi_growth = (hpi - lag(hpi, 12)) / hpi * 100) |> 
@@ -282,7 +283,8 @@ df_controls <- df_ecb |>
   filter(month > as.Date("2002-12-01") & month < as.Date("2024-01-01")) |> 
   filter(!(country == "GR" & month < as.Date("2003-01-01"))) |> # Filter for years with GR being part of the Eurozone
   filter(!(country == "SI" & month < as.Date("2007-01-01"))) |> # Filter for year with SI being part of the Eurozone
-  filter(!(country == "SK" & month < as.Date("2009-01-01"))) # Filter for years with SK being part of the Eurozone
+  filter(!(country == "SK" & month < as.Date("2009-01-01"))) |> # Filter for years with SK being part of the Eurozone
+  distinct(.keep_all = TRUE) # Ensure that all variables are unqiue - IE had double rows
 
 
 # 08. Impute Missings ==========================================================
@@ -368,6 +370,12 @@ df_controls <- df_controls |>
 # Year Dummy Variable
 df_controls <- fastDummies::dummy_cols(df_controls, select_columns = "year", remove_first_dummy = TRUE)
 df_controls <- df_controls |> dplyr::select(-year)
+
+# 10. Format Variables to Decimal ==============================================
+
+df_controls <- df_controls |> 
+  mutate(across(c("deposit_rate", "loan_share", "deposit_share", "hicp_inflation", "hicp_ea_inflation", "ur", 
+                  "gdp_country_growth", "gdp_ea_growth", "hpi_growth", "hosr" ), ~ . / 100, .names = "{.col}_deci"))
 
 
 # 10. SAVE =====================================================================
