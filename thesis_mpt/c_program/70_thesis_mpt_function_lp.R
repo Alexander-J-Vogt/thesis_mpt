@@ -64,22 +64,23 @@ df_hp_large <- df_hp_depository_large |>
     hpi_annual_change_perc = hpi_annual_change_perc / 100,
     inflation_us = inflation_us / 100,
     gdp_growth_us = gdp_growth_us / 100,
-    ur = ur / 100
-  ) |> 
-  # Interaction Terms
-  mutate(
-    I_HHI_ZLB2_NS = d_ffr_mean_2perc * hhi * NS_target,
-    I_HHI_ZLB1_NS = d_ffr_mean_1perc * hhi * NS_target,
-    I_HHI_NS = hhi * NS_target,
-    I_hhi_2perc = d_ffr_mean_2perc * hhi,
-    I_hhi_NS = hhi * NS_target,
-    I_2perc_NS = d_ffr_mean_2perc * NS_target
-  )
+    ur_county = ur_county / 100
+  ) 
+# |> 
+#   # Interaction Terms
+#   mutate(
+#     I_HHI_ZLB2_NS = d_ffr_mean_2perc * hhi * NS_target,
+#     I_HHI_ZLB1_NS = d_ffr_mean_1perc * hhi * NS_target,
+#     I_HHI_NS = hhi * NS_target,
+#     I_hhi_2perc = d_ffr_mean_2perc * hhi,
+#     I_hhi_NS = hhi * NS_target,
+#     I_2perc_NS = d_ffr_mean_2perc * NS_target
+#   )
 
 
 df_hp_large_lp <- df_hp_large |> 
   # filter(d_hhi_indicator) |> 
-  dplyr::select("fips", "year", "log_loan_amount", "hhi", "I_HHI_ZLB2_NS", "ur", 
+  dplyr::select("fips", "year", "log_loan_amount", "hhi", "NS_total", "ur_county", 
                 "log_median_household_income", "hpi_annual_change_perc", "inflation_us", "gdp_growth_us")
 }
 # 01. LP_LIN_PANEL Function ----------------------------------------------------
@@ -101,6 +102,8 @@ LP_LIN_PANEL <- function(
     panel_effect      = NULL,  # Panel effect type
     robust_cov        = NULL,  # Robust covariance estimation method: NEW: tLAHR
     robust_cluster    = NULL,  # time vs group
+    robust_maxlag     = NULL,
+    robust_type       = NULL,
     c_exog_data       = NULL,  # Contemporaneous exogenous variables
     l_exog_data       = NULL,  # Lagged exogenous variables
     lags_exog_data    = NaN,  # Lag length for exogenous variables
@@ -109,34 +112,36 @@ LP_LIN_PANEL <- function(
     lags_fd_exog_data = NaN,  # Lag length for first-difference exogenous variables
     confint           = NULL,  # Confidence interval width
     hor               = NULL,
-    biter             = NULL
+    biter             = NULL,
+    p_selection_rule  = FALSE # Needed in Combination for tLAHR if the lags of for variables are determined by the p_selection_rule
     ) {  # Number of horizons
   
-
+  DEBUG <- F
   if (DEBUG) {
   data_set <- df_hp_large_lp
   data_sample <- "Full"
   endog_data <- "log_loan_amount"
   cumul_mult <-  TRUE
-  shock <-  "I_HHI_ZLB2_NS"
+  shock <-  "NS_total"
   diff_shock <-  TRUE
   panel_model <-  "within"
-  panel_effect <-  "twoways"
-  robust_cov <-  "wild.cluster.boot"
+  panel_effect <-  "individual"
+  robust_cov <-  "tLAHR"
   robust_method <- NULL
   robust_type <- NULL
   robust_cluster <- "time"
-  c_exog_data <-  NULL #colnames(df_hp_large_lp)[c(4, 6:10)]
-  l_exog_data <-  NULL #colnames(df_hp_large_lp)[c(4:10)] 
-  c_fd_exog_data <- colnames(df_hp_large_lp)[c(4, 6:10)]
-  l_fd_exog_data <- colnames(df_hp_large_lp)[c(4:10)]
-  lags_exog_data <-  NULL
-  lags_fd_exog_data <- 1
-  confint <- 1.97
+  c_exog_data <-  colnames(df_hp_large_lp)[c(4, 6:10)]
+  l_exog_data <-  colnames(df_hp_large_lp)[c(4:10)] 
+  c_fd_exog_data <- NULL #colnames(df_hp_large_lp)[c(4, 6:10)]
+  l_fd_exog_data <- NULL #colnames(df_hp_large_lp)[c(4, 6:10)]
+  lags_exog_data <-  2
+  lags_fd_exog_data <- NULL
+  confint <- 1.96
   hor <- 2
-  biter <- 50
-  lags_shock <- NULL
-  lags_endog_data <- NULL
+  biter <- 10
+  lags_shock <- 2
+  lags_endog_data <- 2
+  p_selection_rule <- FALSE
   }
   
   
@@ -183,7 +188,7 @@ LP_LIN_PANEL <- function(
   }
   
   # Check if Wild.Cluster.Boost has a defined cluster
-  if (robust_cov == "wild.cluster.boost" & (is.null(robust_cluster) | !robust_cluster %in% c("group", "time"))) {
+  if (robust_cov == "wild.cluster.boost" & (is.null(robust_cluster))) {
     stop("Specify the right cluster.")
   }
   
@@ -212,9 +217,12 @@ LP_LIN_PANEL <- function(
   # Robust
   specs$robust_cov <-  robust_cov
   specs$robust_cluster <- robust_cluster
+  specs$robust_type <- robust_type
+  # specs$robust_maxlag <- robust_maxlag
   specs$confint <- confint
   specs$biter <- biter
   specs$model_type <- 2
+  specs$p_selection_rule <- p_selection_rule
 
   # lags for endogenous & shock
   specs$lags_shock <- lags_shock
@@ -249,8 +257,14 @@ LP_LIN_PANEL <- function(
   xy_data_sets <- list(rep(NaN, specs$hor))
   
   # Prepare regression formula
+  
+  # - Fix Lag of Endogenous Variable - 12.03.25 ------+
+  y_lags <- which(!names(y_data[[1]]) %in% c("cross_id", "date_id", specs$endog_data))
+  y_lags_name <- names(y_data[[1]][y_lags])
+  # --------------------------------------------------+
+  
   y_reg_name <- specs$endog_data
-  x_reg_names <- names(x_reg_data)
+  x_reg_names <- c(names(x_reg_data), y_lags_name)
   ols_formula <- paste(y_reg_name, "~", paste(x_reg_names[!(x_reg_names %in% c("cross_id", "date_id"))], collapse = " + "))
   plm_formula <- stats::as.formula(ols_formula)
   
@@ -505,30 +519,31 @@ CREATE_PANEL_DATA <- function(specs, data_set){
     data_set <- data_set |> rename(cross_id = fips, date_id = year)
     specs$data_sample <- "Full"
     specs$endog_data <- "log_loan_amount"
-    specs$lags_endog_data <- NULL
+    specs$lags_endog_data <- 2
     specs$cumul_mult <-  TRUE
-    specs$shock <-  "I_HHI_ZLB2_NS"
-    specs$diff_shock <-  TRUE
-    specs$lags_shock <- NULL
+    specs$shock <-  "NS_total"
+    specs$diff_shock <- TRUE
+    specs$lags_shock <- 2
     specs$panel_model <-  "within"
-    specs$panel_effect <-  "twoways"
+    specs$panel_effect <-  "individual"
     specs$robust_cov <-  "tLAHR"
     specs$robust_method <- NULL
     specs$robust_type <- NULL
     specs$robust_cluster <- "time"
-    specs$c_exog_data <-  NULL #colnames(df_hp_large_lp)[c(4, 6:10)]
-    specs$l_exog_data <-  NULL #colnames(df_hp_large_lp)[c(4:10)] 
-    specs$c_fd_exog_data <- colnames(df_hp_large_lp)[c(4, 6:10)]
-    specs$l_fd_exog_data <- colnames(df_hp_large_lp)[c(4:10)]
-    specs$lags_exog_data <-  NULL
-    specs$lags_fd_exog_data <- 1
+    specs$c_exog_data <- colnames(df_hp_large_lp)[c(4, 6:10)]
+    specs$l_exog_data <-  colnames(df_hp_large_lp)[c(4:10)] 
+    specs$c_fd_exog_data <- NULL #colnames(df_hp_large_lp)[c(4, 6:10)]
+    specs$l_fd_exog_data <- NULL #colnames(df_hp_large_lp)[c(4, 6:10)]
+    specs$lags_exog_data <-  2
+    specs$lags_fd_exog_data <- NULL
     specs$confint <- 1.65
-    specs$hor <- 6
+    specs$hor <- 2
     specs$biter <- 10
     specs$exog_data           <- colnames(data_set)[which(!colnames(data_set) %in%
                                                             c("cross_id", "date_id"))]
+    specs$p_selection_rule <- FALSE
     # specs$tLAHR <- TRUE
-    specs$l_endog_data <- 1
+    # specs$l_endog_data <- 1
   }
   
   #############################################################################+
@@ -591,12 +606,12 @@ CREATE_PANEL_DATA <- function(specs, data_set){
   }
   
   # Implement t-LAHR | time-clustered heteroskedastic-robust Inference
-  if (!is.null(specs$lags_endog_data) | specs$robust_cov == "tLAHR") {
+  if (!is.null(specs$lags_endog_data) | specs$p_selection_rule == TRUE) {
     
       if (!is.null(specs$lags_endog_data)) {  
         lags_endog <- seq(specs$lags_endog_data)
       
-      } else if (specs$robust_cov =="tLAHR") {
+      } else if (specs$p_selection_rule == TRUE) {
         # Use simple p-selection rule for determining the number of lags p
         periods <- length(unique(y_data[[ii]]$date_id))
         p <- min(specs$hor, floor((periods - specs$hor)^(1/3)))
@@ -663,8 +678,7 @@ CREATE_PANEL_DATA <- function(specs, data_set){
   
 
   # Lag level Shock - tLAHR ### 
-  
-  if ((!is.null(specs$lags_shock) | specs$robust_cov == "tLAHR") & isFALSE(specs$diff_shock)) {
+  if ((!is.null(specs$lags_shock) | specs$p_selection_rule == TRUE) & isFALSE(specs$diff_shock)) {
      
     # Implement t-LAHR as proposed by Almuzara & Sancibrian (2024)
     if (!is.null(specs$lags_shock)) {
@@ -672,7 +686,7 @@ CREATE_PANEL_DATA <- function(specs, data_set){
       # Choose your own number of lags
       lags_shock <- seq(specs$lags_shock)
     
-    } else if (specs$robust_cov == "tLAHR") {
+    } else if (specs$p_selection_rule == TRUE) {
       
       # Use simple p-selection rule for determining the number of lags p
       periods <- length(unique(x_reg_data$date_id))
@@ -700,7 +714,7 @@ CREATE_PANEL_DATA <- function(specs, data_set){
     if (max(lags_shock) > 1) {
       
       # If more than 1 lag, than the lags a created under fn*
-      lag_x_reg_data <- lag_x_reg_data |> dplyr::select(-specs$endog_data)
+      lag_x_reg_data <- lag_x_reg_data |> dplyr::select(-specs$shock)
       colnames(lag_x_reg_data)[3:dim(lag_x_reg_data)[2]] <- end_lag_labels
       
     } else {
@@ -733,7 +747,7 @@ CREATE_PANEL_DATA <- function(specs, data_set){
   }
   
   # Lag level FD Shock ###
-  if ((!is.null(specs$lags_shock) | specs$robust_cov == "tLAHR") & isTRUE(specs$diff_shock)) {
+  if ((!is.null(specs$lags_shock) | specs$p_selection_rule == TRUE) & isTRUE(specs$diff_shock)) {
     
     # Implement t-LAHR as proposed by Almuzara & Sancibrian (2024)
     if (!is.null(specs$lags_shock)) {
@@ -741,7 +755,7 @@ CREATE_PANEL_DATA <- function(specs, data_set){
       # Choose your own number of lags
       lags_shock <- seq(specs$lags_shock)
       
-    } else if (specs$robust_cov == "tLAHR") {
+    } else if (specs$p_selection_rule == TRUE) {
       
       # Use simple p-selection rule for determining the number of lags p
       periods <- length(unique(x_reg_data$date_id))
@@ -924,7 +938,7 @@ if (DEBUG) {
 
 df_hp_large_lp <- df_hp_large |> 
   # filter(d_hhi_indicator) |> 
-  dplyr::select("fips", "year", "log_loan_amount", "hhi", "I_HHI_ZLB2_NS", "ur", 
+  dplyr::select("fips", "year", "log_loan_amount", "hhi", "I_HHI_NS_TOTAL_2", "ur", 
                 "log_median_household_income", "hpi_annual_change_perc", "inflation_us", "gdp_growth_us")
 
 
@@ -969,7 +983,7 @@ results_lpirf <- lpirfs::lp_lin_panel(
   data_sample = "Full",
   endog_data = "log_loan_amount",
   cumul_mult = TRUE,
-  shock = "I_HHI_ZLB2_NS",
+  shock = "I_HHI_NS_TOTAL_2",
   diff_shock = TRUE,
   panel_model = "within",
   panel_effect = "twoways",
@@ -996,7 +1010,7 @@ tlahr <- LP_LIN_PANEL(
   data_sample       = "Full",  # Use full sample or subset
   endog_data        = "log_loan_amount",  # Endogenous variable
   cumul_mult        = TRUE,  # Estimate cumulative multipliers?
-  shock             = "I_HHI_ZLB2_NS",  # Shock variable
+  shock             = "I_HHI_NS_TOTAL_2",  # Shock variable
   diff_shock        = TRUE,  # First difference of shock variable
   panel_model       = "within",  # Panel model type
   panel_effect      = "twoways",  # Panel effect type
@@ -1017,7 +1031,7 @@ DK <- LP_LIN_PANEL(
   data_sample       = "Full",  # Use full sample or subset
   endog_data        = "log_loan_amount",  # Endogenous variable
   cumul_mult        = TRUE,  # Estimate cumulative multipliers?
-  shock             = "I_HHI_ZLB2_NS",  # Shock variable
+  shock             = "I_HHI_NS_TOTAL_2",  # Shock variable
   diff_shock        = TRUE,  # First difference of shock variable
   panel_model       = "within",  # Panel model type
   panel_effect      = "twoways",  # Panel effect type
@@ -1086,9 +1100,11 @@ ggplot(df_irf, aes(x = time, y = lp, color = group)) +
 GG_IRF_ONE <- function(data, 
                        hhi_coef = FALSE, 
                        y_lower = -1, 
-                       y_upper = 1, 
+                       y_upper = 1,
+                       breaks = .2,
                        title_name = "Impulse Response Function",
-                       time_mame = "Time Horizon"
+                       time_name = "Time Horizon",
+                       y_axis_name = expression(Y[ t+h ] - Y[t])
                        ) {
   
   # Initiate df
@@ -1100,9 +1116,10 @@ GG_IRF_ONE <- function(data,
   )
   
   # Add HHI Coefficient
-  if (isTRUE(hhi_coef)) {
     
-    for (i in 1:tlahr$specs$hor) {
+  for (i in 1:data$specs$hor) {
+        
+    if (isTRUE(hhi_coef)) {
       # Identify hhi coefficient
       coef_names <- names(coef(data$reg_summaries[[i]]))
       coef_hhi <- coef_names[ grepl("hhi", coef_names) & !grepl("lag", coef_names) ]
@@ -1113,19 +1130,20 @@ GG_IRF_ONE <- function(data,
       df[i, "lp"] <- unname(data$irf_panel_mean[[i]] + estimate_hhi)
       df[i, "lp_upper"] <- unname(data$irf_panel_up[[i]] + estimate_hhi)
       df[i, "lp_lower"] <- unname(data$irf_panel_low[[i]] + estimate_hhi)
-    }
     
-  } else {
+    
+    } else {
     
     # Only Shock Coefficient
     df[i, "time"] <- i
     df[i, "lp"] <- data$irf_panel_mean[[i]] 
     df[i, "lp_upper"] <- data$irf_panel_up[[i]] 
     df[i, "lp_lower"] <- data$irf_panel_low[[i]]
-  }
-    
+    }
+  }  
+  
   # Plot with CI Bands
-  ggplot(df, aes(x = time, y = lp)) +
+  plot <- ggplot(df, aes(x = time, y = lp)) +
     # LP
     geom_line(linewidth = 1, color = "red") +  # Plot the mean response lines
     # CI Band
@@ -1136,38 +1154,49 @@ GG_IRF_ONE <- function(data,
                 linetype = "dashed") +  # Add shaded confidence intervals
     # x-axis 
     geom_hline(yintercept = 0, linetype = "dashed", color = "black") +  # Add a horizontal zero line
-    # Scale y- and x-axos
+    # Scale y- and x-axis
     scale_x_continuous(
-      breaks = seq(1:tlahr$specs$hor)
+      breaks = seq(1:data$specs$hor)
     ) +
     scale_y_continuous(
-      breaks = seq(y_lower, y_upper, by = .2),
+      breaks = seq(y_lower, y_upper, by = breaks),
       limits = c(y_lower, y_upper)
     ) +
     #title
     labs(title = title_name,
          x = time_name,
-         y = expression(Y[ t+h ] - Y[t]),
+         y = y_axis_name,
          color = "Model", 
          fill = "Model") +
-    theme_minimal()
+    theme_minimal() +
+    theme(
+      title = element_text(size = 8),
+      plot.title = element_text(hjust = 0.5)
+    )
   
+    results_list <- list(plot = plot, df = df)
+    return(results_list)
  }
 
 
-# GG_IRF_ONE(data = tlahr, hhi_coef = TRUE, y_lower = -1, y_upper = 1, name = "IRF: tLAHR")
+# GG_IRF_ONE(data = tlahr, hhi_coef = TRUE, y_lower = -1, y_upper = 1, title_name = "IRF: tLAHR")
 
 # GGPLOT for TWO Estimate aka Comparison ---------------------------------------
 GG_IRF_TWO <- function(data1, # DF1
                        data2, # DF2
+                       breaks = .2,
                        data_name, # Name in vector; Order in Data1, Data2
                        hhi_coef = FALSE, # Add hhi coef to IRF: Yes Or No 
                        y_lower = -1, # Lower Bound of y-axis
                        y_upper = 1, # Upper Boind of y_axis
-                       name = "Impulse Response Function" # Name of Graph
+                       title_name = "Impulse Response Function", # Name of Graph
+                       time_name = "Time Horizon",
+                       y_axis_name = expression(Y[ t+h ] - Y[t])
                        ) {
   
   # Prepare datasets
+  data1 <- data1
+  data2 <- data2
   data_list <- list(data1, data2)
   
   ## Determine DF with and without HHI Estiamte -------------------------------+
@@ -1222,7 +1251,7 @@ GG_IRF_TWO <- function(data1, # DF1
   # Plot with CI Bands
   plot <- ggplot(df_main, aes(x = time, y = lp, color = cat )) +
     # LP
-    geom_line(size = 1) +  # Plot the mean response lines
+    geom_line(linewidth = 1) +  # Plot the mean response lines
     # CI Band
     geom_ribbon(aes(ymin = lp_lower, ymax = lp_upper, fill = cat), 
                 alpha = 0.1,
@@ -1231,22 +1260,27 @@ GG_IRF_TWO <- function(data1, # DF1
     geom_hline(yintercept = 0, linetype = "dashed", color = "black") +  # Add a horizontal zero line
     # Scale y- and x-axos
     scale_x_continuous(
-      breaks = seq(1, max(tlahr$specs$hor))
+      breaks = seq(1, max(data1$specs$hor))
     ) +
     scale_y_continuous(
-      breaks = seq(y_lower, y_upper, by = .2),
+      breaks = seq(y_lower, y_upper, by = breaks),
       limits = c(y_lower, y_upper)
     ) +
     # title
-    labs(title = name,
-         x = "Time Horizon",
-         y = expression(Y[ t+h ] - Y[t]),
+    labs(title = title_name,
+         x = time_name,
+         y = y_axis_name,
          color = "Model", 
          fill = "Model") +
     # Manually define the colors for each group
     scale_color_manual(values = color_mapping) +
     scale_fill_manual(values = color_mapping) +
-    theme_minimal()
+    theme_minimal() +
+    theme(
+      title = element_text(size = 8),
+      plot.title = element_text(hjust = 0.5),
+      legend.position = "bottom"
+    )
   
   result <- list(plot = plot, df = df_main)
 
@@ -1258,7 +1292,7 @@ GG_IRF_TWO <- function(data1, # DF1
 # two_graphs <- GG_IRF_TWO(data1 = tlahr,
 #            data2 = DK,
 #            data_name = c("tLAHR", "DK")
-#            
+# 
 #            )
 
 ## Dynamicall GGPLOT for more than two datasets --------------------------------
@@ -1268,6 +1302,7 @@ GG_IRF_DYNAMIC <- function(data_list,  # List of datasets
                            hhi_coef = FALSE,  # Add HHI coefficient to IRF
                            y_lower = -1,  # Lower Bound of y-axis
                            y_upper = 1,  # Upper Bound of y-axis
+                           breaks = .2,
                            name = "Impulse Response Function"  # Graph title
 ) {
   
@@ -1326,7 +1361,7 @@ GG_IRF_DYNAMIC <- function(data_list,  # List of datasets
       breaks = seq(1, max(df_main$time))
     ) +
     scale_y_continuous(
-      breaks = seq(y_lower, y_upper, by = 0.2),
+      breaks = seq(y_lower, y_upper, by = breaks),
       limits = c(y_lower, y_upper)
     ) +
     labs(title = name,
@@ -1336,7 +1371,11 @@ GG_IRF_DYNAMIC <- function(data_list,  # List of datasets
          fill = "Model") +
     scale_color_manual(values = color_mapping) +
     scale_fill_manual(values = color_mapping) +
-    theme_minimal()
+    theme_minimal() +
+    theme(
+      title = element_text(size = 8),
+      plot.title = element_text(hjust = 0.5)
+    )
   
   return(list(plot = plot, df = df_main))
 }
