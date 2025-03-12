@@ -46,28 +46,22 @@ df_ecb_policy_rate <- ecb_policy_rate |>
     d_dfr_2 = if_else(dfr <= 2, 1, 0),
     d_dfr_1 = if_else(dfr <= 1, 1, 0),
     d_dfr_nirp = if_else(dfr <= 0, 1, 0)
-  ) 
-
+  )  |> 
+  mutate(
+    d_dfr_above = if_else(dfr > 0, 1, 0)
+  )
+  
+  
 # 03. Monetary Shock ===========================================================
 
 # Load Eurozone Monetary Shock
 df_monetary_shock <- LOAD("24_thesis_mpt_databasics_monetary_shock_eurozone")
-# 
-# # SD
-# sd_altavilla <- sd(monetary_shock$Altavilla_target)
-# sd_jarocinski <- sd(monetary_shock$MP_median)
-# 
-# 
-# # Select Relevant Variables
-# df_monetary_shock <- monetary_shock |> 
-#   select(month, MP_median, Altavilla_target)|> 
-#   # Cintractionary & Expansionary Monetary Shock
-#   mutate(
-#     Altavilla_contractionary = -1 * Altavilla_target,
-#     Altavilla_expansionary = Altavilla_target,
-#     MP_median_contractionary = -1 * MP_median / sd_jarocinski, # Transform the shock from 1 bps to 1 sd
-#     MP_median_expansionary = MP_median / sd_jarocinski # Transform the shock from 1 bps to 1 sd
-#   )
+
+df_monetary_shock <- df_monetary_shock |> 
+  mutate(
+    MP_pm_positiv = if_else(MP_pm > 0, MP_pm, 0),
+    MP_pm_negativ = if_else(MP_pm < 0, MP_pm, 0)
+  )
 
 # 04. Merge Dataset ============================================================
 
@@ -93,23 +87,78 @@ df_merge <- df_month |>
 
 # 05. Create Interaction Terms =================================================
 
+# Mean HHI 
+hhi_mean <- mean(df_ssi$hhi_ci_total_assets, na.rm =T)
+
+# Demean HHI
+df_merge <- df_merge |> 
+  mutate(hhi_demeaned = hhi_ci_total_assets - hhi_mean)
+
+# Create all possible Interaction Terms
 df_merge <- df_merge |> 
   # Create Interaction Terms
   mutate(
-    # Three Parted Interaction Term
+    # Three Parted Interaction Term - NIRP
     I_HHI_A_TOTAL_NIRP = hhi_ci_total_assets * altavilla_total    * d_dfr_nirp,
     I_HHI_A_POS_NIRP   = hhi_ci_total_assets * altavilla_positiv  * d_dfr_nirp,
     I_HHI_A_NEG_NIRP   = hhi_ci_total_assets * altavilla_negativ  * d_dfr_nirp,
     I_HHI_J_TOTAL_NIRP = hhi_ci_total_assets * MP_median_total    * d_dfr_nirp,
     I_HHI_J_POS_NIRP   = hhi_ci_total_assets * MP_median_positiv  * d_dfr_nirp,
     I_HHI_J_NEG_NIRP   = hhi_ci_total_assets * MP_median_negativ  * d_dfr_nirp,
+    # Three Parted Interaction Term - Above Zero
+    I_HHI_A_TOTAL_ABOVE = hhi_ci_total_assets * altavilla_total    * d_dfr_above,
+    I_HHI_A_POS_ABOVE   = hhi_ci_total_assets * altavilla_positiv  * d_dfr_above,
+    I_HHI_A_NEG_ABOVE   = hhi_ci_total_assets * altavilla_negativ  * d_dfr_above,
+    I_HHI_J_TOTAL_ABOVE = hhi_ci_total_assets * MP_median_total    * d_dfr_above,
+    I_HHI_J_POS_ABOVE   = hhi_ci_total_assets * MP_median_positiv  * d_dfr_above,
+    I_HHI_J_NEG_ABOVE   = hhi_ci_total_assets * MP_median_negativ  * d_dfr_above,
     #Two Parted Interaction Term
     I_HHI_A_TOTAL      = hhi_ci_total_assets * altavilla_total    ,
-    I_HHI_A_POS        = hhi_ci_total_assets * altavilla_positiv ,
+    I_HHI_A_POS        = hhi_ci_total_assets * altavilla_positiv  ,
     I_HHI_A_NEG        = hhi_ci_total_assets * altavilla_negativ  ,
     I_HHI_J_TOTAL      = hhi_ci_total_assets * MP_median_total    ,
     I_HHI_J_POS        = hhi_ci_total_assets * MP_median_positiv  ,
     I_HHI_J_NEG        = hhi_ci_total_assets * MP_median_negativ  ,
+    # Interaction Term betwenn NIRP and MS
+    I_A_TOTAL_NIRP     = d_dfr_nirp * altavilla_total    ,
+    I_A_POS_NIRP       = d_dfr_nirp * altavilla_positiv  ,
+    I_A_NEG_NIRP       = d_dfr_nirp * altavilla_negativ  ,
+    I_J_TOTAL_NIRP     = d_dfr_nirp * MP_median_total    ,
+    I_J_POS_NIRP       = d_dfr_nirp * MP_median_positiv  ,
+    I_J_NEG_NIRP       = d_dfr_nirp * MP_median_negativ,
+    I_JPM_TOTAL_NIRP   = d_dfr_nirp * MP_pm    ,
+    I_JPM_POS_NIRP     = d_dfr_nirp * MP_pm_positiv  ,
+    I_JPM_NEG_NIRP     = d_dfr_nirp * MP_pm_negativ
+  ) |> 
+  # Demeaned Values
+  mutate(
+    # Three Parted Interaction Term - NIRP
+    I_HHI_A_TOTAL_NIRP_demeaned    = hhi_demeaned * altavilla_total    * d_dfr_nirp,
+    I_HHI_A_POS_NIRP_demeaned      = hhi_demeaned * altavilla_positiv  * d_dfr_nirp,
+    I_HHI_A_NEG_NIRP_demeaned      = hhi_demeaned * altavilla_negativ  * d_dfr_nirp,
+    I_HHI_J_TOTAL_NIRP_demeaned    = hhi_demeaned * MP_median_total    * d_dfr_nirp,
+    I_HHI_J_POS_NIRP_demeaned      = hhi_demeaned * MP_median_positiv  * d_dfr_nirp,
+    I_HHI_J_NEG_NIRP_demeaned      = hhi_demeaned * MP_median_negativ  * d_dfr_nirp,
+    I_HHI_JKPM_TOTAL_NIRP_demeaned = hhi_demeaned * MP_pm    * d_dfr_nirp,
+    I_HHI_JKPM_POS_NIRP_demeaned   = hhi_demeaned * MP_pm_positiv  * d_dfr_nirp,
+    I_HHI_JKPM_NEG_NIRP_demeaned   = hhi_demeaned * MP_pm_negativ  * d_dfr_nirp,
+    # Three Parted Interaction Term - Above 0
+    I_HHI_A_TOTAL_ABOVE_demeaned = hhi_demeaned * altavilla_total    * d_dfr_above,
+    I_HHI_A_POS_ABOVE_demeaned   = hhi_demeaned * altavilla_positiv  * d_dfr_above,
+    I_HHI_A_NEG_ABOVE_demeaned   = hhi_demeaned * altavilla_negativ  * d_dfr_above,
+    I_HHI_J_TOTAL_ABOVE_demeaned = hhi_demeaned * MP_median_total    * d_dfr_above,
+    I_HHI_J_POS_ABOVE_demeaned   = hhi_demeaned * MP_median_positiv  * d_dfr_above,
+    I_HHI_J_NEG_ABOVE_demeaned   = hhi_demeaned * MP_median_negativ  * d_dfr_above,
+    #Two Parted Interaction Term
+    I_HHI_A_TOTAL_demeaned      = hhi_demeaned * altavilla_total    ,
+    I_HHI_A_POS_demeaned        = hhi_demeaned * altavilla_positiv  ,
+    I_HHI_A_NEG_demeaned        = hhi_demeaned * altavilla_negativ  ,
+    I_HHI_J_TOTAL_demeaned      = hhi_demeaned * MP_median_total    ,
+    I_HHI_J_POS_demeaned        = hhi_demeaned * MP_median_positiv  ,
+    I_HHI_J_NEG_demeaned        = hhi_demeaned * MP_median_negativ  ,
+    I_HHI_JKPM_TOTAL_demeaned   = hhi_demeaned * MP_pm              ,
+    I_HHI_JKPM_POS_demeaned     = hhi_demeaned * MP_pm_positiv      ,
+    I_HHI_JKPM_NEG_demeaned     = hhi_demeaned * MP_pm_negativ
   )
 
 
