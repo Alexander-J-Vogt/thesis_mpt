@@ -85,8 +85,13 @@ df_hp_large_lp <- df_hp_large |>
 }
 # 01. LP_LIN_PANEL Function ----------------------------------------------------
 
-#' The LP_LIN_PANEL function is based on the lpirfs package  by but is extended
-#' [Schreib hier etwas schlaues]
+#' The LP_LIN_PANEL function is based on the lpirfs package from Adämmer (2019) 
+#' and is extended to additional account a new standard error: Wild Clustered Standard Errors.
+#' This Standard Error is recommended by Jorda (2023) - "Local Projection for Applied Economics" 
+#' for the case when the N -> Inf while T is fixed. Further, the time-clustered
+#' lag-augmented heteroskedasticity-robust inference (t-LAHR), which is relevant
+#' for Macro Shocks on Micro endogenous variables and suggested by Almazura & Scancibrian (2024)
+#' "Micro Respones to Macro Shocks".
 
 
 LP_LIN_PANEL <- function(
@@ -115,14 +120,14 @@ LP_LIN_PANEL <- function(
     biter             = NULL,
     p_selection_rule  = FALSE # Needed in Combination for tLAHR if the lags of for variables are determined by the p_selection_rule
     ) {  # Number of horizons
-  
+
   DEBUG <- F
   if (DEBUG) {
-  data_set <- df_hp_large_lp
+  data_set <- df_subset
   data_sample <- "Full"
-  endog_data <- "log_loan_amount"
+  endog_data <- "lending_rate_total"
   cumul_mult <-  TRUE
-  shock <-  "NS_total"
+  shock <-  "I_HHI_J_TOTAL_demeaned"
   diff_shock <-  TRUE
   panel_model <-  "within"
   panel_effect <-  "individual"
@@ -130,17 +135,17 @@ LP_LIN_PANEL <- function(
   robust_method <- NULL
   robust_type <- NULL
   robust_cluster <- "time"
-  c_exog_data <-  colnames(df_hp_large_lp)[c(4, 6:10)]
-  l_exog_data <-  colnames(df_hp_large_lp)[c(4:10)] 
+  c_exog_data <-  colnames(df_subset)[c(4, 6:30)]
+  l_exog_data <-  colnames(df_subset)[c(4, 6:19)] 
   c_fd_exog_data <- NULL #colnames(df_hp_large_lp)[c(4, 6:10)]
   l_fd_exog_data <- NULL #colnames(df_hp_large_lp)[c(4, 6:10)]
-  lags_exog_data <-  2
+  lags_exog_data <-  6
   lags_fd_exog_data <- NULL
   confint <- 1.96
-  hor <- 2
+  hor <- 12
   biter <- 10
-  lags_shock <- 2
-  lags_endog_data <- 2
+  lags_shock <- 6
+  lags_endog_data <- 6
   p_selection_rule <- FALSE
   }
   
@@ -278,7 +283,7 @@ LP_LIN_PANEL <- function(
   for(ii in 1:specs$hor){
     
     ## Create Panel Dataset for this Period ---
-    # ii <- 1
+    # ii <- 2
     # Count Iteration
     specs$iteration <- ii
 
@@ -405,109 +410,15 @@ LP_LIN_PANEL <- function(
 
 
 
-# Extension for the original "get_robust_cov_panel" function by  ---------------
-# Wild Clustered Bootstrap
-# GET_ROBUST_COV_PANEL <- function(panel_results, specs, yx_data){
-#   
-#   # Check for specs
-#   if (is.null(specs)) {
-#     stop("Error: specs is not initialized correctly.")
-#   }
-#   
-#   # Check for specs
-#   if (is.null(yx_data)) {
-#     stop("Error: yx_data is not initialized correctly.")
-#   }
-#   
-#   
-#   if(specs$robust_cov         == "vcovBK"){
-#     
-#     # Panel Corrected Standard Errors after Beck and Katz (1995)
-#     reg_results <- lmtest::coeftest(panel_results, vcov. = plm::vcovBK(panel_results,
-#                                                                        type    = specs$robust_type,
-#                                                                        cluster = specs$robust_cluster))
-#     
-#   } else if (specs$robust_cov == "vcovDC"){
-#     
-#     # High-level convenience wrapper for double-clustering robust covariance matrix estimators after Thompson (2011)
-#     reg_results <- lmtest::coeftest(panel_results, vcov. = plm::vcovDC(panel_results,
-#                                                                        type    = specs$robust_type))
-#     
-#     
-#   } else if (specs$robust_cov == "vcovHC"){
-#     
-#     # Clustered-Robust Heteroskedastic Standard Errors
-#     reg_results <- lmtest::coeftest(panel_results, vcov. = plm::vcovHC(panel_results,
-#                                                                        method   = specs$robust_method,
-#                                                                        type     = specs$robust_type,
-#                                                                        cluster  = specs$robust_cluster))
-#     
-#   } else if (specs$robust_cov == "vcovNW"){
-#     
-#     # Newey-White Robust Standard Errors
-#     reg_results <- lmtest::coeftest(panel_results, vcov. = plm::vcovNW(panel_results,
-#                                                                        type    = specs$robust_type,
-#                                                                        maxlag  = specs$robust_maxlag))
-#   } else if (specs$robust_cov == "vcovSCC"){
-#     
-#     # Driscroll-Kraay SE (1998) - Accounts for cross-sectional and time dependence
-#     reg_results <- lmtest::coeftest(panel_results, vcov. = plm::vcovSCC(panel_results,
-#                                                                         type    = specs$robust_type,
-#                                                                         maxlag  = specs$robust_maxlag))
-#     
-#   } else if (specs$robust_cov == "wild.cluster.boot") {
-#     
-#     # Determine confidence level
-#     confint_list <- list("1.96" = 0.95, "1.65" = 0.9, "1" = 0.68)  
-#     target_confint <- as.character(specs$confint)
-#     confint_level <- confint_list[[target_confint]]
-#     
-#     pyx_data <- pdata.frame(yx_data, index = c("cross_id", "date_id"))
-#     
-#     # Apply Wild Cluster Bootstrap to account for the case when N converges to infinity with fixed T
-#     # Problem: Asymptotic Distribution will be dominated by the cross-sectional dimension, which
-#     # causes concerns about distortions generated when there are roots near unity.
-#     # Wild Cluster Bootstrap corrects the heteroskedasticity by using a cluster-robust approach.
-#     wild_b <- clusterSEs::cluster.wild.plm(panel_results,
-#                                dat = pyx_data,
-#                                cluster = specs$robust_cluster,
-#                                boot.reps = specs$biter,
-#                                ci.level = confint_level,
-#                                report = FALSE,
-#                                prog.bar = FALSE
-#     )
-#     
-#     # Get Coefficient of Shock
-#     index_shock <- which(stats::variable.names(t(wild_b$ci)) == specs$shock)
-#     estimate <- coef(panel_results)[which(stats::variable.names(t(panel_results$coefficients)) == specs$shock)]
-#     
-#     # Calculate SE
-#     wild_se <- (wild_b$ci[index_shock, 2] - estimate) / specs$confint
-#     
-#     # Update Message
-#     message(paste0("Wild Cluster Bootstrap: ", specs$iteration))
-#     
-#     # Save in line with coeftest class
-#     reg_results <- data.frame(estimate = estimate, se = wild_se)
-#     
-#   } else if (specs$robust_cov == "tLAHR") {
-#     
-#     # Update Message
-#     message(paste0("tLAHR SE ", specs$iteration))
-#     
-#     # Clustered-Robust Heteroskedastic Standard Errors: Clustered for time
-#     reg_results <- lmtest::coeftest(panel_results, vcov. = plm::vcovHC(panel_results,
-#                                                                        type     = "HC0",
-#                                                                        cluster  = "time")) 
-#     
-#   }
-#   
-#   return(reg_results)
-#   
-# }
 
-## EXTENSION OF CREATE LIN PANEL #### ------------------------------------------
+# 02. EXTENSION TO CREATE PANEL ================================================
 
+#' The function is based on the code by Adämmer (2019)
+#' The function is part of the LP_LIN_PANEL and creates the panel dataset with
+#' lags and first differenceinng. The function was extended to specifically 
+#' accounts for lagged endogenous and shock variables. Additionally, it allows
+#' to determine lags via p-selection rule and incombination with implementing 
+#' tLAHR.
 
 CREATE_PANEL_DATA <- function(specs, data_set){
 
@@ -1090,7 +1001,7 @@ ggplot(df_irf, aes(x = time, y = lp, color = group)) +
        y = "Impulse Response",
        color = "Model",
        fill = "Model") +
-  theme_minimal()
+  theme_classic()
 
 }
 
@@ -1168,7 +1079,7 @@ GG_IRF_ONE <- function(data,
          y = y_axis_name,
          color = "Model", 
          fill = "Model") +
-    theme_minimal() +
+    theme_classic() +
     theme(
       title = element_text(size = 8),
       plot.title = element_text(hjust = 0.5)
@@ -1275,7 +1186,7 @@ GG_IRF_TWO <- function(data1, # DF1
     # Manually define the colors for each group
     scale_color_manual(values = color_mapping) +
     scale_fill_manual(values = color_mapping) +
-    theme_minimal() +
+    theme_classic() +
     theme(
       title = element_text(size = 8),
       plot.title = element_text(hjust = 0.5),
@@ -1371,7 +1282,7 @@ GG_IRF_DYNAMIC <- function(data_list,  # List of datasets
          fill = "Model") +
     scale_color_manual(values = color_mapping) +
     scale_fill_manual(values = color_mapping) +
-    theme_minimal() +
+    theme_classic() +
     theme(
       title = element_text(size = 8),
       plot.title = element_text(hjust = 0.5)
@@ -1392,6 +1303,83 @@ test2 <- dynamic_graphs <- GG_IRF_DYNAMIC(
 test2$plot
 
 }
-################################### END #######################################+
 
+# Extract Specific Variable from LP function ===================================
+
+GG_IRF_VAR <- function(data, 
+                       var, 
+                       y_lower = -1, 
+                       y_upper = 1,
+                       breaks = 0.2,
+                       title_name = "Impulse Response Function",
+                       time_name = "Time Horizon",
+                       y_axis_name = expression(Y[t+h] - Y[t])
+                       ) {
+  
+  # Initiate an empty data frame
+  df <- data.frame(
+    time = integer(0),
+    lp = numeric(0),
+    lp_lower = numeric(0),
+    lp_upper = numeric(0)
+  )
+  
+  # Loop through each horizon and extract estimates & SE for the given variable
+  for (i in 1:data$specs$hor) {
+    
+    # Extract the coefficient table from the regression summary for horizon i
+    coef_table <- data$reg_summaries[[i]]
+    
+    # Check if the variable exists in the regression summary
+    if (!var %in% rownames(coef_table)) {
+      stop(paste("Variable", var, "not found in regression summary at horizon", i))
+    }
+    
+    # Extract the estimate and standard error for the chosen variable
+    estimate <- coef_table[var, "Estimate"]
+    se <- coef_table[var, "Std. Error"]
+    
+    # Compute the 95% confidence interval
+    ci_lower <- estimate - 1.96 * se
+    ci_upper <- estimate + 1.96 * se
+    
+    # Save values into the data frame
+    df[i, "time"] <- i
+    df[i, "lp"] <- estimate
+    df[i, "lp_lower"] <- ci_lower
+    df[i, "lp_upper"] <- ci_upper
+  }  
+  
+  # Create the plot with CI bands using ggplot2
+  plot <- ggplot(df, aes(x = time, y = lp)) +
+    geom_line(linewidth = 1, color = "red") +  # Mean response line
+    geom_ribbon(aes(ymin = lp_lower, ymax = lp_upper), 
+                alpha = 0.1,
+                fill = "red",
+                color = "red",
+                linetype = "dashed") +  # Confidence interval bands
+    geom_hline(yintercept = 0, linetype = "dashed", color = "black") +  # Zero line
+    scale_x_continuous(breaks = seq(1, data$specs$hor)) +
+    scale_y_continuous(
+      breaks = seq(y_lower, y_upper, by = breaks),
+      limits = c(y_lower, y_upper)
+    ) +
+    labs(title = title_name,
+         x = time_name,
+         y = y_axis_name,
+         color = "Model", 
+         fill = "Model") +
+    theme_classic() +
+    theme(
+      title = element_text(size = 8),
+      plot.title = element_text(hjust = 0.5)
+    )
+  
+  results_list <- list(plot = plot, df = df)
+  return(results_list)
+}
+
+###############################################################################+
+################################### END ########################################
+###############################################################################+
 
