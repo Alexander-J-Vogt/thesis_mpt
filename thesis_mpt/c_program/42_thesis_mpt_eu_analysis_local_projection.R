@@ -1,4 +1,4 @@
-# TARGET: 
+# TARGET: Local Projection model for the EA
 # INDATA: 
 # OUTDATA/ OUTPUT:  
 
@@ -56,16 +56,19 @@ HOR <- 12
 ## General Specification - Controls -------------------------------------------+
 
 # 
-controls_lending_rate <- c("log_cr", "log_dl", 
-                           "ur", "hicp", "reer", "commodity_index", "exr", "gdp",
-                           "hicp_ea", "gdp_ea", 
-                           "d_countries_arm")
-
-controls_loan_amount <-  c("log_cr", "log_dl", 
-                           "ur_deci", "hicp", "reer", "commodity_index", "exr", "gdp",
-                           "hicp_ea", "gdp_ea", 
-                           "d_countries_arm")
-
+controls_lending_rate <- c("log_assets", "log_total_loan", "log_overnight_deposits", "deposit_rate", # Controls for bank sector interaction
+                           "ur", "hicp_inflation", "reer", "commodity_index", "exr", "gdp_country_growth", # Controls for Macroeconomic Indicators on country-level
+                           "hicp_ea_inflation", "gdp_ea_growth", # Controls for Macroeconomic Indicators on EA-level
+                           "hpi_growth", "hosr", # Housing / Mortgage Market related controls
+                           "d_month_02","d_month_03","d_month_04", "d_month_05", "d_month_06","d_month_06", "d_month_08","d_month_09", "d_month_10", "d_month_11","d_month_12","d_countries_arm" # Monthly dummies
+                            )
+                           
+controls_loan_amount <-  c("log_assets", "log_total_loan", "log_overnight_deposits", "deposit_rate_deci", # Controls for bank sector interaction 
+                           "ur_deci", "hicp_inflation_deci", "reer", "commodity_index", "exr", "gdp_country_growth_deci", # Controls for Macroeconomic Indicators on country-level
+                           "hicp_ea_inflation_deci", "gdp_ea_growth_deci", # Controls for Macroeconomic Indicators on EA-level
+                           "hpi_growth_deci", "hosr", # Housing / Mortgage Market related controls
+                           "d_month_02","d_month_03","d_month_04", "d_month_05", "d_month_06","d_month_06", "d_month_08","d_month_09", "d_month_10", "d_month_11","d_month_12", "d_countries_arm" # Monthly dummies
+                           )
 
 ###############################################################################+
 ## 2.1 Baseline ################################################################
@@ -74,38 +77,134 @@ controls_loan_amount <-  c("log_cr", "log_dl",
 ### 2.1.1 Regression for Baseline Specification --------------------------------
 
 # Define specifications for each shock type in a list
-specs_baseline <- list(
+specs_baseline_A <- list(
+  ## Lending Rate
+  # HHI-Demeaned x HHI x MS
   lending_rate_hhi_ms_demeaned = list(
     shock_var   = "I_HHI_A_TOTAL_demeaned",
-    select_cols = c("country", "month", "lending_rate_total", "hhi_ci_total_assets", "I_HHI_A_TOTAL_demeaned",  controls_lending_rate),
+    select_cols = c("country", "month", "lending_rate_total", "hhi_ci_total_assets", "altavilla_total", "I_HHI_A_TOTAL_demeaned",  controls_lending_rate),
     endo = "lending_rate_total"
   ),
+  # HHI x MS
   lending_rate_hhi_ms = list(
     shock_var   = "I_HHI_A_TOTAL",
-    select_cols = c("country", "month", "lending_rate_total", "hhi_ci_total_assets", "I_HHI_A_TOTAL", controls_lending_rate),
+    select_cols = c("country", "month", "lending_rate_total", "hhi_ci_total_assets", "altavilla_total", "I_HHI_A_TOTAL", controls_lending_rate),
     endo = "lending_rate_total"
-  )  ,
+  ),
+  # MS
   lending_rate_ms = list(
     shock_var   = "altavilla_total",
     select_cols = c("country", "month", "lending_rate_total", "hhi_ci_total_assets", "altavilla_total", controls_lending_rate),
     endo = "lending_rate_total"
-  )  ,
+  ),
+  ## Log Mortgage Rate
   loan_amount_hhi_ms_demeaned = list(
     shock_var   = "I_HHI_A_TOTAL_demeaned",
-    select_cols = c("country", "month", "log_hp_total_amount", "hhi_ci_total_assets", "I_HHI_A_TOTAL_demeaned",  controls_loan_amount),
+    select_cols = c("country", "month", "log_hp_total_amount", "hhi_ci_total_assets", "altavilla_total", "I_HHI_A_TOTAL_demeaned",  controls_loan_amount),
     endo = "log_hp_total_amount"
   ),
+  # HHI x MS
   loan_amount_hhi_ms = list(
     shock_var   = "I_HHI_A_TOTAL",
-    select_cols = c("country", "month", "log_hp_total_amount", "hhi_ci_total_assets", "I_HHI_A_TOTAL", controls_loan_amount),
+    select_cols = c("country", "month", "log_hp_total_amount", "hhi_ci_total_assets", "altavilla_total", "I_HHI_A_TOTAL", controls_loan_amount),
     endo = "log_hp_total_amount"
   ),
+  # MS
   loan_amount_ms = list(
     shock_var   = "altavilla_total",
     select_cols = c("country", "month", "log_hp_total_amount", "hhi_ci_total_assets", "altavilla_total", controls_loan_amount),
     endo = "log_hp_total_amount"
   )
+)
+
+specs_baseline_JK <- list(
+  ## Lending Rate
+  # HHI-Demeaned x MS
+  lending_rate_hhi_ms_demeaned = list(
+    shock_var   = "I_HHI_J_TOTAL_demeaned",
+    select_cols = c("country", "month", "lending_rate_total", "MP_median_total", "I_HHI_J_TOTAL_demeaned", controls_lending_rate),
+    endo = "lending_rate_total",
+    l_var = c(4, 6:19),
+    c_var = c(4, 6:30)
+  ),
+  # HHI x MS
+  lending_rate_hhi_ms = list(
+    shock_var   = "I_HHI_J_TOTAL",
+    select_cols = c("country", "month", "lending_rate_total", "MP_median_total", "I_HHI_J_TOTAL", controls_lending_rate),
+    endo = "lending_rate_total",
+    l_var = c(4, 6:19),
+    c_var = c(4, 6:30)
+  )  ,
+  # MS
+  lending_rate_ms = list(
+    shock_var   = "MP_median_total",
+    select_cols = c("country", "month", "lending_rate_total",  "MP_median_total", controls_lending_rate),
+    endo = "lending_rate_total",
+    l_var = c(5:19),
+    c_var = c(5:29)
+  ),
+  ## Log Mortgage Rate
+  # HHI-Demeaned x MS
+  loan_amount_hhi_ms_demeaned = list(
+    shock_var   = "I_HHI_J_TOTAL_demeaned",
+    select_cols = c("country", "month", "log_hp_total_amount", "MP_median_total", "I_HHI_J_TOTAL_demeaned",  controls_loan_amount),
+    endo = "log_hp_total_amount",
+    l_var = c(4, 6:19),
+    c_var = c(4, 6:30)
+  ),
+  # HHI x MS
+  loan_amount_hhi_ms = list(
+    shock_var   = "I_HHI_J_TOTAL",
+    select_cols = c("country", "month", "log_hp_total_amount", "MP_median_total", "I_HHI_J_TOTAL", controls_loan_amount),
+    endo = "log_hp_total_amount",
+    l_var = c(4, 6:19),
+    c_var = c(4, 6:30)
+  ),
+  # MS
+  loan_amount_ms = list(
+    shock_var   = "MP_median_total",
+    select_cols = c("country", "month", "log_hp_total_amount", "MP_median_total", controls_loan_amount),
+    endo = "log_hp_total_amount",
+    l_var = c(5:19),
+    c_var = c(5:29)
   )
+)
+
+# lending_rate_ms <- list(
+#   shock_var   = "MP_pm_negativ",
+#   select_cols = c("country", "month", "lending_rate_total",  "MP_pm_negativ"),
+#   endo = "lending_rate_total"#,
+#   # l_var = c(5:19),
+#   # c_var = c(5:29)
+# )
+# 
+# df_subset <- df_main |>
+#   select(all_of(lending_rate_ms$select_cols))
+# 
+# test <- LP_LIN_PANEL(
+#   data_set          = df_subset,
+#   data_sample       = "Full",
+#   endog_data        = lending_rate_ms$endo,
+#   lags_endog_data   = 6,
+#   cumul_mult        = FALSE,
+#   shock             = lending_rate_ms$shock_var,
+#   lags_shock        = 6,
+#   diff_shock        = FALSE,
+#   panel_model       = "within",
+#   panel_effect      = "individual",
+#   robust_cov        = "tLAHR",
+#   # robust_maxlag     = 4,
+#   # robust_type       = "HC1",
+#   c_exog_data       = NULL, # colnames(df_subset)[c(3)], #colnames(df_subset)[c(4, 6:16)],
+#   l_exog_data       = NULL, #colnames(df_subset)[spec$l_var], #colnames(df_subset)[c(4, 6:15)],
+#   lags_exog_data    = 6, #6,
+#   c_fd_exog_data    = NULL, #colnames(df_subset)[spec$var],
+#   l_fd_exog_data    = NULL, #colnames(df_subset)[spec$var],
+#   lags_fd_exog_data = NaN,
+#   confint           = CI,
+#   hor               = HOR
+# )
+
 
 # Set up the parallel backend (use available cores minus one)
 n_cores <- parallel::detectCores() - 1
@@ -115,12 +214,12 @@ registerDoParallel(cl)
 # Run the LP_LIN_PANEL function in parallel for each shock type
 # Ensure that all required objects and functions (like df_hp_large, LP_LIN_PANEL, PANEL_EFFECT, CI, HOR, and BITER) 
 # are available in the global environment or exported to each worker.
-results_baseline <- foreach(spec = shock_specs, 
+results_baseline <- foreach(spec = specs_baseline_JK, 
                             .packages = c("dplyr", "lpirfs", "plm", "clusterSEs", "lmtest"), 
-                            .export = c("df_main", "LP_LIN_PANEL", "CREATE_PANEL_DATA", "PANEL_EFFECT", "CI", "HOR", "BITER")) %dopar% {
-                          
+                            .export = c("df_main", "LP_LIN_PANEL", "CREATE_PANEL_DATA", "PANEL_EFFECT", "CI", "HOR")) %dopar% {
+  
                             # Subset the data for the current shock specification
-                            df_subset <- df_main %>% 
+                            df_subset <- df_main |>  
                               select(all_of(spec$select_cols))
                           
                             # Run the LP_LIN_PANEL function
@@ -135,109 +234,121 @@ results_baseline <- foreach(spec = shock_specs,
                               diff_shock        = FALSE,
                               panel_model       = "within",
                               panel_effect      = PANEL_EFFECT,
-                              robust_cov        = "vcovSCC",
+                              robust_cov        = "tLAHR",
                               # robust_maxlag     = 4,
                               # robust_type       = "HC1",
-                              c_exog_data       = colnames(df_subset)[c(4, 6:16)],
-                              l_exog_data       = colnames(df_subset)[c(4, 6:15)],
+                              c_exog_data       = colnames(df_subset)[spec$c_var], #colnames(df_subset)[c(4, 6:16)],
+                              l_exog_data       = colnames(df_subset)[spec$l_var], #colnames(df_subset)[c(4, 6:15)],
                               lags_exog_data    = 6, #6,
-                              c_fd_exog_data    = NULL, #colnames(df_subset)[c(4, 6:15)],
-                              l_fd_exog_data    = NULL, #colnames(df_subset)[c(4, 6:15)],
-                              lags_fd_exog_data = NULL,
+                              c_fd_exog_data    = NULL, #colnames(df_subset)[spec$var],
+                              l_fd_exog_data    = NULL, #colnames(df_subset)[spec$var],
+                              lags_fd_exog_data = NaN,
                               confint           = CI,
-                              hor               = HOR,
-                              biter             = BITER
+                              hor               = HOR
                            )
                          }
 
 # Shut down the parallel cluster
 stopCluster(cl)
 
-names(results_baseline) <- names(specs_baseline)
+names(results_baseline) <- names(specs_baseline_JK)
 
 
 ### 2.1.2 Graphs on Regression Results for Baseline Specification --------------
 
-# Graph 1: Lending Rate: HHI Demeaned x MS ------------------------------------+
+# Graph 1: Lending Rate: HHI Demeaned x MS [INCLUDE] --------------------------+
 
 plot_1_hhi_demeaned_ms <- GG_IRF_ONE(data = results_baseline$lending_rate_hhi_ms_demeaned,
                                      hhi_coef = FALSE,
-                                     y_lower = Y_LOWER,
-                                     y_upper = Y_UPPER,
-                                     breaks = BREAKS_GRAPH,
-                                     title_name = "Lending Rate",
+                                     y_lower = -7,
+                                     y_upper = 6,
+                                     breaks = 1,
+                                     title_name = "Lending Rate - Relative Effect",
                                      time_name = "Months",
                                      y_axis_name = expression(R[t + h] - R[t])
                                      )
+
+# Graph 1.1: Average Effect  HHI Demeaned x MS [INCLUDE] ----------------------+
+
+plot_11_ms <- GG_IRF_VAR(data = results_baseline$lending_rate_hhi_ms_demeaned,
+                         var  = "MP_median_total",
+                         y_lower = -7, 
+                         y_upper = 6,
+                         breaks = 1,
+                         title_name = "Lending Rate - Average Effect",
+                         time_name = "Months",
+                         y_axis_name = expression(R[t+h] - R[t])
+                          )
 
 # Graph 2: Lending Rate: HHI x MS ---------------------------------------------+
 
 plot_2_hhi_ms <- GG_IRF_ONE(data = results_baseline$lending_rate_hhi_ms,
                             hhi_coef = FALSE,
-                            y_lower = Y_LOWER,
-                            y_upper = Y_UPPER,
-                            breaks = BREAKS_GRAPH,
-                            title_name = "Log Loan Amount",
+                            y_lower = -6,
+                            y_upper = 5,
+                            breaks = 1,
+                            title_name = "Log Mortgage Amount",
                             time_name = "Months",
                             y_axis_name = expression(Y[t + h] - Y[t])
                             )
 
-# Graph 3: Log Oustanding Loan Amount: HHI Demeane x MS -----------------------+
+# Graph 3: Log Outstanding Loan Amount: HHI Demeaned x MS [INCLUDE] -----------+
 
 plot_3_hhi_demeaned_ms <- GG_IRF_ONE(data = results_baseline$loan_amount_hhi_ms_demeaned,
                                      hhi_coef = FALSE,
-                                     y_lower = Y_LOWER,
-                                     y_upper = Y_UPPER,
-                                     breaks = BREAKS_GRAPH,
-                                     title_name = "Lending Rate",
+                                     y_lower = -2,
+                                     y_upper = 1,
+                                     breaks = .5,
+                                     title_name = "Log Mortgage Amount - Relative Effect",
                                      time_name = "Months",
-                                     y_axis_name = expression(R[t + h] - R[t])
+                                     y_axis_name = expression(Y[t + h] - Y[t])
                                      )
 
-# Graph 4: Log Oustanding Loan Amount: HHI x MS -------------------------------+
+# Graph 3.1: Average Effect HHI Demeaned x MS [INCLUDE] -----------------------+
 
-plot_4_hhi_ms <- GG_IRF_ONE(data = results_baseline$lending_rate_hhi_ms,
+plot_31_ms <- GG_IRF_VAR(data = results_baseline$loan_amount_hhi_ms_demeaned,
+                         var  = "MP_median_total",
+                         y_lower = -2, 
+                         y_upper = 1,
+                         breaks = .5,
+                         title_name = "Log Mortgage Rate - Average Effect",
+                         time_name = "Months",
+                         y_axis_name = expression(Y[t+h] - Y[t])
+                         )
+
+
+# Graph 4: Log Outstanding Loan Amount: HHI x MS ------------------------------+
+
+plot_4_hhi_ms <- GG_IRF_ONE(data = results_baseline$loan_amount_hhi_ms,
                             hhi_coef = FALSE,
-                            y_lower = Y_LOWER,
-                            y_upper = Y_UPPER,
-                            breaks = BREAKS_GRAPH,
-                            title_name = "Lending Rate",
+                            y_lower = -2,
+                            y_upper = 2,
+                            breaks = 1,
+                            title_name = "Mortgage Amount",
                             time_name = "Months",
                             y_axis_name = expression(Y[t + h] - Y[t])
                             )
+
 
 
 # Final Graphs ... ------------------------------------------------------------+
 
 # Graph for Demeaned Baseline
-graph_baseline_demeaned <- (plot_1_hhi_demeaned_ms + plot_2_hhi_ms) +
+graph_baseline_demeaned <- (plot_11_ms$plot + plot_1_hhi_demeaned_ms$plot) /
+                           (plot_31_ms$plot + plot_3_hhi_demeaned_ms$plot) +
                             plot_annotation(
-                              title = "Impulse Response Function on Demeaned HHI \u00D7 Monetary Shock",
+                              title = "Panel D",
+                              tag_levels = c("I", "II", "III", "IV"),
                               theme = theme(
-                                title = element_text(size = 10, hjust = .5))
+                                plot.title = element_text(size = 14, hjust = 0.5)
+                                )
                               )
 
 # Save
 ggsave(
-  filename = paste0(FIGURE, "04_EZ_Panel_A/", "baseline_demeaned.pdf"),
+  filename = paste0(FIGURE, "04_EA_Panel_D/", "baseline_demeaned.pdf"),
   plot = graph_baseline_demeaned,
-  width = 12, height = 6, dpi = 300
-)
-
-
-# Graph for Not Demeaned Baseline 
-graph_baseline_not_demeaned <- (plot_3_hhi_demeaned_ms + plot_4_hhi_ms) +
-                            plot_annotation(
-                              title = "Impulse Response Function on Demeaned HHI \u00D7 Monetary Shock",
-                              theme = theme(
-                                title = element_text(size = 10, hjust = .5))
-                            )
-
-# Save
-ggsave(
-  filename = paste0(FIGURE, "04_EZ_Panel_A/", "baseline_demeaned.pdf"),
-  plot = graph_baseline_not_demeaned,
-  width = 12, height = 6, dpi = 300
+  width = 10, height = 8, dpi = 300
 )
 
 
@@ -247,26 +358,43 @@ ggsave(
 
 plot_appendix_1_hhi_demeaned_ms <- GG_IRF_ONE(data = results_baseline$lending_rate_ms,
                                      hhi_coef = FALSE,
-                                     y_lower = Y_LOWER,
-                                     y_upper = Y_UPPER,
-                                     breaks = BREAKS_GRAPH,
+                                     y_lower = -2,
+                                     y_upper = 1,
+                                     breaks = .5,
                                      title_name = "Lending Rate",
                                      time_name = "Months",
                                      y_axis_name = expression(R[t + h] - R[t])
-)
+                                     )
 
 # Appendix Graph 2: Loan Amount: MS -------------------------------------------+
 
 plot_appendix_2_hhi_demeaned_ms <- GG_IRF_ONE(data = results_baseline$loan_amount_ms,
                                               hhi_coef = FALSE,
-                                              y_lower = Y_LOWER,
-                                              y_upper = Y_UPPER,
-                                              breaks = BREAKS_GRAPH,
+                                              y_lower = -2,
+                                              y_upper = 1,
+                                              breaks = .5,
                                               title_name = "Log Loan Amount",
                                               time_name = "Months",
                                               y_axis_name = expression(Y[t + h] - Y[t])
                                               )
 
+
+# Appendix Graph 
+graph_baseline_appendix <- (plot_appendix_1_hhi_demeaned_ms$plot + plot_appendix_2_hhi_demeaned_ms$plot) +
+                            plot_annotation(
+                              title = "Appendix D: IRF of a Monetary Shock on Endogenous Variables",
+                              tag_levels = c("I", "II"),
+                              theme = theme(
+                                plot.title = element_text(size = 14, hjust = 0.5)
+                              )
+                            )
+
+# Save
+ggsave(
+  filename = paste0(FIGURE, "04_EA_Panel_D/", "baseline_appendix.pdf"),
+  plot = graph_baseline_appendix,
+  width = 12, height = 6, dpi = 300
+)
 
 ###############################################################################+
 ## 2.2 Regression with NIRP Indicator ##########################################
@@ -308,6 +436,61 @@ specs_zlb_indicator <- list(
   )
 )
 
+
+specs_nirp_indicator_JK <- list(
+  ## Lending Rate
+  # HHI-Demeaned x MS
+  lending_rate_hhi_ms_demeaned_nirp = list(
+    shock_var   = "I_HHI_J_TOTAL_NIRP_demeaned",
+    select_cols = c("country", "month", "lending_rate_total", "I_J_TOTAL_NIRP", "I_HHI_J_TOTAL_NIRP_demeaned", controls_lending_rate),
+    endo = "lending_rate_total",
+    l_var = c(4, 6:19),
+    c_var = c(4, 6:30)
+  ),
+  # HHI x MS
+  lending_rate_hhi_ms_nirp = list(
+    shock_var   = "I_HHI_J_TOTAL_NIRP",
+    select_cols = c("country", "month", "lending_rate_total", "I_J_TOTAL_NIRP", "I_HHI_J_TOTAL_NIRP", controls_lending_rate),
+    endo = "lending_rate_total",
+    l_var = c(4, 6:19),
+    c_var = c(4, 6:30)
+  )  ,
+  # MS
+  lending_rate_ms_nirp = list(
+    shock_var   = "I_J_TOTAL_NIRP",
+    select_cols = c("country", "month", "lending_rate_total",  "I_J_TOTAL_NIRP", controls_lending_rate),
+    endo = "lending_rate_total",
+    l_var = c(5:19),
+    c_var = c(5:29)
+  ),
+  ## Log Mortgage Rate
+  # HHI-Demeaned x MS
+  loan_amount_hhi_ms_demeaned_nirp = list(
+    shock_var   = "I_HHI_J_TOTAL_NIRP_demeaned",
+    select_cols = c("country", "month", "log_hp_total_amount", "I_J_TOTAL_NIRP", "I_HHI_J_TOTAL_NIRP_demeaned",  controls_loan_amount),
+    endo = "log_hp_total_amount",
+    l_var = c(4, 6:19),
+    c_var = c(4, 6:30)
+  ),
+  # HHI x MS
+  loan_amount_hhi_ms_nirp = list(
+    shock_var   = "I_HHI_J_TOTAL_NIRP",
+    select_cols = c("country", "month", "log_hp_total_amount", "I_J_TOTAL_NIRP", "I_HHI_J_TOTAL_NIRP", controls_loan_amount),
+    endo = "log_hp_total_amount",
+    l_var = c(4, 6:19),
+    c_var = c(4, 6:30)
+  ),
+  # MS
+  loan_amount_ms_nirp = list(
+    shock_var   = "I_J_TOTAL_NIRP",
+    select_cols = c("country", "month", "log_hp_total_amount", "I_J_TOTAL_NIRP", controls_loan_amount),
+    endo = "log_hp_total_amount",
+    l_var = c(5:19),
+    c_var = c(5:29)
+  )
+)
+
+
 # Set up the parallel backend (use available cores minus one)
 n_cores <- parallel::detectCores() - 1
 cl <- makeCluster(n_cores)
@@ -316,9 +499,9 @@ registerDoParallel(cl)
 # Run the LP_LIN_PANEL function in parallel for each shock type
 # Ensure that all required objects and functions (like df_hp_large, LP_LIN_PANEL, PANEL_EFFECT, CI, HOR, and BITER) 
 # are available in the global environment or exported to each worker.
-results_baseline <- foreach(spec = shock_specs, 
+results_nirp_indicator <- foreach(spec = specs_nirp_indicator_JK, 
                             .packages = c("dplyr", "lpirfs", "plm", "clusterSEs", "lmtest"), 
-                            .export = c("df_main", "LP_LIN_PANEL", "CREATE_PANEL_DATA", "PANEL_EFFECT", "CI", "HOR", "BITER")) %dopar% {
+                            .export = c("df_main", "LP_LIN_PANEL", "CREATE_PANEL_DATA", "PANEL_EFFECT", "CI", "HOR")) %dopar% {
                               
                               # Subset the data for the current shock specification
                               df_subset <- df_main %>% 
@@ -339,70 +522,97 @@ results_baseline <- foreach(spec = shock_specs,
                                 robust_cov        = "vcovSCC",
                                 # robust_maxlag     = 4,
                                 # robust_type       = "HC1",
-                                c_exog_data       = colnames(df_subset)[c(4, 6:16)],
-                                l_exog_data       = colnames(df_subset)[c(4, 6:15)],
+                                c_exog_data       = colnames(df_subset)[spec$c_var],
+                                l_exog_data       = colnames(df_subset)[spec$l_var],
                                 lags_exog_data    = 6, #6,
                                 c_fd_exog_data    = NULL, #colnames(df_subset)[c(4, 6:15)],
                                 l_fd_exog_data    = NULL, #colnames(df_subset)[c(4, 6:15)],
                                 lags_fd_exog_data = NULL,
                                 confint           = CI,
-                                hor               = HOR,
-                                biter             = BITER
+                                hor               = HOR
                               )
                             }
 
 # Shut down the parallel cluster
 stopCluster(cl)
 
-names(results_baseline) <- names(specs_baseline)
+names(results_nirp_indicator) <- names(specs_nirp_indicator_JK)
 
 
 ### 2.2.2 Graphs on Regression Results with NIRP Indicator ---------------------
 
-# Graph 5: Lending Rate: HHI Demeaned x MS x NIRP -----------------------------+
+# Graph 5: Lending Rate: HHI Demeaned x MS x NIRP [INCLUDED] ------------------+
 
-plot_5_hhi_demeaned_ms_nirp <- GG_IRF_ONE(data = results_baseline$lending_rate_zlb_hhi_ms_demeaned,
+plot_5_hhi_demeaned_ms_nirp <- GG_IRF_ONE(data = results_nirp_indicator$lending_rate_hhi_ms_demeaned_nirp,
                                           hhi_coef = FALSE,
-                                          y_lower = Y_LOWER,
-                                          y_upper = Y_UPPER,
-                                          breaks = BREAKS_GRAPH,
-                                          title_name = "Lending Rate",
+                                          y_lower = -3,
+                                          y_upper = 12,
+                                          breaks = 2,
+                                          title_name = "Lending Rate - Relative Effect",
                                           time_name = "Months",
                                           y_axis_name = expression(R[t + h] - R[t])
-)
+                                          )
 
-# Graph 6: Lending Rate: HHI x MS x NIRP --------------------------------------+
 
-plot_6_hhi_ms_nirp <- GG_IRF_ONE(data = results_baseline$lending_rate_nirp_hhi_ms,
+# Graph 5.1: Average Effect  HHI Demeaned x MS [INCLUDE] ----------------------+
+
+plot_51_hhi_demeaned_ms_nirp <- GG_IRF_VAR(data = results_nirp_indicator$lending_rate_hhi_ms_demeaned_nirp,
+                         var  = "I_J_TOTAL_NIRP",
+                         y_lower = -3, 
+                         y_upper = 12,
+                         breaks = 2,
+                         title_name = "Lending Rate - Average Effect",
+                         time_name = "Months",
+                         y_axis_name = expression(R[t+h] - R[t])
+                         )
+
+
+
+# Graph 6: Lending Rate: MS x NIRP [NOT INCLUDED] -----------------------------+
+
+plot_6_hhi_ms_nirp <- GG_IRF_ONE(data = results_nirp_indicator$lending_rate_ms_nirp,
                                  hhi_coef = FALSE,
-                                 y_lower = Y_LOWER,
-                                 y_upper = Y_UPPER,
-                                 breaks = BREAKS_GRAPH,
-                                 title_name = "Log Loan Amount",
+                                 y_lower = -2,
+                                 y_upper = 4,
+                                 breaks = 1,
+                                 title_name = "Lending Rate",
                                  time_name = "Months",
-                                 y_axis_name = expression(Y[t + h] - Y[t])
+                                 y_axis_name = expression(R[t + h] - R[t])
                                 )
 
-# Graph 7: Log Outstanding Loan Amount: HHI Demeaned x MS x NIRP --------------+
+# Graph 7: Log Outstanding Loan Amount: HHI Demeaned x MS x NIRP [INCLUDED] ---+
 
-plot_7_hhi_demeaned_ms_nirp <- GG_IRF_ONE(data = results_baseline$loan_amount_nirp_hhi_ms_demeaned,
+plot_7_hhi_demeaned_ms_nirp <- GG_IRF_ONE(data = results_nirp_indicator$loan_amount_hhi_ms_demeaned_nirp,
                                           hhi_coef = FALSE,
-                                          y_lower = Y_LOWER,
-                                          y_upper = Y_UPPER,
-                                          breaks = BREAKS_GRAPH,
-                                          title_name = "Lending Rate",
+                                          y_lower = -2,
+                                          y_upper = 2,
+                                          breaks = 1,
+                                          title_name = "Log Loan Amount - Relative Effect",
                                           time_name = "Months",
                                           y_axis_name = expression(R[t + h] - R[t])
                                          )
 
+# Graph 7.1: Average Effect  HHI Demeaned x MS x NIRP [INCLUDE] ----------------+
+
+plot_71_hhi_demeaned_ms_nirp <- GG_IRF_VAR(data = results_nirp_indicator$loan_amount_hhi_ms_demeaned_nirp,
+                                           var  = "I_J_TOTAL_NIRP",
+                                           y_lower = -2, 
+                                           y_upper = 2,
+                                           breaks = 1,
+                                           title_name = "Log Mortgage Amount - Average Effect",
+                                           time_name = "Months",
+                                           y_axis_name = expression(Y[t+h] - Y[t])
+                                           )
+
+
 # Graph 8: Log Outstanding Loan Amount: HHI x MS x NIRP -----------------------+
 
-plot_8_hhi_ms_nirp <- GG_IRF_ONE(data = results_baseline$loan_amount_nirp_hhi_ms,
+plot_8_hhi_ms_nirp <- GG_IRF_ONE(data = results_nirp_indicator$loan_amount_ms_nirp,
                                  hhi_coef = FALSE,
-                                 y_lower = Y_LOWER,
-                                 y_upper = Y_UPPER,
-                                 breaks = BREAKS_GRAPH,
-                                 title_name = "Lending Rate",
+                                 y_lower = -2,
+                                 y_upper = 4,
+                                 breaks = 1,
+                                 title_name = "Loan Amount",
                                  time_name = "Months",
                                  y_axis_name = expression(Y[t + h] - Y[t])
                                 )
@@ -410,61 +620,67 @@ plot_8_hhi_ms_nirp <- GG_IRF_ONE(data = results_baseline$loan_amount_nirp_hhi_ms
 
 # Final Plot ... --------------------------------------------------------------+
 
-# Plot with Demeaned Regression
-graph_nirp_indicator_demeaned <- (plot_5_hhi_demeaned_ms_nirp + plot_6_hhi_ms_nirp) +
+# Graph for Demeaned Baseline
+graph_nirp_indicator_demeaned <- (plot_51_hhi_demeaned_ms_nirp$plot + plot_5_hhi_demeaned_ms_nirp$plot) /
+                                 (plot_71_hhi_demeaned_ms_nirp$plot + plot_7_hhi_demeaned_ms_nirp$plot) +
                                   plot_annotation(
-                                    title = "IRF on Demeaned HHI \u00D7 Monetary Shock \u00D7 NIRP",
+                                    title = "Panel E",
+                                    tag_levels = c("I", "II", "III", "IV"),
                                     theme = theme(
-                                      title = element_text(size = 10, hjust = .5))
+                                      plot.title = element_text(size = 14, hjust = 0.5)
+                                    )
                                   )
- 
-# Save
-ggsave(
-  filename = paste0(FIGURE, "04_EZ_Panel_B/", "regression_zlb_indicator_demeaned.pdf"),
-  plot = graph_nirp_indicator_demeaned,
-  width = 12, height = 6, dpi = 300
-)
-
-# Plot with No Demeaned Regression
-graph_nirp_indicator_not_demeaned <- (plot_7_hhi_demeaned_ms_nirp + plot_8_hhi_ms_nirp) +
-                                     plot_annotation(
-                                       title = "IRF on Demeaned HHI \u00D7 Monetary Shock \u00D7 NIRP",
-                                       theme = theme(
-                                         title = element_text(size = 10, hjust = .5))
-                                     )
 
 # Save
 ggsave(
-  filename = paste0(FIGURE, "04_EZ_Panel_B/", "regression_zlb_indicator_not_demeaned.pdf"),
-  plot = graph_nirp_indicator_not_demeaned,
-  width = 12, height = 6, dpi = 300
+  filename = paste0(FIGURE, "04_EA_Panel_E/", "graph_nirp_indicator_demeaned.pdf"),
+  plot = graph_baseline_demeaned,
+  width = 12, height = 8, dpi = 300
 )
 
 ### 2.2.3 Appendix for Baseline Regression -------------------------------------
 
-# Appendix Graph 3: Lending Rate: MS  x NIRP---------------------------------------------+
+# Appendix Graph 3: Lending Rate: MS  x NIRP ----------------------------------+
 
-plot_appendix_3_hhi_demeaned_ms <- GG_IRF_ONE(data = results_baseline$lending_rate_nirp_ms,
+plot_appendix_3_hhi_demeaned_ms <- GG_IRF_ONE(data = results_nirp_indicator$lending_rate_ms_nirp,
                                               hhi_coef = FALSE,
-                                              y_lower = Y_LOWER,
-                                              y_upper = Y_UPPER,
-                                              breaks = BREAKS_GRAPH,
+                                              y_lower = -2,
+                                              y_upper = 2,
+                                              breaks = 1,
                                               title_name = "Lending Rate",
                                               time_name = "Months",
                                               y_axis_name = expression(R[t + h] - R[t])
-)
+                                              )
+ 
+#  Appendix Graph 4: Loan Amount: MS x NIRP -----------------------------------+
 
-#  Appendix Graph 4: Loan Amount: HHI x MS x NIRP ---------------------------------------------+
-
-plot_appendix_4_hhi_demeaned_ms <- GG_IRF_ONE(data = results_baseline$loan_amount_nirp_ms,
+plot_appendix_4_hhi_demeaned_ms <- GG_IRF_ONE(data = results_nirp_indicator$loan_amount_ms_nirp,
                                               hhi_coef = FALSE,
-                                              y_lower = Y_LOWER,
-                                              y_upper = Y_UPPER,
-                                              breaks = BREAKS_GRAPH,
+                                              y_lower = -2,
+                                              y_upper = 2,
+                                              breaks = 1,
                                               title_name = "Log Loan Amount",
                                               time_name = "Months",
                                               y_axis_name = expression(Y[t + h] - Y[t])
+                                              )
+
+# Appendix Graph 
+graph_zlb_indicator_appendix <- (plot_appendix_3_hhi_demeaned_ms$plot + plot_appendix_4_hhi_demeaned_ms$plot) +
+  plot_annotation(
+    title = "Appendix E: IRF of a Monetary Shock on Endogenous Variables",
+    tag_levels = c("I", "II"),
+    theme = theme(
+      plot.title = element_text(size = 14, hjust = 0.5)
+    )
+  )
+
+# Save
+ggsave(
+  filename = paste0(FIGURE, "04_EA_Panel_E/", "graph_nirp_indicator_appendix.pdf"),
+  plot = graph_zlb_indicator_appendix,
+  width = 12, height = 6, dpi = 300
 )
+
 
 ###############################################################################+
 ## 2.3 Regression on NIRP Sample ###############################################
@@ -512,6 +728,62 @@ specs_nirp_sample <- list(
   )
 )
 
+specs_nirp_sample_JK <- list(
+  ## Lending Rate
+  # HHI-Demeaned x MS
+  lending_rate_hhi_ms_demeaned_nirp_sample = list(
+    shock_var   = "I_HHI_J_TOTAL_demeaned",
+    select_cols = c("country", "month", "lending_rate_total", "MP_median_total", "I_HHI_J_TOTAL_demeaned", controls_lending_rate),
+    endo = "lending_rate_total",
+    l_var = c(4, 6:19),
+    c_var = c(4, 6:30)
+  ),
+  # HHI x MS
+  lending_rate_hhi_ms_nirp_sample = list(
+    shock_var   = "I_HHI_J_TOTAL",
+    select_cols = c("country", "month", "lending_rate_total", "MP_median_total", "I_HHI_J_TOTAL", controls_lending_rate),
+    endo = "lending_rate_total",
+    l_var = c(4, 6:19),
+    c_var = c(4, 6:30)
+  )  ,
+  # MS
+  lending_rate_ms_nirp_sample = list(
+    shock_var   = "MP_median_total",
+    select_cols = c("country", "month", "lending_rate_total",  "MP_median_total", controls_lending_rate),
+    endo = "lending_rate_total",
+    l_var = c(5:19),
+    c_var = c(5:29)
+  ),
+  ## Log Mortgage Amount
+  # HHI-Demeaned x MS
+  loan_amount_hhi_ms_demeaned_nirp_sample = list(
+    shock_var   = "I_HHI_J_TOTAL_demeaned",
+    select_cols = c("country", "month", "log_hp_total_amount", "MP_median_total", "I_HHI_J_TOTAL_demeaned",  controls_loan_amount),
+    endo = "log_hp_total_amount",
+    l_var = c(4, 6:19),
+    c_var = c(4, 6:30)
+  ),
+  # HHI x MS
+  loan_amount_hhi_ms_nirp_sample = list(
+    shock_var   = "I_HHI_J_TOTAL",
+    select_cols = c("country", "month", "log_hp_total_amount", "MP_median_total", "I_HHI_J_TOTAL", controls_loan_amount),
+    endo = "log_hp_total_amount",
+    l_var = c(4, 6:19),
+    c_var = c(4, 6:30),
+    sample = df_main_nirp
+  ),
+  # MS
+  loan_amount_ms_nirp_sample = list(
+    shock_var   = "MP_median_total",
+    select_cols = c("country", "month", "log_hp_total_amount", "MP_median_total", controls_loan_amount),
+    endo = "log_hp_total_amount",
+    l_var = c(5:19),
+    c_var = c(5:29),
+    sample = df_main_nirp
+  )
+)
+
+
 # Set up the parallel backend (use available cores minus one)
 n_cores <- parallel::detectCores() - 1
 cl <- makeCluster(n_cores)
@@ -520,18 +792,27 @@ registerDoParallel(cl)
 # Run the LP_LIN_PANEL function in parallel for each shock type
 # Ensure that all required objects and functions (like df_hp_large, LP_LIN_PANEL, PANEL_EFFECT, CI, HOR, and BITER) 
 # are available in the global environment or exported to each worker.
-results_baseline <- foreach(spec = shock_specs, 
+results_nirp_sample <- foreach(spec = specs_nirp_sample_JK, 
                             .packages = c("dplyr", "lpirfs", "plm", "clusterSEs", "lmtest"), 
-                            .export = c("df_main", "LP_LIN_PANEL", "CREATE_PANEL_DATA", "PANEL_EFFECT", "CI", "HOR", "BITER")) %dopar% {
+                            .export = c("df_main", "LP_LIN_PANEL", "CREATE_PANEL_DATA", "PANEL_EFFECT", "CI", "HOR")) %dopar% {
+                              
+                              # spec <- list()
+                              # spec$shock_var   = "I_HHI_J_TOTAL_demeaned"
+                              # spec$select_cols = c("country", "month", "lending_rate_total", "MP_median_total", "I_HHI_J_TOTAL_demeaned", controls_lending_rate)
+                              # spec$endo = "lending_rate_total"
+                              # spec$l_var = c(4, 6:19)
+                              # spec$c_var = c(4, 6:30)
+                              # 
                               
                               # Subset the data for the current shock specification
-                              df_subset <- df_main %>% 
-                                select(all_of(spec$select_cols))
+                              df_subset <- df_main_nirp  |>  
+                                select(all_of(spec$select_cols)) 
+                                
                               
                               # Run the LP_LIN_PANEL function
                               LP_LIN_PANEL(
                                 data_set          = df_subset,
-                                data_sample       = spec$sample,
+                                data_sample       = "FULL",
                                 endog_data        = spec$endo,
                                 lags_endog_data   = 6,
                                 cumul_mult        = TRUE,
@@ -540,25 +821,24 @@ results_baseline <- foreach(spec = shock_specs,
                                 diff_shock        = FALSE,
                                 panel_model       = "within",
                                 panel_effect      = PANEL_EFFECT,
-                                robust_cov        = "vcovSCC",
+                                robust_cov        = "tLAHR",
                                 # robust_maxlag     = 4,
                                 # robust_type       = "HC1",
-                                c_exog_data       = colnames(df_subset)[c(4, 6:16)],
-                                l_exog_data       = colnames(df_subset)[c(4, 6:15)],
+                                c_exog_data       = colnames(df_subset)[spec$c_var],
+                                l_exog_data       = colnames(df_subset)[spec$l_var],
                                 lags_exog_data    = 6, #6,
                                 c_fd_exog_data    = NULL, #colnames(df_subset)[c(4, 6:15)],
                                 l_fd_exog_data    = NULL, #colnames(df_subset)[c(4, 6:15)],
                                 lags_fd_exog_data = NULL,
                                 confint           = CI,
-                                hor               = HOR,
-                                biter             = BITER
+                                hor               = HOR
                               )
                             }
 
 # Shut down the parallel cluster
 stopCluster(cl)
 
-names(results_baseline) <- names(specs_baseline)
+names(results_nirp_sample) <- names(specs_nirp_sample_JK)
 
 
 ### 2.3.2 Graphs on Regression Results for NIRP Sample -------------------------
@@ -674,6 +954,9 @@ plot_appendix_6_hhi_demeaned_ms_nirp_period <- GG_IRF_ONE(data = results_baselin
                                                           y_axis_name = expression(Y[t + h] - Y[t])
                                                           )
 
+
+ 
+#################################### END #######################################
 
 ###############################################################################+
 ## 2.2 Regression with NIRP Indicator ##########################################
