@@ -21,34 +21,11 @@ gc()
 
 ################################################################################################################+
 # MAIN PART ####
-start <- Sys.time()
-# install.packages("lpirfs")
-# install.packages("urca")
-# install.packages("TS")
-# install.packages("panelvar")
-# install.packages("CADFtest")
-library(lpirfs)
-# library(TS)
-# library(urca)
-# library(panelvar)
-# library(CADFtest)
-# library(pcse)
-
 
 # 1. Import Datasets ===========================================================
 
 # Load: Home Purchase for large sample
 df_hp_depository_large <- LOAD("29_thesis_mpt_us_samplecreation_main_hp_large")
-
-# # Load: Refinancing for large sample
-# df_ref_depository_large <- LOAD("29_thesis_mpt_us_samplecreation_main_ref_large")
-
-# # Load: Home Purchase for small sample
-# df_hp_depository_small <- LOAD("29_thesis_mpt_us_samplecreation_main_hp_small")
-#
-# # Load: Refinancing for small sample
-# df_ref_depository_small <- LOAD("29_thesis_mpt_us_samplecreation_main_ref_small")
-
 
 # 2. Time Series ===============================================================
 
@@ -105,12 +82,14 @@ df_hp_large_lowconc <- df_subsample |>
 df_hp_large_zlb1 <- df_hp_large |> 
   filter(d_ffr_mean_1perc == 1)
 
+# ZLB Period
 zlb_year <- unique(df_hp_large_zlb1$year)
 
 # Create Year Sample Away from the ZLB
 df_hp_large_normal <- df_hp_large |> 
   filter(d_ffr_mean_1perc == 0)
 
+# Non- ZLB Period
 normal_year <- unique(df_hp_large_normal$year)
 
 
@@ -248,9 +227,8 @@ results_baseline <- foreach(spec = shock_specs_baseline_JK,
                              panel_model       = "within",
                              panel_effect      = PANEL_EFFECT,
                              robust_cov        = "tLAHR",
-                             # robust_cluster    = "time",
                              c_exog_data       = NULL,
-                             l_exog_data       = NULL, #colnames(df_subset)[c(4 :12)],
+                             l_exog_data       = NULL,
                              lags_exog_data    = NaN,
                              c_fd_exog_data    = colnames(df_subset)[c(4, 6:12)],
                              l_fd_exog_data    = colnames(df_subset)[c(4, 6:12)],
@@ -273,7 +251,7 @@ gc()
 
 ### 3.1.2 Graphs for Baseline --------------------------------------------------
 
-# Graph 1: Full Sample - Shock: MS x HHI --------------------------------------+
+# Graph 1: Full Sample - Shock: MS x HHI [INCLUDED] ---------------------------+
 
 plot1_full_ms_hhi <- GG_IRF_ONE(data = results_baseline$full_sample_hhi_ms_SUM,
                                 hhi_coef = FALSE, 
@@ -281,10 +259,10 @@ plot1_full_ms_hhi <- GG_IRF_ONE(data = results_baseline$full_sample_hhi_ms_SUM,
                                 y_upper = 2, 
                                 breaks = 1,
                                 title_name = "Full Sample",
-                                time_name = "h-horizon in Years"
+                                time_name = "Years"
                                 )
 
-# Graph 2: Full Sample - Shock: MS --------------------------------------------+
+# Graph 2: Full Sample - Shock: MS [APPENDIX] ---------------------------------+
 
 plot2_full_ms <- GG_IRF_ONE(data     = results_baseline$full_sample_ms_SUM,
                             hhi_coef = FALSE, 
@@ -292,7 +270,7 @@ plot2_full_ms <- GG_IRF_ONE(data     = results_baseline$full_sample_ms_SUM,
                             y_upper  = 2, 
                             breaks   = 1,
                             title_name = "Full Sample: Monetary Shock",
-                            time_name  = "h-horizon in Years"
+                            time_name  = "Years"
                             )
 
 # Graph 3: High vs Low Sample - Shock: MS x HHI -------------------------------+
@@ -306,10 +284,10 @@ plot31_separate_sample_ms_hhi <- GG_IRF_TWO(data1 = results_baseline$separate_sa
                                            y_upper = 8,
                                            breaks = 2,
                                            title_name = "Subsample",
-                                           time_name = "h-horizon in Years"
+                                           time_name = "Years"
                                            )
 
-# Graph 3.2: Large Market Concentration ---------------------------------------+
+# Graph 3.2: Large Market Concentration  [INCLUDED] ---------------------------+
   
 plot32_large_ms_hhi <- GG_IRF_ONE(data       = results_baseline$separate_sample_hhi_ms_high_SUM,
                                  hhi_coef   = FALSE, 
@@ -320,18 +298,18 @@ plot32_large_ms_hhi <- GG_IRF_ONE(data       = results_baseline$separate_sample_
                                  time_name  = "Years"
                                  )  
 
-# Graph 3.3: Low Market Concentration ---------------------------------------+
+# Graph 3.3: Low Market Concentration  [INCLUDED] -----------------------------+
 
 plot33_low_ms_hhi <- GG_IRF_ONE(data     = results_baseline$separate_sample_hhi_ms_low_SUM,
                                  hhi_coef = FALSE, 
                                  y_lower  = -24, 
                                  y_upper  = 8, 
-                                 breaks   = 1,
+                                 breaks   = 2,
                                  title_name = " Sample: Low Market Concentration",
-                                 time_name  = "h-horizon in Years"
+                                 time_name  = "Years"
                                 )  
 
-# Graph 4: High vs Low Sample - Shock: MS -------------------------------------+
+# Graph 4: High vs Low Sample - Shock: MS [APPENDIX ] -------------------------+
 
 plot4_separate_sample_ms <- GG_IRF_TWO(data1 = results_baseline$separate_sample_ms_high_SUM,
                                        data2 = results_baseline$separate_sample_ms_low_SUM,
@@ -340,8 +318,8 @@ plot4_separate_sample_ms <- GG_IRF_TWO(data1 = results_baseline$separate_sample_
                                        y_lower = -2,
                                        y_upper = 10,
                                        breaks = 1,
-                                       title_name = "Subsample: Monetary Shock",
-                                       time_name = "h-horizon in Years"
+                                       title_name = "Subsample: Low and High Market concentration",
+                                       time_name = "Years"
                                        )
 
 # Final Graph: Combine 1 to 4 -------------------------------------------------+
@@ -350,48 +328,44 @@ plot4_separate_sample_ms <- GG_IRF_TWO(data1 = results_baseline$separate_sample_
 
 graph_baseline <- (plot1_full_ms_hhi$plot + plot32_large_ms_hhi$plot + plot33_low_ms_hhi$plot) +
   plot_annotation(
-    title = "Panel A: Baseline Results",
-    caption = "The results of the Linear Projection model represent the Baseline Results with the interaction term between Monetary Shock \u00D7 HHI.",
+    title = "Panel A",
+    tag_levels = c("I", "II", "III"),
     theme = theme(
-      plot.title = element_text(size = 12, hjust = 0),
-      plot.caption = element_text(size = 10, hjust = 0)
+      plot.title = element_text(size = 14, hjust = 0),
+      plot.caption = element_text(size = 10, hjust = 0),
+      plot.tag.position = c(0.5, 1),
+      plot.tag = element_text(hjust = 0.5)
       )
   )
 
+if (PRINT) {
 # Save
 ggsave(
   filename = paste0(FIGURE, "01_US_Panel_A/", "baseline_results_us.pdf"),
   plot = graph_baseline,
   width = 12, height = 8, dpi = 300
   )
+}
 
 # Appendix 1 GRAPH ---------------------------------------------------------------+
 
 graph_baseline_appendix <- (plot2_full_ms$plot + plot4_separate_sample_ms$plot) +
   plot_annotation(
-    title = "Appendix 1: Baseline Results",
-    caption = "Linear Projection model without accounting for Market Concentration",
+    title = "Appendix A",
     theme = theme(
       plot.title = element_text(size = 12, hjust = 0),
       plot.caption = element_text(size = 10, hjust = 0)
     )
   )
 
+if (PRINT) {
 # Save
 ggsave(
   filename = paste0(FIGURE, "01_US_Panel_A/", "baseline_results_us_appendix.pdf"),
   plot = graph_baseline_appendix,
   width = 12, height = 8, dpi = 300
 )
-
-# graph_baseline <- (plot1_full_ms_hhi$plot            | plot2_full_ms$plot) /
-#                   (plot3_separate_sample_ms_hhi$plot | plot4_separate_sample_ms$plot) +
-#                    plot_annotation(
-#                     title = "Baseline",
-#                     # tag_levels = "I",
-#                     theme = theme(plot.title = element_text(size = 10, hjust = .5))
-#                    )
-
+}
 
 
 ###############################################################################+
@@ -436,7 +410,7 @@ shock_specs_zlb_indicator_NS <- list(
   )
 )
 
-
+# Specification for Parallel Computing
 shock_specs_zlb_indicator_JK <- list(
   full_sample_hhi_ms = list(
     shock_var   = "I_HHI_JK_MEDIAN_SUM_1",
@@ -500,9 +474,8 @@ results_zlb_indicator <- foreach(spec = shock_specs_zlb_indicator_JK,
                                 panel_model       = "within",
                                 panel_effect      = PANEL_EFFECT,
                                 robust_cov        = "tLAHR",
-                                # robust_cluster    = "time",
-                                c_exog_data       = NULL, #colnames(df_subset)[c(4, 6:10)],
-                                l_exog_data       = NULL, #colnames(df_subset)[c(4, 6:10)],
+                                c_exog_data       = NULL,
+                                l_exog_data       = NULL,
                                 lags_exog_data    = NaN,
                                 c_fd_exog_data    = colnames(df_subset)[c(4, 6:12)],
                                 l_fd_exog_data    = colnames(df_subset)[c(4, 6:12)],
@@ -524,7 +497,7 @@ gc()
 
 ### 3.2.2 Graphs for Regressions with Interaction Term -------------------------
 
-# Graph 5: Full Sample - Shock: MS x HHI x ZLB [INCLUDE] ----------------------+
+# Graph 5: Full Sample - Shock: MS x HHI x ZLB [INCLUDED] ---------------------+
 
 plot5_full_ms_hhi <- GG_IRF_ONE(data = results_zlb_indicator$full_sample_hhi_ms,
                                 hhi_coef = FALSE, 
@@ -535,7 +508,7 @@ plot5_full_ms_hhi <- GG_IRF_ONE(data = results_zlb_indicator$full_sample_hhi_ms,
                                 time_name = "Years"
                                 )
 
-# Graph 6: Full Sample - Shock: MS x ZLB --------------------------------------+
+# Graph 6: Full Sample - Shock: MS x ZLB [APPENDIX] ---------------------------+
 
 plot6_full_ms <- GG_IRF_ONE(data = results_zlb_indicator$full_sample_ms,
                             hhi_coef = FALSE, 
@@ -548,7 +521,7 @@ plot6_full_ms <- GG_IRF_ONE(data = results_zlb_indicator$full_sample_ms,
 
 # Graph 7: High vs Low Sample - Shock: MS x HHI x ZLB -------------------------+
 
-# Graph 7.1: Large and Low  Market Concentration [INCLUDE] --------------------+
+# Graph 7.1: Large and Low  Market Concentration [INCLUDED] -------------------+
 
 plot71_separate_sample_ms_hhi <- GG_IRF_TWO(data1 = results_zlb_indicator$separate_sample_hhi_ms_high,
                                            data2 = results_zlb_indicator$separate_sample_hhi_ms_low,
@@ -561,7 +534,7 @@ plot71_separate_sample_ms_hhi <- GG_IRF_TWO(data1 = results_zlb_indicator$separa
                                            time_name = "Years"
 )
 
-# Graph 7.2: Large Market Concentration [INCLUDE] -----------------------------+
+# Graph 7.2: Large Market Concentration [INCLUDED] ----------------------------+
 
 plot72_separate_sample_ms_hhi <- GG_IRF_ONE(data = results_zlb_indicator$separate_sample_hhi_ms_high,
                                  hhi_coef   = FALSE, 
@@ -569,7 +542,7 @@ plot72_separate_sample_ms_hhi <- GG_IRF_ONE(data = results_zlb_indicator$separat
                                  y_upper    = 4, 
                                  breaks     = 1,
                                  title_name = "Sample: Large Market Concentration",
-                                 time_name  = "h-horizon in Years"
+                                 time_name  = "Years"
 )  
 
 # Graph 7.3: Low Market Concentration [INCLUDE] -------------------------------+
@@ -580,10 +553,10 @@ plot73_separate_sample_ms_hhi <- GG_IRF_ONE(data = results_zlb_indicator$separat
                                y_upper  = 28, 
                                breaks   = 1,
                                title_name = " Sample: Low Market Concentration",
-                               time_name  = "h-horizon in Years"
+                               time_name  = "Years"
 )  
 
-# Graph 8: High vs Low Sample - Shock: MS x ZLB -------------------------------+
+# Graph 8: High vs Low Sample - Shock: MS x ZLB [APPENIDX] --------------------+
 
 plot8_separate_sample_ms <- GG_IRF_TWO(data1 =  results_zlb_indicator$separate_sample_ms_high,
                                        data2 = results_zlb_indicator$separate_sample_ms_low,
@@ -602,47 +575,41 @@ plot8_separate_sample_ms <- GG_IRF_TWO(data1 =  results_zlb_indicator$separate_s
 
 graph_ZLB_indicator <- (plot5_full_ms_hhi$plot + plot72_separate_sample_ms_hhi$plot + plot73_separate_sample_ms_hhi$plot) +
   plot_annotation(
-    title = "Panel B: Results at the ZLB - ZLB Indicator",
-    subtitle = "The results of the Linear Projection model represent the Baseline Results with the interaction term between Monetary Shock \u00D7 HHI \u00D7 ZLB Indicator.",
+    title = "Panel B",
     theme = theme(
       plot.title = element_text(size = 12, hjust = 0),
       plot.caption = element_text(size = 10, hjust = 0)
     )
   )
 
+if (PRINT) {
 # Save
 ggsave(
   filename = paste0(FIGURE, "02_US_Panel_B/", "results_zlb_indicator_us.pdf"),
   plot = graph_ZLB_indicator,
   width = 12, height = 8, dpi = 300
 )
+}
 
 # APPENDIX 2 ------------------------------------------------------------------+
 
 graph_ZLB_indicator_withhoutHHI <- (plot6_full_ms$plot + plot8_separate_sample_ms$plot) +
   plot_annotation(
-    title = "Appendix 2: Results at the ZLB - ZLB Indicator",
-    subtitle = "Linear Projection model without account for Market Concentration",
+    title = "Appendix B",
     theme = theme(
       plot.title = element_text(size = 12, hjust = 0),
       plot.caption = element_text(size = 10, hjust = 0)
     )
   )
 
+if (PRINT) {
 # Save
 ggsave(
   filename = paste0(FIGURE, "02_US_Panel_B/", "results_zlb_indicator_us_appendix.pdf"),
   plot = graph_ZLB_indicator_withhoutHHI,
   width = 12, height = 8, dpi = 300
 )
-
-# graph_baseline <- (plot5_full_ms_hhi$plot + plot6_full_ms$plot) / 
-#                   (plot7_separate_sample_ms_hhi$plot + plot8_separate_sample_ms$plot) +
-#                   plot_annotation(
-#                     title = "Local Projection with ZLB Indicator",
-#                     tag_levels = "I",
-#                     theme = theme(plot.title = element_text(size = 10, hjust = .5))
-#                   )
+}
 
 
 ###############################################################################+
@@ -693,7 +660,7 @@ shock_specs_zlb_sample_NS <- list(
   )
 )
 
-# Define the four baseline specifications in a list
+# Specification for Parallel Computing
 shock_specs_zlb_sample_JK <- list(
   full_sample_hhi_ms = list(
     shock_var   = "I_HHI_JK_MEDIAN_SUM",
@@ -744,7 +711,7 @@ registerDoParallel(cl)
 # Run the LP_LIN_PANEL function in parallel for each specification
 results_zlb_sample <- foreach(spec = shock_specs_zlb_sample_JK,
                               .packages = c("dplyr", "lpirfs", "plm", "clusterSEs", "lmtest"),
-                              .export = c("df_hp_large", "LP_LIN_PANEL", "CREATE_PANEL_DATA", "PANEL_EFFECT", "CI", "HOR", "BITER", "endo")) %dopar% {
+                              .export = c("df_hp_large", "LP_LIN_PANEL", "CREATE_PANEL_DATA", "PANEL_EFFECT", "CI", "HOR", "endo")) %dopar% {
                                    
                               # Subset the data according to the current specification
                               df_subset <- spec$sample  |> 
@@ -764,8 +731,8 @@ results_zlb_sample <- foreach(spec = shock_specs_zlb_sample_JK,
                                 panel_effect      = PANEL_EFFECT,
                                 robust_cov        = "tLAHR",
                                 robust_cluster    = "time",
-                                c_exog_data       = NULL, #colnames(df_subset)[c(4, 6:10)],
-                                l_exog_data       = NULL, #colnames(df_subset)[c(4, 6:10)],
+                                c_exog_data       = NULL,
+                                l_exog_data       = NULL,
                                 lags_exog_data    = NaN,
                                 c_fd_exog_data    = colnames(df_subset)[c(4, 6:12)],
                                 l_fd_exog_data    = colnames(df_subset)[c(4, 6:12)],
@@ -777,7 +744,7 @@ results_zlb_sample <- foreach(spec = shock_specs_zlb_sample_JK,
                             }
 
 # Optionally, assign names to the results list based on your shock specifications
-names(results_zlb_sample) <- names(shock_specs_zlb_indicator_NS)
+names(results_zlb_sample) <- names(shock_specs_zlb_indicator_JK)
 
 # Shut down the parallel cluster
 stopCluster(cl)
@@ -792,21 +759,21 @@ gc()
 plot9_full_ms_hhi <- GG_IRF_ONE(data = results_zlb_sample$full_sample_hhi_ms,
                                 hhi_coef = FALSE, 
                                 y_lower = -1, 
-                                y_upper = 1, 
+                                y_upper = 2, 
                                 breaks = .5,
-                                title_name = "Subsample: Monetary Shock \u00D7 HHI",
-                                time_name = "h-horizon in Years"
+                                title_name = "Full Sample",
+                                time_name = "Years"
                                 )
 
-# Graph 10: Subample - Shock: MS ----------------------------------------------+
+# Graph 10: Subample - Shock: MS [APPENDIX] -----------------------------------+
 
 plot10_full_ms <- GG_IRF_ONE(data = results_zlb_sample$full_sample_ms,
                              hhi_coef = FALSE, 
-                             y_lower = -2.5, 
-                             y_upper = 1, 
+                             y_lower = -2, 
+                             y_upper = 2.5, 
                              breaks = .5,
-                             title_name = "Subsample: Monetary Shock",
-                             time_name = "h-horizon in Years"
+                             title_name = "Full Sample",
+                             time_name = "Year"
                              )
 
 # Graph 11: High vs Low Sample - Shock: MS x HHI ------------------------------+
@@ -821,8 +788,8 @@ plot111_separate_sample_ms_hhi <- GG_IRF_TWO(data1 = results_zlb_sample$separate
                                            y_upper = 8,
                                            breaks = 2,
                                            title_name = "Subsample: Monetary Shock \u00D7 HHI \u00D7 ZLB",
-                                           time_name = "h-horizon in Years"
-)
+                                           time_name = "Years"
+                                           )
 
 
 # Graph 11.2: Large Market Concentration [INCLDUED] ---------------------------+
@@ -830,35 +797,35 @@ plot111_separate_sample_ms_hhi <- GG_IRF_TWO(data1 = results_zlb_sample$separate
 plot112_separate_sample_ms_hhi <- GG_IRF_ONE(data = results_zlb_sample$separate_sample_hhi_ms_high,
                                             hhi_coef   = FALSE, 
                                             y_lower    = -2, 
-                                            y_upper    = 2, 
-                                            breaks     = 1,
+                                            y_upper    = 3, 
+                                            breaks     = .5,
                                             title_name = "Sample: Large Market Concentration",
                                             time_name  = "Years"
-)  
+                                            )  
 
 # Graph 11.3: Low Market Concentration [INCLUDED] -----------------------------+
 
 plot113_separate_sample_ms_hhi <- GG_IRF_ONE(data = results_zlb_sample$separate_sample_hhi_ms_low,
                                             hhi_coef = FALSE, 
-                                            y_lower  = -24, 
+                                            y_lower  = -8, 
                                             y_upper  = 8, 
                                             breaks   = 1,
-                                            title_name = " Sample: Low Market Concentration",
-                                            time_name  = "h-horizon in Years"
-)  
+                                            title_name = "Sample: Low Market Concentration",
+                                            time_name  = "Years"
+                                            )  
 
-# Graph 12: High vs Low Sample - Shock: MS ------------------------------------+
+# Graph 12: High vs Low Sample - Shock: MS [APPENDIX] -------------------------+
 
 plot12_separate_sample_ms <- GG_IRF_TWO(data1 =  results_zlb_sample$separate_sample_ms_high,
                                        data2 = results_zlb_sample$separate_sample_ms_low,
                                        data_name = c("High HHI", "Low HHI"),
                                        hhi_coef = FALSE, 
-                                       y_lower = -2.5,
-                                       y_upper = 1,
+                                       y_lower = -2,
+                                       y_upper = 3,
                                        breaks = .5,
                                        title_name = "Subsample: Monetary Shock \u00D7 ZLB",
-                                       time_name = "h-horizon in Years"
-)
+                                       time_name = "Years"
+                                       )
 
 
 # Final Graph: Combine 9 to 12 ------------------------------------------------+
@@ -867,49 +834,41 @@ plot12_separate_sample_ms <- GG_IRF_TWO(data1 =  results_zlb_sample$separate_sam
 
 graph_ZLB_sample <- (plot9_full_ms_hhi$plot + plot112_separate_sample_ms_hhi$plot + plot113_separate_sample_ms_hhi$plot) +
   plot_annotation(
-    title = "Panel C: Results at the ZLB - ZLB Sample",
-    subtitle = "Linear Projection Model accounting for Market Concentration",
+    title = "Panel C",
     theme = theme(
       plot.title = element_text(size = 12, hjust = 0),
       plot.caption = element_text(size = 10, hjust = 0)
     ) 
   )
 
-
+if (PRINT) {
 # Save
 ggsave(
   filename = paste0(FIGURE, "03_US_Panel_C/", "results_zlb_sample_us.pdf"),
   plot = graph_ZLB_sample,
   width = 12, height = 8, dpi = 300
 )
-
+}
 # APPENDIX - Exlcude HHI from Specification -----------------------------------+
 
 graph_ZLB_sample_withoutHHI <- (plot10_full_ms$plot + plot12_separate_sample_ms$plot) +
   plot_annotation(
-    title = "Appendix 3: Results at the ZLB - ZLB Sample",
-    subtitle = "Linear Projection model without accounting for Market Concentration",
+    title = "Appendix C",
     theme = theme(
       plot.title = element_text(size = 12, hjust = 0),
       plot.caption = element_text(size = 10, hjust = 0)
     ) 
   )
 
+if (PRINT) {
 # Save
 ggsave(
   filename = paste0(FIGURE, "03_US_Panel_C/", "results_zlb_sample_us_appendix.pdf"),
   plot = graph_ZLB_sample_withoutHHI,
   width = 8, height = 4, dpi = 300
 )
+}
 
-
-# graph_baseline <- (plot9_full_ms_hhi$plot + plot10_full_ms$plot) / 
-#                   (plot11_separate_sample_ms_hhi$plot + plot12_separate_sample_ms$plot) +
-#                   plot_annotation(
-#                     title = "Local Projection on Subsample",
-#                     tag_levels = "I",
-#                     theme = theme(plot.title = element_text(size = 10, hjust = .5))
-#                   )
 
 ###############################################################################+
 ###################################### END #####################################
