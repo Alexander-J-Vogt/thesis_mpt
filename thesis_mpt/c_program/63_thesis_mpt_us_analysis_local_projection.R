@@ -120,46 +120,8 @@ controls <- c("ur_county", "log_median_household_income", "hpi_annual_change_per
 
 ### 3.1.1 Regressions for Baseline ---------------------------------------------
 
-# Define the four baseline specifications in a list
-shock_specs_baseline_NS <- list(
-  # Full Sample + NS SUM
-  full_sample_hhi_ms_SUM = list(
-    shock_var   = "I_HHI_NS_SUM",
-    select_cols = c("fips", "year", endo, "hhi", "I_HHI_NS_SUM",  controls),
-    sample = df_hp_large
-  ),
-  full_sample_ms_SUM = list(
-    shock_var   = "NS_total",
-    select_cols = c("fips", "year", endo, "hhi", "NS_total", controls),
-    sample = df_hp_large
-  ),
-  # High-Concentration Sample + NS SUM
-  separate_sample_hhi_ms_high_SUM = list(
-    shock_var   = "I_HHI_NS_SUM",
-    select_cols = c("fips", "year", endo, "hhi", "I_HHI_NS_SUM",controls),
-    sample = df_hp_large_highconc
-    
-  ),
-  separate_sample_ms_high_SUM = list(
-    shock_var   = "NS_total",
-    select_cols = c("fips", "year", endo, "hhi", "NS_total", controls),
-    sample = df_hp_large_highconc
-  ),
-  # Low-Concentration Sample + NS SUM
-  separate_sample_hhi_ms_low_SUM = list(
-    shock_var   = "I_HHI_NS_SUM",
-    select_cols = c("fips", "year", endo, "hhi", "I_HHI_NS_SUM",controls),
-    sample = df_hp_large_lowconc
-    
-  ),
-  separate_sample_ms_low_SUM = list(
-    shock_var   = "NS_total",
-    select_cols = c("fips", "year", endo, "hhi", "NS_total", controls),
-    sample = df_hp_large_lowconc
-  )
-)
 
-# Define the four baseline specifications in a list ---------------------------+
+# Define Specficiation for Parallel Computing ---------------------------------+
 shock_specs_baseline_JK <- list(
   # Full Sample + JK SUM
   full_sample_hhi_ms_SUM = list(
@@ -374,42 +336,6 @@ ggsave(
 
 ### 3.2.1 Regressions with Interaction Term ------------------------------------
 
-# Define the four baseline specifications in a list
-shock_specs_zlb_indicator_NS <- list(
-  full_sample_hhi_ms = list(
-    shock_var   = "I_HHI_NS_SUM_1",
-    select_cols = c("fips", "year", endo, "hhi", "I_HHI_NS_SUM_1",  controls),
-    sample = df_hp_large
-  ),
-  full_sample_ms = list(
-    shock_var   = "I_NS_SUM_1",
-    select_cols = c("fips", "year", endo, "hhi", "I_NS_SUM_1", controls),
-    sample = df_hp_large
-  ),
-  separate_sample_hhi_ms_high = list(
-    shock_var   = "I_HHI_NS_SUM_1",
-    select_cols = c("fips", "year", endo, "hhi", "I_HHI_NS_SUM_1",controls),
-    sample = df_hp_large_highconc
-    
-  ),
-  separate_sample_ms_high = list(
-    shock_var   = "I_NS_SUM_1",
-    select_cols = c("fips", "year", endo, "hhi", "I_NS_SUM_1", controls),
-    sample = df_hp_large_highconc
-  ),
-  separate_sample_hhi_ms_low = list(
-    shock_var   = "I_HHI_NS_SUM_1",
-    select_cols = c("fips", "year", endo, "hhi", "I_HHI_NS_SUM_1",controls),
-    sample = df_hp_large_lowconc
-    
-  ),
-  separate_sample_ms_low = list(
-    shock_var   = "I_NS_SUM_1",
-    select_cols = c("fips", "year", endo, "hhi", "I_NS_SUM_1", controls),
-    sample = df_hp_large_lowconc
-  )
-)
-
 # Specification for Parallel Computing
 shock_specs_zlb_indicator_JK <- list(
   full_sample_hhi_ms = list(
@@ -446,6 +372,7 @@ shock_specs_zlb_indicator_JK <- list(
   )
 )
 
+# Parallel Computing ----------------------------------------------------------+
 
 # Set up the parallel backend (use available cores minus one)
 n_cores <- parallel::detectCores() - 1
@@ -618,49 +545,8 @@ ggsave(
 
 ### 3.3.1 Regressions on Subsample ---------------------------------------------
 
-# Define the four baseline specifications in a list
-shock_specs_zlb_sample_NS <- list(
-  full_sample_hhi_ms = list(
-    shock_var   = "I_HHI_NS_SUM",
-    select_cols = c("fips", "year", endo, "hhi", "I_HHI_NS_SUM",  controls),
-    sample = df_hp_large,
-    sample_period = zlb_year
-  ),
-  full_sample_ms = list(
-    shock_var   = "NS_total",
-    select_cols = c("fips", "year", endo, "hhi", "NS_total", controls),
-    sample = df_hp_large,
-    sample_period = zlb_year
-  ),
-  separate_sample_hhi_ms_high = list(
-    shock_var   = "I_HHI_NS_SUM",
-    select_cols = c("fips", "year", endo, "hhi", "I_HHI_NS_SUM",controls),
-    sample = df_hp_large_highconc,
-    sample_period = zlb_year
-    
-  ),
-  separate_sample_ms_high = list(
-    shock_var   = "NS_total",
-    select_cols = c("fips", "year", endo, "hhi", "NS_total", controls),
-    sample = df_hp_large_highconc,
-    sample_period = zlb_year
-  ),
-  separate_sample_hhi_ms_low = list(
-    shock_var   = "I_HHI_NS_SUM",
-    select_cols = c("fips", "year", endo, "hhi", "I_HHI_NS_SUM",controls),
-    sample = df_hp_large_lowconc,
-    sample_period = zlb_year
-    
-  ),
-  separate_sample_ms_low = list(
-    shock_var   = "NS_total",
-    select_cols = c("fips", "year", endo, "hhi", "NS_total", controls),
-    sample = df_hp_large_lowconc,
-    sample_period = zlb_year
-  )
-)
 
-# Specification for Parallel Computing
+# Specification for Parallel Computing ----------------------------------------+
 shock_specs_zlb_sample_JK <- list(
   full_sample_hhi_ms = list(
     shock_var   = "I_HHI_JK_MEDIAN_SUM",
@@ -702,6 +588,8 @@ shock_specs_zlb_sample_JK <- list(
   )
 )
 
+
+# Parallel Computing ----------------------------------------------------------+
 
 # Set up the parallel backend (use available cores minus one)
 n_cores <- parallel::detectCores() - 1
@@ -849,6 +737,8 @@ ggsave(
   width = 12, height = 8, dpi = 300
 )
 }
+
+
 # APPENDIX - Exlcude HHI from Specification -----------------------------------+
 
 graph_ZLB_sample_withoutHHI <- (plot10_full_ms$plot + plot12_separate_sample_ms$plot) +
