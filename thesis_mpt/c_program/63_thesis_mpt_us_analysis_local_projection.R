@@ -43,8 +43,8 @@ df_hp_large <- df_hp_depository_large |>
     ur_national = ur_national /100
     ) |> 
   mutate(
-    loan_amount_pc = loan_amount * 1000 / cnty_pop,
-    log_loan_amount_pc = log(loan_amount * 1000 / cnty_pop)
+    loan_amount_pc = loan_amount  / cnty_pop,
+    log_loan_amount_pc = log(loan_amount  / cnty_pop)
   )
 
 
@@ -97,9 +97,6 @@ normal_year <- unique(df_hp_large_normal$year)
 
 ##  General Specification the LP analysis -------------------------------------+
 
-# Number of Bootstrap Iteration
-BITER <- 10
-
 # Panel Effect: "individual", "time", "twoways"
 PANEL_EFFECT <- "individual"
 
@@ -113,7 +110,7 @@ HOR <- 6
 ## 3.1 Baseline ################################################################
 ###############################################################################+
 
-endo <- "log_loan_amount"
+endo <- "log_loan_amount_pc"
 controls <- c("ur_county", "log_median_household_income", "hpi_annual_change_perc", "dti", 
               "inflation_us", "gdp_growth_us", "ur_national")
 
@@ -185,7 +182,7 @@ results_baseline <- foreach(spec = shock_specs_baseline_JK,
                              cumul_mult        = TRUE,
                              shock             = spec$shock_var,
                              lags_shock        = 1,
-                             diff_shock        = FALSE,
+                             diff_shock        = T,
                              panel_model       = "within",
                              panel_effect      = PANEL_EFFECT,
                              robust_cov        = "tLAHR",
@@ -217,7 +214,7 @@ gc()
 
 plot1_full_ms_hhi <- GG_IRF_ONE(data = results_baseline$full_sample_hhi_ms_SUM,
                                 hhi_coef = FALSE, 
-                                y_lower = -4.5, 
+                                y_lower = -2, 
                                 y_upper = 2, 
                                 breaks = 1,
                                 title_name = "Full Sample",
@@ -228,7 +225,7 @@ plot1_full_ms_hhi <- GG_IRF_ONE(data = results_baseline$full_sample_hhi_ms_SUM,
 
 plot2_full_ms <- GG_IRF_ONE(data     = results_baseline$full_sample_ms_SUM,
                             hhi_coef = FALSE, 
-                            y_lower  = -4.5, 
+                            y_lower  = -2, 
                             y_upper  = 2, 
                             breaks   = 1,
                             title_name = "Full Sample: Monetary Shock",
@@ -253,7 +250,7 @@ plot31_separate_sample_ms_hhi <- GG_IRF_TWO(data1 = results_baseline$separate_sa
   
 plot32_large_ms_hhi <- GG_IRF_ONE(data       = results_baseline$separate_sample_hhi_ms_high_SUM,
                                  hhi_coef   = FALSE, 
-                                 y_lower    = -4.5, 
+                                 y_lower    = -2, 
                                  y_upper    = 2, 
                                  breaks     = 1,
                                  title_name = "Sample: Large Market Concentration",
@@ -264,8 +261,8 @@ plot32_large_ms_hhi <- GG_IRF_ONE(data       = results_baseline$separate_sample_
 
 plot33_low_ms_hhi <- GG_IRF_ONE(data     = results_baseline$separate_sample_hhi_ms_low_SUM,
                                  hhi_coef = FALSE, 
-                                 y_lower  = -24, 
-                                 y_upper  = 8, 
+                                 y_lower  = -6, 
+                                 y_upper  = 10, 
                                  breaks   = 2,
                                  title_name = " Sample: Low Market Concentration",
                                  time_name  = "Years"
@@ -278,7 +275,7 @@ plot4_separate_sample_ms <- GG_IRF_TWO(data1 = results_baseline$separate_sample_
                                        data_name = c("High HHI", "Low HHI"),
                                        hhi_coef = FALSE, 
                                        y_lower = -2,
-                                       y_upper = 10,
+                                       y_upper = 2,
                                        breaks = 1,
                                        title_name = "Subsample: Low and High Market concentration",
                                        time_name = "Years"
@@ -309,13 +306,14 @@ ggsave(
   )
 }
 
-# Appendix 1 GRAPH ---------------------------------------------------------------+
+# Appendix 1 GRAPH ------------------------------------------------------------+
 
 graph_baseline_appendix <- (plot2_full_ms$plot + plot4_separate_sample_ms$plot) +
   plot_annotation(
     title = "Appendix A",
+    tag_levels = c("I", "II"),
     theme = theme(
-      plot.title = element_text(size = 12, hjust = 0),
+      plot.title = element_text(size = 14, hjust = 0),
       plot.caption = element_text(size = 10, hjust = 0)
     )
   )
@@ -429,7 +427,7 @@ gc()
 plot5_full_ms_hhi <- GG_IRF_ONE(data = results_zlb_indicator$full_sample_hhi_ms,
                                 hhi_coef = FALSE, 
                                 y_lower = -2, 
-                                y_upper = 4, 
+                                y_upper = 5, 
                                 breaks = 1,
                                 title_name = "Full Sample: Monetary Shock \u00D7 HHI \u00D7 ZLB",
                                 time_name = "Years"
@@ -466,7 +464,7 @@ plot71_separate_sample_ms_hhi <- GG_IRF_TWO(data1 = results_zlb_indicator$separa
 plot72_separate_sample_ms_hhi <- GG_IRF_ONE(data = results_zlb_indicator$separate_sample_hhi_ms_high,
                                  hhi_coef   = FALSE, 
                                  y_lower    = -2, 
-                                 y_upper    = 4, 
+                                 y_upper    = 5, 
                                  breaks     = 1,
                                  title_name = "Sample: Large Market Concentration",
                                  time_name  = "Years"
@@ -476,9 +474,9 @@ plot72_separate_sample_ms_hhi <- GG_IRF_ONE(data = results_zlb_indicator$separat
 
 plot73_separate_sample_ms_hhi <- GG_IRF_ONE(data = results_zlb_indicator$separate_sample_hhi_ms_low,
                                hhi_coef = FALSE, 
-                               y_lower  = -14, 
-                               y_upper  = 28, 
-                               breaks   = 1,
+                               y_lower  = -4, 
+                               y_upper  = 24, 
+                               breaks   = 2,
                                title_name = " Sample: Low Market Concentration",
                                time_name  = "Years"
 )  
@@ -489,9 +487,9 @@ plot8_separate_sample_ms <- GG_IRF_TWO(data1 =  results_zlb_indicator$separate_s
                                        data2 = results_zlb_indicator$separate_sample_ms_low,
                                        data_name = c("High HHI", "Low HHI"),
                                        hhi_coef = FALSE, 
-                                       y_lower = -2.5,
+                                       y_lower = -3,
                                        y_upper = 5,
-                                       breaks = .5,
+                                       breaks = 1,
                                        title_name = "Subsample: Monetary Shock \u00D7 ZLB",
                                        time_name = "Years"
                                        )
@@ -503,8 +501,9 @@ plot8_separate_sample_ms <- GG_IRF_TWO(data1 =  results_zlb_indicator$separate_s
 graph_ZLB_indicator <- (plot5_full_ms_hhi$plot + plot72_separate_sample_ms_hhi$plot + plot73_separate_sample_ms_hhi$plot) +
   plot_annotation(
     title = "Panel B",
+    tag_levels = c("I", "II", "III"),
     theme = theme(
-      plot.title = element_text(size = 12, hjust = 0),
+      plot.title = element_text(size = 14, hjust = 0),
       plot.caption = element_text(size = 10, hjust = 0)
     )
   )
@@ -523,8 +522,9 @@ ggsave(
 graph_ZLB_indicator_withhoutHHI <- (plot6_full_ms$plot + plot8_separate_sample_ms$plot) +
   plot_annotation(
     title = "Appendix B",
+    tag_levels = c("I", "II"),
     theme = theme(
-      plot.title = element_text(size = 12, hjust = 0),
+      plot.title = element_text(size = 14, hjust = 0),
       plot.caption = element_text(size = 10, hjust = 0)
     )
   )
@@ -646,8 +646,8 @@ gc()
 
 plot9_full_ms_hhi <- GG_IRF_ONE(data = results_zlb_sample$full_sample_hhi_ms,
                                 hhi_coef = FALSE, 
-                                y_lower = -1, 
-                                y_upper = 2, 
+                                y_lower = -1.5, 
+                                y_upper = 2.5, 
                                 breaks = .5,
                                 title_name = "Full Sample",
                                 time_name = "Years"
@@ -658,8 +658,8 @@ plot9_full_ms_hhi <- GG_IRF_ONE(data = results_zlb_sample$full_sample_hhi_ms,
 plot10_full_ms <- GG_IRF_ONE(data = results_zlb_sample$full_sample_ms,
                              hhi_coef = FALSE, 
                              y_lower = -2, 
-                             y_upper = 2.5, 
-                             breaks = .5,
+                             y_upper = 3, 
+                             breaks = 1,
                              title_name = "Full Sample",
                              time_name = "Year"
                              )
@@ -683,9 +683,9 @@ plot111_separate_sample_ms_hhi <- GG_IRF_TWO(data1 = results_zlb_sample$separate
 # Graph 11.2: Large Market Concentration [INCLDUED] ---------------------------+
 
 plot112_separate_sample_ms_hhi <- GG_IRF_ONE(data = results_zlb_sample$separate_sample_hhi_ms_high,
-                                            hhi_coef   = FALSE, 
-                                            y_lower    = -2, 
-                                            y_upper    = 3, 
+                                            hhi_coef   = F, 
+                                            y_lower    = -1.5, 
+                                            y_upper    = 2.5, 
                                             breaks     = .5,
                                             title_name = "Sample: Large Market Concentration",
                                             time_name  = "Years"
@@ -694,7 +694,7 @@ plot112_separate_sample_ms_hhi <- GG_IRF_ONE(data = results_zlb_sample$separate_
 # Graph 11.3: Low Market Concentration [INCLUDED] -----------------------------+
 
 plot113_separate_sample_ms_hhi <- GG_IRF_ONE(data = results_zlb_sample$separate_sample_hhi_ms_low,
-                                            hhi_coef = FALSE, 
+                                            hhi_coef = F, 
                                             y_lower  = -8, 
                                             y_upper  = 8, 
                                             breaks   = 1,
@@ -710,7 +710,7 @@ plot12_separate_sample_ms <- GG_IRF_TWO(data1 =  results_zlb_sample$separate_sam
                                        hhi_coef = FALSE, 
                                        y_lower = -2,
                                        y_upper = 3,
-                                       breaks = .5,
+                                       breaks = 1,
                                        title_name = "Subsample: Monetary Shock \u00D7 ZLB",
                                        time_name = "Years"
                                        )
@@ -723,8 +723,9 @@ plot12_separate_sample_ms <- GG_IRF_TWO(data1 =  results_zlb_sample$separate_sam
 graph_ZLB_sample <- (plot9_full_ms_hhi$plot + plot112_separate_sample_ms_hhi$plot + plot113_separate_sample_ms_hhi$plot) +
   plot_annotation(
     title = "Panel C",
+    tag_levels = c("I", "II", "III"),
     theme = theme(
-      plot.title = element_text(size = 12, hjust = 0),
+      plot.title = element_text(size = 14, hjust = 0),
       plot.caption = element_text(size = 10, hjust = 0)
     ) 
   )
@@ -744,8 +745,9 @@ ggsave(
 graph_ZLB_sample_withoutHHI <- (plot10_full_ms$plot + plot12_separate_sample_ms$plot) +
   plot_annotation(
     title = "Appendix C",
+    tag_levels = c("I", "II"),
     theme = theme(
-      plot.title = element_text(size = 12, hjust = 0),
+      plot.title = element_text(size = 14, hjust = 0),
       plot.caption = element_text(size = 10, hjust = 0)
     ) 
   )
