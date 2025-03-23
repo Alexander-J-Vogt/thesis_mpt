@@ -66,6 +66,7 @@ source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
 # 0. Parameters to run the code #############
 
 ## RUN APIs 
+# TRUE: Runs Scripts with API - This requires to get a API Key
 RUNAPI <- FALSE
 
 ## RUN HMDA IMPORT - Caution: Takes approximately 30-60 mins depending on whether 
@@ -73,7 +74,7 @@ RUNAPI <- FALSE
 RUNHMDA <- FALSE
 
 ## CREATA ALL GRAPHS
-ALLGRAPHS <- TRUE
+PRINT <- FALSE
 
 
 
@@ -104,8 +105,10 @@ source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
 # Bureau of Labor Statistics ---------------+
 # CAVEAT: Need for API KEY from BLS
 # see: https://www.bls.gov/developers/home.htm
+if (RUNAPI) {
 input <- '10_thesis_mpt_databasics_us_ur.R'
 source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+}
 
 # FFR --------------------------------------+
 input <- '11_thesis_mpt_databasics_us_ffr.R'
@@ -136,8 +139,10 @@ input <- '17_thesis_mpt_databasics_us_debt_to_income.R'
 source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
 
 # HMDA --------------------------------------+
+if (RUNHMDA) {
 input <- '19_thesis_mpt_databasics_hmda.R'
 source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+}
 
 # U.S.Census Bureau: Conneticute Crosswalk Fles -+
 input <- '22_thesis_mpt_databasics_ct_crosswalk_file.R'
@@ -158,8 +163,10 @@ source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
 input <- '25_thesis_mpt_us_varceation_outcome.R'
 source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
 
+if(RUNHMDA) {
 input <- '26_thesis_mpt_us_varcreation_treatment.R'
 source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
+}
 
 input <- '27_thesis_mpt_us_varcreation_controls.R'
 source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
