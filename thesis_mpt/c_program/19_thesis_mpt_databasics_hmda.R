@@ -45,16 +45,6 @@ panel_files <- list.files(paste0(A, "q_hmda_panel/"))
 panel_files <- panel_files[gsub("[^0-9]", "", panel_files) %in% c(2004:2023)]
 panel_files <- panel_files[!str_detect(panel_files, "2017_public_panel.csv")]
 
-DEBUG <- F
-if (DEBUG) {
-  data04 <- fread(paste0(A, "p_hmda_lra/", lra_files[18]), colClasses = "character", nrows = 10)
-  data09 <- fread(paste0(A, "p_hmda_lra/", lra_files[9]), colClasses = "character", nrows = 10)
-  data10 <- fread(paste0(A, "p_hmda_lra/", lra_files[10]), colClasses = "character", nrows = 10)
-  data20 <- fread(paste0(A, "p_hmda_lra/", lra_files[3]), colClasses = "character", nrows = 10)
-  
-}
-start <- Sys.time()
-
 
 ## 1.2 Import LRA files -------------------------------------------------------
 
