@@ -1,6 +1,6 @@
-# TARGET: Import SAIPE 
-# INDATA: .txt & .xls files from l_saipe folder
-# OUTDATA/ OUTPUT: 16_thesis_databasics_saipe
+# TARGET: Import FHFA - House Price Index 
+# INDATA: 
+# OUTDATA/ OUTPUT: MAINNAME
 
 ################################################################################################################+
 # INTRO	script-specific ####
