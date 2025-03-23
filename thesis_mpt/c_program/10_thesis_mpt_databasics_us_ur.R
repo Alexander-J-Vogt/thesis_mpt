@@ -55,19 +55,6 @@ fips_master <- c(fips_master, new_fips)
 # Define a function to fetch unemployment rate using the BLS API (version 2)
 fetch_unemployment_rate_v2 <- function(series_ids, start_year = 2004, end_year = 2023, api_key) {
   
-#'
-#' Fetch unemployment rate data using the BLS API (version 2).
-#' 
-#' Parameters:
-#'     series_ids (vector): A vector of BLS series IDs for unemployment rates.
-#'     start_year (int): The starting year for the data range.
-#'     end_year (int): The ending year for the data range.
-#'     api_key (str): Your BLS API key.
-#' 
-#' Returns:
-#'     DataFrame: A DataFrame (tibble) containing the unemployment rates.
-#'
-  
   tryCatch({
     # Split series IDs into batches of 50 (BLS API limit)
     batches <- split(series_ids, ceiling(seq_along(series_ids) / 50))
