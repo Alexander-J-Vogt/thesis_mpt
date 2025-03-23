@@ -48,12 +48,12 @@ df_ssi <- df_ssi_raw |>
   mutate(across(-1, as.numeric))
 
 
-# 2. Monetary Finanical Institutions (MFI) =====================================
+# 2.1 Monetary Finanical Institutions (MFI) =====================================
 
 # Import bulk download dataset
 df_mfi_raw <- read.csv(paste0(A, "b_ecb/mfi.csv"), colClasses = "character")
 
-# Read, filter and reshape data into wide format
+# 2.1 Lending Rate for Total Lending and House Purchases -----------------------
 df_mfi <- df_mfi_raw |> 
   filter(REF_AREA %in% euro_cntry_relevant) |> 
   filter(BS_ITEM %in% c("A22", "A2C", "A2CC")) |> # "A20" is total loan but is excluded
@@ -74,10 +74,10 @@ df_mfi <- df_mfi_raw |>
       TRUE ~ "Unknown"
     ),
     item = case_when(
-      BS_ITEM == "A20" ~ "loans",
-      BS_ITEM == "A22" ~ "lending_hp",
-      BS_ITEM == "A2C" ~ "lending_hp_excl_v1",
-      BS_ITEM == "A2CC" ~ "lending_hp_excl_v2"
+      BS_ITEM == "A20" ~ "loans", # Total Lending
+      BS_ITEM == "A22" ~ "lending_hp", # Lending for House Purchases
+      BS_ITEM == "A2C" ~ "lending_hp_excl_v1", # Lending for House Purchases excl. loans with maturity above 1 year 
+      BS_ITEM == "A2CC" ~ "lending_hp_excl_v2" # Lending for House Purchases excl. loan with maturiy abover 5 years
     ), # Clear definition in NOTION
     coverage = case_when( # Interest Rate Business Sector Coverage Indicator
       IR_BUS_COV == "N" ~"nb", # New Business
@@ -126,7 +126,8 @@ lapply(colnames(df_mfi), function(x){
 })
 
 
-## Deposit Rate
+## 2.2 Deposit Rate ------------------------------------------------------------
+
 df_deposit_rate <- df_mfi_raw |> 
   filter(REF_AREA %in% euro_cntry_relevant) |> 
   filter(BS_ITEM %in% c("L21")) |> # "A20" is total loan but is excluded
@@ -154,7 +155,9 @@ df_bsi_raw <- read_csv(paste0(A, "b_ecb/bsi.csv"), col_types = cols(.default = "
 df_bsi <- df_bsi_raw |> 
   filter(REF_AREA %in% euro_cntry_relevant) 
 
+
 # 04.1 Lending for House Purchases ---------------------------------------------
+
 df_bsi_a22 <- df_bsi |> 
   filter(BS_ITEM == "A22") |> # Loan for house purchases 
   filter(MATURITY_ORIG == "A") |>  # Total Maturity
@@ -179,6 +182,7 @@ df_bsi_a22 <- df_bsi_a22 |>
   filter(!(country == "GR" & month < as.Date("2001-01-01"))) |> # Filter for years with GR being part of the Eurozone
   filter(!(country == "SI" & month < as.Date("2007-01-01"))) |> # Filter for year with SI being part of the Eurozone
   filter(!(country == "SK" & month < as.Date("2009-01-01"))) # Filter for years with SK being part of the Eurozone
+
 
 ## 04.2 Deposit Liabilities ----------------------------------------------------
 
@@ -210,6 +214,7 @@ df_bsi_l20 <- df_bsi_l20 |>
   filter(!(country == "SI" & month < as.Date("2007-01-01"))) |> # Filter for year with SI being part of the Eurozone
   filter(!(country == "SK" & month < as.Date("2009-01-01"))) # Filter for years with SK being part of the Eurozone
 
+
 ## 04.3 Total Assets / Liability -----------------------------------------------
 
 # Create dataset for Total Assets / Liabilities and reshape into wide format
@@ -237,6 +242,7 @@ df_bsi_t00 <- df_bsi_t00 |>
   filter(!(country == "GR" & month < as.Date("2001-01-01"))) |> # Filter for years with GR being part of the Eurozone
   filter(!(country == "SI" & month < as.Date("2007-01-01"))) |> # Filter for year with SI being part of the Eurozone
   filter(!(country == "SK" & month < as.Date("2009-01-01"))) # Filter for years with SK being part of the Eurozone
+
 
 ## 04.4 Capital & Reserves -----------------------------------------------------
 
