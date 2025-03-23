@@ -152,10 +152,6 @@ source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
 input <- '24_thesis_mpt_databasics_monetary_shock.R'
 source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
 
-# Monetary Shock for U.S. & EA -------------+
-input <- '24_thesis_mpt_databasics_monetary_shock.R'
-source(paste0(DO,input,sep=""), echo=TRUE, max=1000)
-
 
 
 #############################################+
