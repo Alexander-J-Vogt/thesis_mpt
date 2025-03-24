@@ -1,4 +1,4 @@
-# TARGET: 
+# TARGET: Create Figures for Thesis
 # INDATA: 
 # OUTDATA/ OUTPUT:  
 
@@ -143,6 +143,7 @@ market_concentration <- ggplot(df_ci_top5) +
     legend.position = "bottom"  # Legend placed beside the plot
   )
 
+# SAVE
 ggsave(
   filename = paste0(FIGURE,"08_EA_Descriptive_Statistics/", "ea_market_concentration_top5_banks.pdf"),  
   plot = market_concentration,                   
@@ -162,7 +163,7 @@ monetary_shock <- df_monetary_shock |>
   mutate(MP_median = MP_median * 100)
   
 
-# Plot Monetary Shock of Jarcinski & Karadi (2020) based on the 
+# Plot Monetary Shock of Jarcinski & Karadi (2020) based on the Median Value
 ms_jk <- ggplot(monetary_shock, aes(x = month, y = (MP_median))) +
   geom_col(color = "red", fill = "red") +
   scale_x_continuous(
@@ -228,33 +229,43 @@ ggsave(
 
 # 3. Summary of Statistics ======================================================
 
-
+# Load 
 df_main <- LOAD("39_thesis_mpt_eu_samplecreation_main_m")
 
+# Select variables for
 df_summary <- df_main |> 
-  select(hp_outst_amount_EUR, lending_rate_total, lending_rate_1year, lending_rate_5year, MP_median, Altavilla_target, 
-        hhi_ci_total_assets, log_cr, log_tl, log_dl, hicp, reer, ur, commodity_index)
+  dplyr::select(log_hp_total_amount, lending_rate_total, MP_median, 
+        hhi_ci_total_assets, log_assets, log_overnight_deposits, log_total_loan, hicp, reer, ur, commodity_index, deposit_rate, 
+        gdp, hpi, hosr, gdp_ea, hicp_ea, exr
+        
+        )
 
 stargazer(
   df_summary, 
   type = "text",
-  covariate.labels = c("Total Lending Amount HP (in Mio)",
+  covariate.labels = c("ln Total Mortgage Amount (Domestic)",
                        "Lending Rate (Total)",
-                       "Lending Rate up to 1 year",
-                       "Lending Rate - Over 1 and up to 5 years",
                        "MS - Jarocinsk/Karadi (2020)",
-                       "MS - Altavilla et al. (2019",
                        "HHI (based on Total Assets)",
-                       "log Credit and Reserves",
-                       "log Total Assets and Liabilities",
-                       "log Deposit and Liabilities",
-                       "HICP",
-                       "Real Effective Exchange Rate",
-                       "Unemployment Rate",
-                       "Commodity Index"
-                       )
-          )
-
+                       "ln Total Assets (Domestic)",
+                       "ln Overnight Deposits (Domestic)",
+                       "ln Total Loan Amount (Domestic)",
+                       "HICP (Domestic)",
+                       "Real Effective Exchange Rate (Domestic)",
+                       "Unemployment Rate (Domestic)",
+                       "Commodity Index (Domestic)",
+                       "Deposit Rate (Domestic)",
+                       "GDP (Domestic)",
+                       "House Price Index (Domestic)",
+                       "Homeownershipe Rate (Domestic)",
+                       "GDP (Euro Area)",
+                       "HICP (Euro Area)",
+                       "EUR-USD Exchange Rate"
+                       
+                       ),
+  omit.summary.stat = c("n"), # Rounds values to 2 decimal places
+  out = paste0(LATEX, "08_EA_Descriptive_Statistics/euro_desciptive_stats.tex")
+  )  
 
 # 4. Market Concentration by Country ===========================================
 
