@@ -24,20 +24,11 @@ gc()
 
 # 1. Data Collapsing - Data from 2004 on ======================================= 
 
-DEBUG <- F
 
 # Determine whether to debug the code or not
 hmda_clean <- list.files(path = TEMP, pattern = "hmda_clean")
 hmda_clean <- hmda_clean[!str_detect(hmda_clean, pattern = "sample")]
 hmda_clean <- gsub(hmda_clean, pattern = ".rda", replacement = "")
-
-if (DEBUG) {
-  hmda_clean <- list.files(path = TEMP, pattern = "hmda_clean")
-  hmda_clean <- hmda_clean[str_detect(hmda_clean, pattern = "sample")]
-  hmda_clean <- hmda_clean[!str_detect(hmda_clean, pattern = "reform")]
-  hmda_clean <- gsub(hmda_clean, pattern = ".rda", replacement = "")
-  x <- 1
-}
 
 # Values for loan purpose 
 loan_purpose_id <- c(1,3)
@@ -170,7 +161,7 @@ hmda_list <- purrr::map(seq_along(hmda_clean), function(x) {
 }) # End of purrr:map #1
 
 # 1.2 Save Datasets by Year, Loan Purpose and Lender Group ---------------------
-if (!DEBUG) {
+
 # Combine and save datasets for all years by loan purpose and lender group
 save_combined_datasets <- function(hmda_list, purpose, lender_group, file_name) {
   combined_data <- rbindlist(
@@ -189,24 +180,6 @@ hmda_ref_dep <- save_combined_datasets(hmda_list, "refinancing", "depository", p
 hmda_ref_dep_mbs <- save_combined_datasets(hmda_list, "refinancing", "depository_mbs", paste0(MAINNAME, "_ref_depository_mbs"))
 hmda_ref_deb_mbs_bhc <- save_combined_datasets(hmda_list, "refinancing", "depository_mbs_bhc", paste0(MAINNAME, "_hp_depository_mbs_bhc"))
 
-}
-
-if (DEBUG) {
-  bind_datasets <- function(hmda_list, purpose, lender_group, file_name) {
-    combined_data <- rbindlist(
-      lapply(hmda_list, function(year_data) year_data[[purpose]][[lender_group]]),
-      fill = TRUE
-    )
-    return(combined_data)
-  }
-  hmda_hp_dep <- bind_datasets(hmda_list, "home_purchase", "depository", paste0(MAINNAME, "_hp_depository"))
-  hmda_hp_dep_mbs <- bind_datasets(hmda_list, "home_purchase", "depository_mbs", paste0(MAINNAME, "_hp_depository_mbs"))
-  hmda_hp_dep_mbs_bhc <- bind_datasets(hmda_list, "home_purchase", "depository_mbs_bhc", paste0(MAINNAME, "_hp_depository_mbs_bhc"))
-  hmda_ref_dep <- bind_datasets(hmda_list, "refinancing", "depository", paste0(MAINNAME, "_ref_depository"))
-  hmda_ref_dep_mbs <- bind_datasets(hmda_list, "refinancing", "depository_mbs", paste0(MAINNAME, "_ref_depository_mbs"))
-  hmda_ref_deb_mbs_bhc <- bind_datasets(hmda_list, "refinancing", "depository_mbs_bhc", paste0(MAINNAME, "_hp_depository_mbs_bhc"))
-}
-
 
 # 2. Data Collapsing - Data from 2018 on =======================================
 
@@ -218,12 +191,6 @@ if (DEBUG) {
 # List all cleaned data from previous check
 hmda_reform <- list.files(path = TEMP, pattern = "reform_clean")
 hmda_reform <- str_replace_all(hmda_reform, ".rda", "")
-
-if (DEBUG) {
-  hmda_reform <- list.files(path = TEMP, pattern = "clean_reform")
-  hmda_reform <- str_replace_all(hmda_reform, ".rda", "") 
-  hmda_reform <- hmda_reform[1:3]
-}
 
 # Values for loan purpose 
 loan_purpose_id <- c(1,3)
