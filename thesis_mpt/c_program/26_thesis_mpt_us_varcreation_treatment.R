@@ -150,11 +150,11 @@ df_treatment <- df_treatment |>
     I_NS_MEAN_1     = d_ffr_mean_1perc * NS_total_mean,
     # Jarocinski & Karadi - Median (2020)
     ## Sum
-    I_HHI_JK_MEDIAn_SUM_1  = d_ffr_mean_1perc * MP_median_sum * hhi,
-    I_HHI_JK_MEDIAn_SUM_2  = d_ffr_mean_2perc * MP_median_sum * hhi,
-    I_HHI_JK_MEDIAn_SUM    = MP_median_sum  * hhi,
-    I_JK_SUM_MEDIAn_2      = d_ffr_mean_2perc * MP_median_sum ,
-    I_JK_SUM_MEDIAn_1      = d_ffr_mean_1perc * MP_median_sum,
+    I_HHI_JK_MEDIAN_SUM_1  = d_ffr_mean_1perc * MP_median_sum * hhi,
+    I_HHI_JK_MEDIAN_SUM_2  = d_ffr_mean_2perc * MP_median_sum * hhi,
+    I_HHI_JK_MEDIAN_SUM    = MP_median_sum  * hhi,
+    I_JK_MEDIAN_SUM_2      = d_ffr_mean_2perc * MP_median_sum ,
+    I_JK_MEDIAN_SUM_1      = d_ffr_mean_1perc * MP_median_sum,
     ## Mean
     I_HHI_JK_MEDIAN_MEAN_1  = d_ffr_mean_1perc * MP_median_mean * hhi,
     I_HHI_JK_MEDIAN_MEAN_2  = d_ffr_mean_2perc * MP_median_mean* hhi,
