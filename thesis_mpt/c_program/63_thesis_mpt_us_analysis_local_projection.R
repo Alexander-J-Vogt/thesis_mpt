@@ -1,4 +1,4 @@
-# TARGET: Creating a Main dataset for all control variables from different sources
+# TARGET: Analysis with Local Projection
 # INDATA: banks_sod, pop_cnty, ur_cnty, qwi_earnings, controls_sod
 # OUTDATA/ OUTPUT: MAINNAME 
 
@@ -123,7 +123,7 @@ shock_specs_baseline_JK <- list(
   # Full Sample + JK SUM
   full_sample_hhi_ms_SUM = list(
     shock_var   = "I_HHI_JK_MEDIAN_SUM",
-    select_cols = c("fips", "year", endo, "hhi", "I_HHI_JK_MEDIAN_SUM",  controls),
+    select_cols = c("fips", "year", endo, "MP_median_sum",  "I_HHI_JK_MEDIAN_SUM",  controls),
     sample = df_hp_large
   ),
   full_sample_ms_SUM = list(
@@ -134,7 +134,7 @@ shock_specs_baseline_JK <- list(
   # High-Concentration Sample + JK SUM
   separate_sample_hhi_ms_high_SUM = list(
     shock_var   = "I_HHI_JK_MEDIAN_SUM",
-    select_cols = c("fips", "year", endo, "hhi", "I_HHI_JK_MEDIAN_SUM",controls),
+    select_cols = c("fips", "year", endo, "MP_median_sum",  "I_HHI_JK_MEDIAN_SUM",controls),
     sample = df_hp_large_highconc
     
   ),
@@ -146,7 +146,7 @@ shock_specs_baseline_JK <- list(
   # Low-Concentration Sample + JK SUM
   separate_sample_hhi_ms_low_SUM = list(
     shock_var   = "I_HHI_JK_MEDIAN_SUM",
-    select_cols = c("fips", "year", endo, "hhi", "I_HHI_JK_MEDIAN_SUM",controls),
+    select_cols = c("fips", "year", endo, "MP_median_sum",  "I_HHI_JK_MEDIAN_SUM",controls),
     sample = df_hp_large_lowconc
     
   ),
@@ -167,7 +167,7 @@ registerDoParallel(cl)
 # Run the LP_LIN_PANEL function in parallel for each specification
 results_baseline <- foreach(spec = shock_specs_baseline_JK,
                             .packages = c("dplyr", "lpirfs", "plm", "clusterSEs", "lmtest"),
-                            .export = c("df_hp_large", "LP_LIN_PANEL", "CREATE_PANEL_DATA", "PANEL_EFFECT", "CI", "HOR", "BITER", "endo")) %dopar% {
+                            .export = c("df_hp_large", "LP_LIN_PANEL", "CREATE_PANEL_DATA", "PANEL_EFFECT", "CI", "HOR", "endo")) %dopar% {
 
                             # Subset the data according to the current specification
                             df_subset <- spec$sample  |> 
@@ -194,7 +194,6 @@ results_baseline <- foreach(spec = shock_specs_baseline_JK,
                              lags_fd_exog_data = 1,
                              confint           = CI,
                              hor               = HOR,
-                             biter             = BITER,
                              p_selection_rule  = FALSE
                             )
                           }
@@ -212,14 +211,28 @@ gc()
 
 # Graph 1: Full Sample - Shock: MS x HHI [INCLUDED] ---------------------------+
 
+# Graph 1.1: Display IRF of Monetary Shock ------------------------------------+
 plot1_full_ms_hhi <- GG_IRF_ONE(data = results_baseline$full_sample_hhi_ms_SUM,
                                 hhi_coef = FALSE, 
-                                y_lower = -2, 
-                                y_upper = 2, 
-                                breaks = 1,
-                                title_name = "Full Sample",
+                                y_lower = -1, 
+                                y_upper = 1.5, 
+                                breaks = 0.5,
+                                title_name = expression("Full Sample: " *  beta[1]^h * " - coefficient"),
                                 time_name = "Years"
                                 )
+
+# Graph 1.2: Display MS [INCLUDED] --------------------------------------------+
+
+plot11_full_ms <- GG_IRF_VAR(data = results_baseline$full_sample_hhi_ms_SUM,
+                             var = "dMP_median_sum",
+                             y_lower = -1,
+                             y_upper = 1.5,
+                             breaks = .5,
+                             title_name = expression("Full Sample: " *  beta[0]^h * " - coefficient"),
+                             time_name = "Years",
+                             y_axis_name = expression(Y[t+h] - Y[t])
+                          )
+
 
 # Graph 2: Full Sample - Shock: MS [APPENDIX] ---------------------------------+
 
@@ -253,20 +266,45 @@ plot32_large_ms_hhi <- GG_IRF_ONE(data       = results_baseline$separate_sample_
                                  y_lower    = -2, 
                                  y_upper    = 2, 
                                  breaks     = 1,
-                                 title_name = "Sample: Large Market Concentration",
+                                 title_name = expression("High MC Sample: " * beta[1]^h * " - coefficient"),
                                  time_name  = "Years"
                                  )  
+
+# Graph 3.2.1: Display MS -------------------------------------------------------+
+
+plot321_full_ms <- GG_IRF_VAR(data = results_baseline$separate_sample_hhi_ms_high_SUM,
+                             var = "dMP_median_sum",
+                             y_lower = -1,
+                             y_upper = 1,
+                             breaks = .5,
+                             title_name = "Full Sample:",
+                             time_name = "Years",
+                             y_axis_name = expression(Y[t+h] - Y[t])
+)
+
 
 # Graph 3.3: Low Market Concentration  [INCLUDED] -----------------------------+
 
 plot33_low_ms_hhi <- GG_IRF_ONE(data     = results_baseline$separate_sample_hhi_ms_low_SUM,
                                  hhi_coef = FALSE, 
-                                 y_lower  = -6, 
+                                 y_lower  = -7, 
                                  y_upper  = 10, 
                                  breaks   = 2,
-                                 title_name = " Sample: Low Market Concentration",
+                                 title_name = expression("Low MC Sample: " * beta[1]^h * " - coefficient"),
                                  time_name  = "Years"
-                                )  
+                                )
+
+# Graph 3.3.1: Display MS -------------------------------------------------------+
+
+plot331_full_ms <- GG_IRF_VAR(data = results_baseline$separate_sample_hhi_ms_low_SUM,
+                              var = "dMP_median_sum",
+                              y_lower = -1,
+                              y_upper = 1,
+                              breaks = .5,
+                              title_name = "Full Sample:",
+                              time_name = "Years",
+                              y_axis_name = expression(Y[t+h] - Y[t])
+)
 
 # Graph 4: High vs Low Sample - Shock: MS [APPENDIX ] -------------------------+
 
@@ -285,17 +323,17 @@ plot4_separate_sample_ms <- GG_IRF_TWO(data1 = results_baseline$separate_sample_
 
 # PANEL A GRAPH ---------------------------------------------------------------+
 
-graph_baseline <- (plot1_full_ms_hhi$plot + plot32_large_ms_hhi$plot + plot33_low_ms_hhi$plot) +
-  plot_annotation(
-    title = "Panel A",
-    tag_levels = c("I", "II", "III"),
-    theme = theme(
-      plot.title = element_text(size = 14, hjust = 0),
-      plot.caption = element_text(size = 10, hjust = 0),
-      plot.tag.position = c(0.5, 1),
-      plot.tag = element_text(hjust = 0.5)
-      )
-  )
+graph_baseline <- (plot11_full_ms$plot + plot1_full_ms_hhi$plot) /
+                  (plot32_large_ms_hhi$plot + plot33_low_ms_hhi$plot) +
+                   plot_annotation(
+                     tag_levels = c("I", "II", "III", "IV"),
+                     theme = theme(
+                       plot.title = element_text(size = 14, hjust = 0),
+                       plot.caption = element_text(size = 10, hjust = 0),
+                       plot.tag.position = c(0.5, 1),
+                       plot.tag = element_text(hjust = 0.5)
+                       )
+                   )
 
 if (PRINT) {
 # Save
@@ -310,7 +348,6 @@ ggsave(
 
 graph_baseline_appendix <- (plot2_full_ms$plot + plot4_separate_sample_ms$plot) +
   plot_annotation(
-    title = "Appendix A",
     tag_levels = c("I", "II"),
     theme = theme(
       plot.title = element_text(size = 14, hjust = 0),
@@ -338,7 +375,7 @@ ggsave(
 shock_specs_zlb_indicator_JK <- list(
   full_sample_hhi_ms = list(
     shock_var   = "I_HHI_JK_MEDIAN_SUM_1",
-    select_cols = c("fips", "year", endo, "hhi", "I_HHI_JK_MEDIAN_SUM_1",  controls),
+    select_cols = c("fips", "year", endo, "I_JK_MEDIAN_SUM_1", "I_HHI_JK_MEDIAN_SUM_1",  controls),
     sample = df_hp_large
   ),
   full_sample_ms = list(
@@ -348,7 +385,7 @@ shock_specs_zlb_indicator_JK <- list(
   ),
   separate_sample_hhi_ms_high = list(
     shock_var   = "I_HHI_JK_MEDIAN_SUM_1",
-    select_cols = c("fips", "year", endo, "hhi", "I_HHI_JK_MEDIAN_SUM_1",controls),
+    select_cols = c("fips", "year", endo, "I_JK_MEDIAN_SUM_1", "I_HHI_JK_MEDIAN_SUM_1",controls),
     sample = df_hp_large_highconc
     
   ),
@@ -359,7 +396,7 @@ shock_specs_zlb_indicator_JK <- list(
   ),
   separate_sample_hhi_ms_low = list(
     shock_var   = "I_HHI_JK_MEDIAN_SUM_1",
-    select_cols = c("fips", "year", endo, "hhi", "I_HHI_JK_MEDIAN_SUM_1",controls),
+    select_cols = c("fips", "year", endo, "I_JK_MEDIAN_SUM_1", "I_HHI_JK_MEDIAN_SUM_1",controls),
     sample = df_hp_large_lowconc
     
   ),
@@ -380,7 +417,7 @@ registerDoParallel(cl)
 # Run the LP_LIN_PANEL function in parallel for each specification
 results_zlb_indicator <- foreach(spec = shock_specs_zlb_indicator_JK,
                             .packages = c("dplyr", "lpirfs", "plm", "clusterSEs", "lmtest"),
-                            .export = c("df_hp_large", "LP_LIN_PANEL", "CREATE_PANEL_DATA", "PANEL_EFFECT", "CI", "HOR", "BITER", "endo")) %dopar% {
+                            .export = c("df_hp_large", "LP_LIN_PANEL", "CREATE_PANEL_DATA", "PANEL_EFFECT", "CI", "HOR", "endo")) %dopar% {
                               
                               # Subset the data according to the current specification
                               df_subset <- spec$sample  |> 
@@ -406,8 +443,7 @@ results_zlb_indicator <- foreach(spec = shock_specs_zlb_indicator_JK,
                                 l_fd_exog_data    = colnames(df_subset)[c(4, 6:12)],
                                 lags_fd_exog_data = 1,
                                 confint           = CI,
-                                hor               = HOR,
-                                biter             = BITER
+                                hor               = HOR
                               )
                             }
 
@@ -424,14 +460,28 @@ gc()
 
 # Graph 5: Full Sample - Shock: MS x HHI x ZLB [INCLUDED] ---------------------+
 
+# Graph 5.1: MS x HHI x ZLB [INCLUDED] ----------------------------------------+
 plot5_full_ms_hhi <- GG_IRF_ONE(data = results_zlb_indicator$full_sample_hhi_ms,
                                 hhi_coef = FALSE, 
                                 y_lower = -2, 
                                 y_upper = 5, 
                                 breaks = 1,
-                                title_name = "Full Sample: Monetary Shock \u00D7 HHI \u00D7 ZLB",
+                                title_name = expression("Full Sample: " *  beta[1]^h * " - coefficient"),
                                 time_name = "Years"
                                 )
+# Graph 5.2:  MS x ZLB [INCLUDED] ---------------------------------------------+
+
+plot51_full_ms_zlb <- GG_IRF_VAR(data = results_zlb_indicator$full_sample_hhi_ms,
+                                 var = "dI_JK_MEDIAN_SUM_1",
+                                 y_lower = -2,
+                                 y_upper = 5,
+                                 breaks = 1,
+                                 title_name = expression("Full Sample: " *  beta[0]^h * " - coefficient"),
+                                 time_name = "Years",
+                                 y_axis_name = expression(Y[t+h] - Y[t])
+                                 )
+
+
 
 # Graph 6: Full Sample - Shock: MS x ZLB [APPENDIX] ---------------------------+
 
@@ -446,7 +496,7 @@ plot6_full_ms <- GG_IRF_ONE(data = results_zlb_indicator$full_sample_ms,
 
 # Graph 7: High vs Low Sample - Shock: MS x HHI x ZLB -------------------------+
 
-# Graph 7.1: Large and Low  Market Concentration [INCLUDED] -------------------+
+# Graph 7.1: Large and Low  Market Concentration [NOT INCLUDED] ---------------+
 
 plot71_separate_sample_ms_hhi <- GG_IRF_TWO(data1 = results_zlb_indicator$separate_sample_hhi_ms_high,
                                            data2 = results_zlb_indicator$separate_sample_hhi_ms_low,
@@ -466,7 +516,7 @@ plot72_separate_sample_ms_hhi <- GG_IRF_ONE(data = results_zlb_indicator$separat
                                  y_lower    = -2, 
                                  y_upper    = 5, 
                                  breaks     = 1,
-                                 title_name = "Sample: Large Market Concentration",
+                                 title_name = expression("High MC Sample: " * beta[1]^h * " - coefficient"),
                                  time_name  = "Years"
 )  
 
@@ -474,10 +524,10 @@ plot72_separate_sample_ms_hhi <- GG_IRF_ONE(data = results_zlb_indicator$separat
 
 plot73_separate_sample_ms_hhi <- GG_IRF_ONE(data = results_zlb_indicator$separate_sample_hhi_ms_low,
                                hhi_coef = FALSE, 
-                               y_lower  = -4, 
-                               y_upper  = 24, 
+                               y_lower  = -8, 
+                               y_upper  = 12, 
                                breaks   = 2,
-                               title_name = " Sample: Low Market Concentration",
+                               title_name = expression("Low MC Sample: " * beta[1]^h * " - coefficient"),
                                time_name  = "Years"
 )  
 
@@ -498,15 +548,15 @@ plot8_separate_sample_ms <- GG_IRF_TWO(data1 =  results_zlb_indicator$separate_s
 
 # PANEL B GRAPH ---------------------------------------------------------------+
 
-graph_ZLB_indicator <- (plot5_full_ms_hhi$plot + plot72_separate_sample_ms_hhi$plot + plot73_separate_sample_ms_hhi$plot) +
-  plot_annotation(
-    title = "Panel B",
-    tag_levels = c("I", "II", "III"),
-    theme = theme(
-      plot.title = element_text(size = 14, hjust = 0),
-      plot.caption = element_text(size = 10, hjust = 0)
-    )
-  )
+graph_ZLB_indicator <- (plot51_full_ms_zlb$plot +plot5_full_ms_hhi$plot) /
+                       (plot72_separate_sample_ms_hhi$plot + plot73_separate_sample_ms_hhi$plot) +
+                       plot_annotation(
+                         tag_levels = c("I", "II", "III", "IV"),
+                         theme = theme(
+                           plot.title = element_text(size = 14, hjust = 0),
+                           plot.caption = element_text(size = 10, hjust = 0)
+                         )
+                       )
 
 if (PRINT) {
 # Save
@@ -521,7 +571,6 @@ ggsave(
 
 graph_ZLB_indicator_withhoutHHI <- (plot6_full_ms$plot + plot8_separate_sample_ms$plot) +
   plot_annotation(
-    title = "Appendix B",
     tag_levels = c("I", "II"),
     theme = theme(
       plot.title = element_text(size = 14, hjust = 0),
@@ -550,7 +599,7 @@ ggsave(
 shock_specs_zlb_sample_JK <- list(
   full_sample_hhi_ms = list(
     shock_var   = "I_HHI_JK_MEDIAN_SUM",
-    select_cols = c("fips", "year", endo, "hhi", "I_HHI_JK_MEDIAN_SUM",  controls),
+    select_cols = c("fips", "year", endo, "MP_median_sum", "I_HHI_JK_MEDIAN_SUM",  controls),
     sample = df_hp_large,
     sample_period = zlb_year
   ),
@@ -562,7 +611,7 @@ shock_specs_zlb_sample_JK <- list(
   ),
   separate_sample_hhi_ms_high = list(
     shock_var   = "I_HHI_JK_MEDIAN_SUM",
-    select_cols = c("fips", "year", endo, "hhi", "I_HHI_JK_MEDIAN_SUM",controls),
+    select_cols = c("fips", "year", endo, "MP_median_sum", "I_HHI_JK_MEDIAN_SUM",controls),
     sample = df_hp_large_highconc,
     sample_period = zlb_year
     
@@ -575,7 +624,7 @@ shock_specs_zlb_sample_JK <- list(
   ),
   separate_sample_hhi_ms_low = list(
     shock_var   = "I_HHI_JK_MEDIAN_SUM",
-    select_cols = c("fips", "year", endo, "hhi", "I_HHI_JK_MEDIAN_SUM",controls),
+    select_cols = c("fips", "year", endo, "MP_median_sum", "I_HHI_JK_MEDIAN_SUM",controls),
     sample = df_hp_large_lowconc,
     sample_period = zlb_year
     
@@ -626,8 +675,7 @@ results_zlb_sample <- foreach(spec = shock_specs_zlb_sample_JK,
                                 l_fd_exog_data    = colnames(df_subset)[c(4, 6:12)],
                                 lags_fd_exog_data = 1,
                                 confint           = CI,
-                                hor               = HOR,
-                                biter             = BITER
+                                hor               = HOR
                               )
                             }
 
@@ -644,14 +692,27 @@ gc()
 
 # Graph 9: Subsample - Shock: MS x HHI [INCLUDED] -----------------------------+
 
+# Graph 9.1:  MS x HHI --------------------------------------------------------+
 plot9_full_ms_hhi <- GG_IRF_ONE(data = results_zlb_sample$full_sample_hhi_ms,
                                 hhi_coef = FALSE, 
                                 y_lower = -1.5, 
                                 y_upper = 2.5, 
                                 breaks = .5,
-                                title_name = "Full Sample",
+                                title_name = expression("Full Sample: " *  beta[1]^h * " - coefficient"),
                                 time_name = "Years"
                                 )
+
+# Graph 9.2:  MS  [INCLUDED] --------------------------------------------------+
+plot91_full_ms <- GG_IRF_VAR(data = results_zlb_sample$full_sample_hhi_ms,
+                             var = "dMP_median_sum",
+                             y_lower = -1.5,
+                             y_upper = 2.5,
+                             breaks = .5,
+                             title_name = expression("Full Sample: " *  beta[0]^h * " - coefficient"),
+                             time_name = "Years",
+                             y_axis_name = expression(Y[t+h] - Y[t])
+                             )
+
 
 # Graph 10: Subample - Shock: MS [APPENDIX] -----------------------------------+
 
@@ -687,7 +748,7 @@ plot112_separate_sample_ms_hhi <- GG_IRF_ONE(data = results_zlb_sample$separate_
                                             y_lower    = -1.5, 
                                             y_upper    = 2.5, 
                                             breaks     = .5,
-                                            title_name = "Sample: Large Market Concentration",
+                                            title_name = expression("High MC Sample: " * beta[1]^h * " - coefficient"),
                                             time_name  = "Years"
                                             )  
 
@@ -698,7 +759,7 @@ plot113_separate_sample_ms_hhi <- GG_IRF_ONE(data = results_zlb_sample$separate_
                                             y_lower  = -8, 
                                             y_upper  = 8, 
                                             breaks   = 1,
-                                            title_name = "Sample: Low Market Concentration",
+                                            title_name = expression("Small MC Sample: " * beta[0]^h * " - coefficient"),
                                             time_name  = "Years"
                                             )  
 
@@ -720,10 +781,10 @@ plot12_separate_sample_ms <- GG_IRF_TWO(data1 =  results_zlb_sample$separate_sam
 
 # PANEL C GRAPH ---------------------------------------------------------------+
 
-graph_ZLB_sample <- (plot9_full_ms_hhi$plot + plot112_separate_sample_ms_hhi$plot + plot113_separate_sample_ms_hhi$plot) +
+graph_ZLB_sample <- (plot91_full_ms$plot + plot9_full_ms_hhi$plot) /
+                    (plot112_separate_sample_ms_hhi$plot + plot113_separate_sample_ms_hhi$plot) +
   plot_annotation(
-    title = "Panel C",
-    tag_levels = c("I", "II", "III"),
+    tag_levels = c("I", "II", "III", "IV"),
     theme = theme(
       plot.title = element_text(size = 14, hjust = 0),
       plot.caption = element_text(size = 10, hjust = 0)
@@ -740,11 +801,10 @@ ggsave(
 }
 
 
-# APPENDIX - Exlcude HHI from Specification -----------------------------------+
+# APPENDIX - Exclude HHI from Specification -----------------------------------+
 
 graph_ZLB_sample_withoutHHI <- (plot10_full_ms$plot + plot12_separate_sample_ms$plot) +
   plot_annotation(
-    title = "Appendix C",
     tag_levels = c("I", "II"),
     theme = theme(
       plot.title = element_text(size = 14, hjust = 0),
