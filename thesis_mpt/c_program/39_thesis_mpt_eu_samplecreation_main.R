@@ -1,4 +1,4 @@
-# TARGET: 
+# TARGET: Create Main Sample
 # INDATA: 
 # OUTDATA/ OUTPUT:  
 
@@ -55,14 +55,12 @@ df_main <- df_main |>
     lending_rate_total_deci = lending_rate_total / 100,
     lending_rate_1year_deci = lending_rate_1year / 100,
     lending_rate_5year_deci = lending_rate_5year / 100, 
-    reer_deci = reer / 100,
-    ur_deci = ur / 100,
     
-    # # Log variables
-    # log_cr = log(cr_outst_amount_EUR),
-    # log_tl = log(tl_outst_amount_EUR),
-    # log_dl = log(dl_outst_amount_EUR),
-    # log_hp_total_amount =  log(hp_outst_amount_EUR)
+    # Log
+    log_hp_total_amount =  log(hp_outst_amount_EUR),
+    
+    # Intermediation margin
+    int_margin = lending_rate_total - deposit_rate
     ) 
 
 
@@ -72,18 +70,6 @@ df_main <- df_main |>
 SAVE(df_main, paste0(MAINNAME, "_m"))
 
 
-# 05. Annual dataset =========================================================== 
-
-# Collapse data to annual data by taking the mean over a month
-df_main_a <- df_main |> 
-  dplyr::select(-c("month")) |> 
-  group_by(country, year) |> 
-  summarise(across(everything(), \(x) mean(x, na.rm = TRUE)), .groups = "drop")
-
-# 06. Save =====================================================================
-
-# Save annual dataset
-SAVE(dfx = df_main_a, paste0(MAINNAME, "_a"))
 
 ###############################################################################+
 ################################# ENDE ########################################+
