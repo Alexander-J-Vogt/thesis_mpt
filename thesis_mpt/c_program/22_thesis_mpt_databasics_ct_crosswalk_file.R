@@ -1,4 +1,4 @@
-# TARGET: Download Call Reports from FFIEC & Perform Basic Data Cleaning
+# TARGET: Crosswalk Files for the Conneticute - Signifcant Changes in the FIPS Borders
 # INDATA: banks_sod, pop_cnty, ur_cnty, qwi_earnings, controls_sod
 # OUTDATA/ OUTPUT: MAINNAME 
 
