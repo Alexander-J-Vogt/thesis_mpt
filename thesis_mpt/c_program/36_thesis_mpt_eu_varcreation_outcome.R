@@ -1,5 +1,5 @@
-# TARGET: Download Call Reports from FFIEC & Perform Basic Data Cleaning
-# INDATA: banks_sod, pop_cnty, ur_cnty, qwi_earnings, controls_sod
+# TARGET: Varcreation for Outcome Variable
+# INDATA: 
 # OUTDATA/ OUTPUT: MAINNAME 
 
 ################################################################################################################+
@@ -134,14 +134,7 @@ ggplot(df_combined_total, aes(x = month, y = interest_rate_total, color = countr
        y = "Interest Rate") +
   theme_minimal()
 
-# 04. Format Variables =========================================================
-
-# # Get into decimal format
-# df_main <- df_outcome |> 
-#   mutate(across(4:6, ~ { . / 100 } ))
-  
-
-# 05. Save =====================================================================
+# 35. Save =====================================================================
 
 SAVE(dfx = df_outcome)
 
