@@ -1,6 +1,6 @@
-# TARGET: Creating a Main dataset for all control variables from different sources
-# INDATA: banks_sod, pop_cnty, ur_cnty, qwi_earnings, controls_sod
-# OUTDATA/ OUTPUT: MAINNAME 
+# TARGET: Creating FIGURES
+# INDATA: 
+# OUTDATA/ OUTPUT:  
 
 ################################################################################################################+
 # INTRO	script-specific ####
@@ -627,3 +627,4 @@ stargazer(df_descriptive_stats,
           )
 
 
+############################# END #############################################+
