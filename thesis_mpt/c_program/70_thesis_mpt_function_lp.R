@@ -23,66 +23,6 @@ gc()
 # MAIN PART ####
 
 
-# Test Data ----
-
-library(lpirfs)
-# library(TS)
-library(urca)
-library(panelvar)
-library(CADFtest)
-library(pcse)
-
-# DEBUGGING ?
-DEBUG <- F
-
-if (DEBUG) {
-# 1. Import Datasets ===========================================================
-
-# Load: Home Purchase for large sample
-df_hp_depository_large <- LOAD("29_thesis_mpt_us_samplecreation_main_hp_large")
-
-# Load: Refinancing for large sample
-df_ref_depository_large <- LOAD("29_thesis_mpt_us_samplecreation_main_ref_large")
-
-# # Load: Home Purchase for small sample
-# df_hp_depository_small <- LOAD("29_thesis_mpt_us_samplecreation_main_hp_small")
-# 
-# # Load: Refinancing for small sample
-# df_ref_depository_small <- LOAD("29_thesis_mpt_us_samplecreation_main_ref_small")
-
-
-# 2. Time Series ===============================================================
-
-# 2.1 Home Purchase Large Sample -----------------------------------------------
-
-df_hp_large <- df_hp_depository_large |> 
-  # filter(cnty_pop.x > 65000) |>
-  # Adjust Values of the function
-  mutate( 
-    log_median_household_income = log(median_household_income),
-    poverty_percent_all_ages = poverty_percent_all_ages / 100,
-    hpi_annual_change_perc = hpi_annual_change_perc / 100,
-    inflation_us = inflation_us / 100,
-    gdp_growth_us = gdp_growth_us / 100,
-    ur_county = ur_county / 100
-  ) 
-# |> 
-#   # Interaction Terms
-#   mutate(
-#     I_HHI_ZLB2_NS = d_ffr_mean_2perc * hhi * NS_target,
-#     I_HHI_ZLB1_NS = d_ffr_mean_1perc * hhi * NS_target,
-#     I_HHI_NS = hhi * NS_target,
-#     I_hhi_2perc = d_ffr_mean_2perc * hhi,
-#     I_hhi_NS = hhi * NS_target,
-#     I_2perc_NS = d_ffr_mean_2perc * NS_target
-#   )
-
-
-df_hp_large_lp <- df_hp_large |> 
-  # filter(d_hhi_indicator) |> 
-  dplyr::select("fips", "year", "log_loan_amount", "hhi", "NS_total", "ur_county", 
-                "log_median_household_income", "hpi_annual_change_perc", "inflation_us", "gdp_growth_us")
-}
 # 01. LP_LIN_PANEL Function ----------------------------------------------------
 
 #' The LP_LIN_PANEL function is based on the lpirfs package from Adämmer (2019) 
@@ -121,35 +61,7 @@ LP_LIN_PANEL <- function(
     p_selection_rule  = FALSE # Needed in Combination for tLAHR if the lags of for variables are determined by the p_selection_rule
     ) {  # Number of horizons
 
-  DEBUG <- F
-  if (DEBUG) {
-  data_set <- df_subset
-  data_sample <- "Full"
-  endog_data <- "lending_rate_total"
-  cumul_mult <-  TRUE
-  shock <-  "I_HHI_J_TOTAL_demeaned"
-  diff_shock <-  TRUE
-  panel_model <-  "within"
-  panel_effect <-  "individual"
-  robust_cov <-  "tLAHR"
-  robust_method <- NULL
-  robust_type <- NULL
-  robust_cluster <- "time"
-  c_exog_data <-  colnames(df_subset)[c(4, 6:30)]
-  l_exog_data <-  colnames(df_subset)[c(4, 6:19)] 
-  c_fd_exog_data <- NULL #colnames(df_hp_large_lp)[c(4, 6:10)]
-  l_fd_exog_data <- NULL #colnames(df_hp_large_lp)[c(4, 6:10)]
-  lags_exog_data <-  6
-  lags_fd_exog_data <- NULL
-  confint <- 1.96
-  hor <- 12
-  biter <- 10
-  lags_shock <- 6
-  lags_endog_data <- 6
-  p_selection_rule <- FALSE
-  }
-  
-  
+
   ## Check Data on compatability ---
   
   # Check if dataset is provided
@@ -422,40 +334,6 @@ LP_LIN_PANEL <- function(
 
 CREATE_PANEL_DATA <- function(specs, data_set){
 
-  
-  DEBUG <- F
-  if (DEBUG) {
-    specs <- list()
-    data_set <- df_hp_large_lp
-    data_set <- data_set |> rename(cross_id = fips, date_id = year)
-    specs$data_sample <- "Full"
-    specs$endog_data <- "log_loan_amount"
-    specs$lags_endog_data <- 2
-    specs$cumul_mult <-  TRUE
-    specs$shock <-  "NS_total"
-    specs$diff_shock <- TRUE
-    specs$lags_shock <- 2
-    specs$panel_model <-  "within"
-    specs$panel_effect <-  "individual"
-    specs$robust_cov <-  "tLAHR"
-    specs$robust_method <- NULL
-    specs$robust_type <- NULL
-    specs$robust_cluster <- "time"
-    specs$c_exog_data <- colnames(df_hp_large_lp)[c(4, 6:10)]
-    specs$l_exog_data <-  colnames(df_hp_large_lp)[c(4:10)] 
-    specs$c_fd_exog_data <- NULL #colnames(df_hp_large_lp)[c(4, 6:10)]
-    specs$l_fd_exog_data <- NULL #colnames(df_hp_large_lp)[c(4, 6:10)]
-    specs$lags_exog_data <-  2
-    specs$lags_fd_exog_data <- NULL
-    specs$confint <- 1.65
-    specs$hor <- 2
-    specs$biter <- 10
-    specs$exog_data           <- colnames(data_set)[which(!colnames(data_set) %in%
-                                                            c("cross_id", "date_id"))]
-    specs$p_selection_rule <- FALSE
-    # specs$tLAHR <- TRUE
-    # specs$l_endog_data <- 1
-  }
   
   #############################################################################+
   # Function ---
@@ -837,176 +715,7 @@ CREATE_PANEL_DATA <- function(specs, data_set){
   return(list(x_reg_data = x_reg_data, y_data = y_data, specs = specs))
 }
 
-
-
-
-
-
-
-### TEST GROUND #### -----------------------------------------------------------
-
-if (DEBUG) {
-
-df_hp_large_lp <- df_hp_large |> 
-  # filter(d_hhi_indicator) |> 
-  dplyr::select("fips", "year", "log_loan_amount", "hhi", "I_HHI_NS_TOTAL_2", "ur", 
-                "log_median_household_income", "hpi_annual_change_perc", "inflation_us", "gdp_growth_us")
-
-
-WCD <- LP_LIN_PANEL(
-  data_set          = df_hp_large_lp,  # Panel dataset
-  data_sample       = "Full",  # Use full sample or subset
-  lags_endog_data   = 2,
-  endog_data        = "log_loan_amount",  # Endogenous variable
-  cumul_mult        = TRUE,  # Estimate cumulative multipliers?
-  shock             = "I_HHI_ZLB2_NS",  # Shock variable
-  lags_shock        = 2,
-  diff_shock        = TRUE,  # First difference of shock variable
-  panel_model       = "within",  # Panel model type
-  panel_effect      = "twoways",  # Panel effect type
-  robust_cov        = "wild.cluster.boot",  # Robust covariance estimation method
-  robust_cluster    = "time",
-  c_exog_data       = NULL,  # Contemporaneous exogenous variables
-  l_exog_data       = NULL,  # Lagged exogenous variables
-  lags_exog_data    = NULL,  # Lag length for exogenous variables
-  c_fd_exog_data    = colnames(df_hp_large_lp)[c(4, 6:10)],  # First-difference contemporaneous exogenous variables
-  l_fd_exog_data    = colnames(df_hp_large_lp)[c(6:10)],  # First-difference lagged exogenous variables
-  lags_fd_exog_data = 2,  # Lag length for first-difference exogenous variables
-  confint           = 1.96,  # Confidence interval width
-  hor               = 1,
-  biter             = 10
-)
-
-
-
-
-# plot(test)
-
-
-#### COMPARISON ####
-
-## 3.1 FULL SAMPLE - Log Loan Amount -------------------------------------------
-
-df_hp_large_lp <- pdata.frame(df_hp_large_lp, index = c("fips", "year"))
-
-results_lpirf <- lpirfs::lp_lin_panel(
-  data_set = df_hp_large_lp,
-  data_sample = "Full",
-  endog_data = "log_loan_amount",
-  cumul_mult = TRUE,
-  shock = "I_HHI_NS_TOTAL_2",
-  diff_shock = TRUE,
-  panel_model = "within",
-  panel_effect = "twoways",
-  robust_cov = "vcovSCC",
-  robust_cluster = "time",
-  c_fd_exog_data = colnames(df_hp_large_lp)[c(4, 6:10)],
-  l_fd_exog_data = colnames(df_hp_large_lp)[c(4:10)],
-  lags_fd_exog_data = 1,
-  confint = 1.96,
-  hor = 6
-)
-
-
-
-plot(results)
-
-
-
-
-# TRY tLAHR --------------------------------------------------------------------
-
-tlahr <- LP_LIN_PANEL(
-  data_set          = df_hp_large_lp,  # Panel dataset
-  data_sample       = "Full",  # Use full sample or subset
-  endog_data        = "log_loan_amount",  # Endogenous variable
-  cumul_mult        = TRUE,  # Estimate cumulative multipliers?
-  shock             = "I_HHI_NS_TOTAL_2",  # Shock variable
-  diff_shock        = TRUE,  # First difference of shock variable
-  panel_model       = "within",  # Panel model type
-  panel_effect      = "twoways",  # Panel effect type
-  robust_cov        = "tLAHR",  # Robust covariance estimation method, automatically 
-  robust_cluster    = "time",
-  c_exog_data       = NULL,  # Contemporaneous exogenous variables
-  l_exog_data       = NULL,  # Lagged exogenous variables
-  lags_exog_data    = NULL,  # Lag length for exogenous variables
-  c_fd_exog_data    = colnames(df_hp_large_lp)[c(4, 6:10)],  # First-difference contemporaneous exogenous variables
-  l_fd_exog_data    = colnames(df_hp_large_lp)[c(4, 6:10)],  # First-difference lagged exogenous variables
-  lags_fd_exog_data = 2,  # Lag length for first-difference exogenous variables
-  confint           = 1.96,  # Confidence interval width
-  hor               = 6
-)
-
-DK <- LP_LIN_PANEL(
-  data_set          = df_hp_large_lp,  # Panel dataset
-  data_sample       = "Full",  # Use full sample or subset
-  endog_data        = "log_loan_amount",  # Endogenous variable
-  cumul_mult        = TRUE,  # Estimate cumulative multipliers?
-  shock             = "I_HHI_NS_TOTAL_2",  # Shock variable
-  diff_shock        = TRUE,  # First difference of shock variable
-  panel_model       = "within",  # Panel model type
-  panel_effect      = "twoways",  # Panel effect type
-  robust_cov        = "vcovSCC",  # Robust covariance estimation method, automatically 
-  robust_cluster    = "time",
-  c_exog_data       = NULL,  # Contemporaneous exogenous variables
-  l_exog_data       = NULL,  # Lagged exogenous variables
-  lags_exog_data    = NULL,  # Lag length for exogenous variables
-  c_fd_exog_data    = colnames(df_hp_large_lp)[c(4, 6:10)],  # First-difference contemporaneous exogenous variables
-  l_fd_exog_data    = colnames(df_hp_large_lp)[c(4, 6:10)],  # First-difference lagged exogenous variables
-  lags_fd_exog_data = 2,  # Lag length for first-difference exogenous variables
-  confint           = 1.96,  # Confidence interval width
-  hor               = 6
-)
-
-
-# WCD$reg_outputs
-
-# PLOT -------------------------------------------------------------------------
-
-library(ggplot2)
-library(dplyr)
-
-# Convert both datasets into a long format with a 'group' variable
-df_irf <- bind_rows(
-  data.frame(
-    time = seq_along(WCD$irf_panel_mean),
-    lp = t(unlist(WCD$irf_panel_mean)),
-    lower = t(unlist(WCD$irf_panel_low)),
-    upper = t(unlist(WCD$irf_panel_up)),
-    group = "Wild Cluster Boots"
-  ),
-  data.frame(
-    time = seq_along(DK$irf_panel_mean),
-    lp = t(unlist(DK$irf_panel_mean)),
-    lower = t(unlist(DK$irf_panel_low)),
-    upper = t(unlist(DK$irf_panel_up)),
-    group = "DK98"
-  ),
-  data.frame(
-    time = seq_along(tlahr$irf_panel_mean),
-    lp = t(unlist(tlahr$irf_panel_mean)),
-    lower = t(unlist(tlahr$irf_panel_low)),
-    upper = t(unlist(tlahr$irf_panel_up)),
-    group = "tLAHR"
-  )
-)
-
-# Plot with ggplot
-ggplot(df_irf, aes(x = time, y = lp, color = group)) +
-  geom_line(size = 1) +  # Mean response for both groups
-  geom_ribbon(aes(ymin = lower, ymax = upper, fill = group), alpha = 0.2, color = NA) +  # Confidence interval
-  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +  # Zero line
-  labs(title = "Local Projection Impulse Response Comparison",
-       x = "Time Horizon",
-       y = "Impulse Response",
-       color = "Model",
-       fill = "Model") +
-  theme_classic()
-
-}
-
 # GGPLOT for One Estimate -----------------------------------------------------
-
 
 GG_IRF_ONE <- function(data, 
                        hhi_coef = FALSE, 
@@ -1200,12 +909,6 @@ GG_IRF_TWO <- function(data1, # DF1
 
 
 
-# two_graphs <- GG_IRF_TWO(data1 = tlahr,
-#            data2 = DK,
-#            data_name = c("tLAHR", "DK")
-# 
-#            )
-
 ## Dynamicall GGPLOT for more than two datasets --------------------------------
 
 GG_IRF_DYNAMIC <- function(data_list,  # List of datasets
@@ -1291,18 +994,6 @@ GG_IRF_DYNAMIC <- function(data_list,  # List of datasets
   return(list(plot = plot, df = df_main))
 }
 
-
-if (DEBUG) {
-results_list <- list(tlahr, WCD)
-
-test2 <- dynamic_graphs <- GG_IRF_DYNAMIC(
-           data_list =   results_list,
-           data_name = c("tLAHR", "WCD")
-
-           )
-test2$plot
-
-}
 
 # Extract Specific Variable from LP function ===================================
 
